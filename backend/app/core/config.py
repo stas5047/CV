@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     allow_public_registration: bool = Field(default=True, alias="ALLOW_PUBLIC_REGISTRATION")
     storage_root: str = Field(default="/app/storage", alias="STORAGE_ROOT")
     models_root: str = Field(default="/app/storage/models", alias="MODELS_ROOT")
+    active_model_id: str | None = Field(default=None, alias="ACTIVE_MODEL_ID")
     backend_cors_origins: Annotated[list[str], NoDecode] = Field(alias="BACKEND_CORS_ORIGINS")
     max_image_size_mb: int = Field(default=20, alias="MAX_IMAGE_SIZE_MB")
     max_video_size_mb: int = Field(default=500, alias="MAX_VIDEO_SIZE_MB")
@@ -55,6 +56,7 @@ class Settings(BaseSettings):
             f"allow_public_registration={self.allow_public_registration!r}, "
             f"storage_root={self.storage_root!r}, "
             f"models_root={self.models_root!r}, "
+            f"active_model_id={self.active_model_id!r}, "
             f"backend_cors_origins={self.backend_cors_origins!r}, "
             f"max_image_size_mb={self.max_image_size_mb!r}, "
             f"max_video_size_mb={self.max_video_size_mb!r}, "

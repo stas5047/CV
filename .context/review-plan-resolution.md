@@ -1,43 +1,35 @@
-# Phase 8 Planning Review Resolution
+# Phase 9 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude planning review found no blocking issues. Accepted items are applied to the Phase 8 `.context/` contract only. No source code changed.
+Claude planning review found no blocking issues. Accepted changes are applied to the Phase 9 `.context/` implementation contract only. No source code changed.
 
 ## Resolution table
 
 | Review item | Resolution | Rationale | Contract update |
 |---|---|---|---|
-| Important 1: inactive-user access not tested for model endpoints | accepted | `docs/AUTH_SECURITY.md` requires inactive users to be blocked from protected API routes; model endpoints are protected in `docs/API.md`. | Added inactive-user model endpoint tests to `.context/design.md` and `.context/plan.md`. |
-| Important 2: `weights_path` accepted/storage form ambiguous | accepted | `docs/DATA_MODEL.md` says first implementation registers existing relative paths under `STORAGE_ROOT/models`; current schema tests already use `models/...`. | Chose canonical `weights_path` form `models/.../weights.pt`, relative to `STORAGE_ROOT`, with resolved-file check under `MODELS_ROOT`. Updated `.context/research.md`, `.context/design.md`, `.context/plan.md`. |
-| Important 3: YOLO11 fallback test too weak | accepted | Docs require YOLO11 to be represented as documented fallback and actual model family recorded. Product docs do not define a required fallback-evidence field for Phase 8. | Added contract to store/report `model_family = YOLO11` accurately and preserve supplied fallback metadata; no invented mandatory field. Updated `.context/research.md`, `.context/design.md`, `.context/plan.md`. |
-| Optional 1: list-response shape test for pagination/filter parameters | rejected | `docs/API.md` recommends filters/pagination but does not define exact Phase 8 shape. Existing plan already allows practical filters. Adding mandatory pagination shape would expand contract beyond current docs. | No change. |
-| Optional 2: explicit response assertion for no absolute storage/model root | duplicate | Existing plan already requires no absolute path in response body. | No new change beyond existing test contract. |
-| Question 1: store `weights_path` relative to `STORAGE_ROOT` or `MODELS_ROOT` | accepted | Resolved without user decision from `docs/DATA_MODEL.md` first-implementation wording and existing tests. | Canonical API/db value is `models/<model>/weights.pt`, relative to `STORAGE_ROOT`; service verifies file is inside `MODELS_ROOT`. |
-| Question 2: require specific YOLO11 fallback metadata field or store/report actual family only | accepted | Requiring a new specific field would invent API behavior absent from product docs. | Phase 8 stores/reports `model_family = YOLO11` and preserves supplied fallback metadata, but does not require a new field. |
+| Important 1: tracker validation is not media-type-specific | accepted | `docs/API.md` and `docs/CV_PIPELINE.md` make `tracker_type` user-configurable for video. `docs/AUTH_SECURITY.md` requires tracker type be allowed for the media type. | Updated `.context/research.md`, `.context/design.md`, and `.context/plan.md` to reject client-supplied `tracker_type` for image media and test video-only tracker selection. |
+| Optional 1: response-shape assertion for no filesystem path-looking fields | accepted | Phase 9 create response does not need result/download paths, and `docs/API.md` forbids unsafe absolute paths. | Updated `.context/design.md` and `.context/plan.md` to exclude result/export path fields from create response and assert response path safety. |
+| Optional 2: make inactive-model policy explicit | accepted | `docs/CV_PIPELINE.md` prioritizes job-specific model selection, and docs use `is_active` for default selection. `docs/TESTING_QA.md` allows inactive selection when intended by API policy. | Updated `.context/research.md`, `.context/design.md`, and `.context/plan.md` to state explicit inactive registered model selection is intended Phase 9 API policy and must be tested. |
+| Question 1: image `tracker_type` behavior | accepted | Resolved from product docs: tracker selection is user-facing for video only; image jobs must not behave like tracked video jobs. | Chosen behavior: reject any client-supplied `tracker_type` for image media. |
+| Question 2: explicit inactive model selection | accepted | Resolved from product docs: explicit job-specific model selection is separate from active default model selection. | Chosen behavior: allow explicit selection of any existing registered model, including inactive registered models. |
 
 ## Accepted changes applied
 
-- Added inactive-account coverage requirement for model endpoints.
-- Fixed `weights_path` contract:
-  - API/db value: `models/.../weights.pt`;
-  - relative to `STORAGE_ROOT`;
-  - resolved file must be under `MODELS_ROOT`;
-  - absolute, traversal, outside-model-root, empty, and missing paths rejected.
-- Strengthened YOLO11 fallback contract:
-  - response must show `model_family = YOLO11`;
-  - supplied fallback documentation metadata must be preserved;
-  - Phase 8 does not invent new required metadata fields.
+- Image media requests with client-supplied `tracker_type` are rejected.
+- Video media may omit `tracker_type` and receive default `bytetrack`.
+- Unknown or unsupported tracker values are rejected.
+- Phase 9 create response excludes result/export path fields and must not expose absolute paths or path-like result fields.
+- Explicit `model_version_id` may select an inactive registered model version by intended Phase 9 API policy.
+- Tests must cover media-type-aware tracker validation, response path safety, and explicit inactive model selection.
 
 ## Rejected items
 
-- Mandatory pagination/list-response shape test for Phase 8 model list.
-  - Reason: recommended by API docs, but exact response shape is not specified and would broaden this phase. Filters remain allowed when practical.
+- None.
 
 ## Duplicate items
 
-- Explicit no-absolute-path response assertion.
-  - Already present in `.context/plan.md` test list and `.context/design.md` security/test strategy.
+- None.
 
 ## Items needing user decision
 
@@ -45,8 +37,8 @@ Claude planning review found no blocking issues. Accepted items are applied to t
 
 ## Final contract status
 
-- `.context/research.md`: updated for canonical model path and YOLO11 fallback handling.
-- `.context/design.md`: updated for path root, inactive-user tests, YOLO11 metadata preservation, and resolved ambiguity.
-- `.context/plan.md`: updated with concrete accepted test/implementation requirements.
-- Final Phase 8 implementation contract remains backend model registry API only.
+- `.context/research.md`: updated for media-type-aware tracker policy and explicit inactive-model policy.
+- `.context/design.md`: updated for image tracker rejection, response path-field exclusion, and inactive-model policy.
+- `.context/plan.md`: updated with concrete test and implementation requirements for accepted items.
+- Final Phase 9 implementation contract remains scoped to `POST /api/jobs` and backend model-selection resolution only.
 - Verdict: READY_FOR_IMPLEMENTATION.

@@ -1,49 +1,51 @@
-# Phase 8 Status - Model Registry Backend API
+# Phase 9 Status - Job Creation API and Model Selection Resolution
 
 ## Implementation
 
-- Phase implemented: `Phase 8 - Model registry backend API`.
-- Scope kept to backend model list/detail/register/activate API, admin-only mutations, active-user access, relative weights path validation, active-model uniqueness, tests, and backend index update.
-- Later phases not implemented: jobs, results/downloads, experiment API, frontend model page, CV worker model loading, training utilities, model weight upload.
+- Phase implemented: `Phase 9 - Job creation API and model selection resolution`.
+- Scope kept to backend `POST /api/jobs`, active-user authentication, own-media validation, soft-deleted media rejection, processing parameter defaults/validation, model selection priority, queued job persistence, tests, and backend index update.
+- Later phases not implemented: job list/detail/cancel endpoints, result/download APIs, CV worker queue polling/claiming, media processing, detections/tracks/exports, frontend upload/job UI, experiments/admin APIs.
 
 ## Files Changed By Codex
 
 - `backend/app/api/router.py`
-- `backend/app/api/models.py`
-- `backend/app/schemas/models.py`
-- `backend/app/services/models.py`
-- `backend/tests/test_models_api.py`
+- `backend/app/api/jobs.py`
+- `backend/app/core/config.py`
+- `backend/app/schemas/jobs.py`
+- `backend/app/services/jobs.py`
+- `backend/tests/test_jobs_api.py`
+- `backend/tests/test_settings.py`
 - `backend/index.md`
 - `.context/status.md`
 
 ## Quality Gates
 
-- `cd backend; python -m pytest tests/test_models_api.py` - PASS, 15 passed.
+- `cd backend; python -m pytest tests/test_jobs_api.py` - PASS, 19 passed.
+- `cd backend; python -m pytest tests/test_media_api.py tests/test_models_api.py tests/test_auth.py tests/test_settings.py` - PASS, 48 passed.
 - `cd backend; python -m ruff check .` - PASS.
-- `cd backend; python -m pytest tests/test_data_model.py tests/test_security_utils.py tests/test_auth.py` - PASS, 57 passed.
 
 ## Code Review Resolution
 
 - `.context/review-code-resolution.md` updated.
 - `.context/review-code-openai.md` verdict: APPROVED; no critical, important, or optional issues.
-- `.context/review-code-claude.md` exists but is empty; no issues to resolve.
+- `.context/review-code-claude.md` is absent or empty; no issues to resolve.
 - No accepted source fixes were required after code review.
 - Final verification reran after resolution update and passed:
+  - `cd backend; python -m pytest tests/test_jobs_api.py` - PASS, 19 passed.
+  - `cd backend; python -m pytest tests/test_media_api.py tests/test_models_api.py tests/test_auth.py tests/test_settings.py` - PASS, 48 passed.
   - `cd backend; python -m ruff check .` - PASS.
-  - `cd backend; python -m pytest tests/test_models_api.py` - PASS, 15 passed.
-  - `cd backend; python -m pytest tests/test_data_model.py tests/test_security_utils.py tests/test_auth.py` - PASS, 57 passed.
 
 ## Security And Privacy
 
-- Model list/detail endpoints require active JWT user.
-- Model registration and activation require admin role.
-- Inactive user/admin tokens are rejected.
-- Registration validates `weights_path` as relative, under configured model storage, existing file only.
-- Absolute paths, traversal paths, outside-model-storage paths, missing files, and invalid families are rejected.
-- API responses expose only stored relative `weights_path`; no resolved host/container paths, passwords, tokens, or secrets.
+- `POST /api/jobs` requires active JWT user.
+- Job creation is limited to media owned by the authenticated user, including admins.
+- Missing, cross-owner, and soft-deleted media return safe not-found behavior.
+- Invalid parameters and unavailable model resolution create no queued job.
+- Response excludes result/export path fields and exposes no absolute storage paths, passwords, password hashes, tokens, or secrets.
 
 ## Notes
 
 - Existing stale-doc conflict remains as recorded in `.context/research.md`: `docs/index.md` and `README.md` current-state text lag actual backend implementation. Phase selection came from `docs/phase.md`.
-- No source schema/migration change was needed; existing `model_versions` table and active-model partial index were used.
+- No schema/migration change was needed; existing `processing_jobs`, `media_files`, and `model_versions` tables support Phase 9.
+- Explicit inactive registered model selection is allowed by the Phase 9 contract; active model is only default selection.
 - No real mistake logged.
