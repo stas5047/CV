@@ -1,48 +1,44 @@
-## Phase 10 - Jobs, results, detections, tracks, and safe downloads API
+## Phase 11 - Admin backend APIs and safe storage cleanup
 
-**Direction:** Backend  
-**Goal:** Implement job history, job details, result metadata, detections, tracks, summary, and download endpoints.
+**Direction:** Backend / Admin  
+**Goal:** Implement admin-only global statistics, global history, basic user list, and conservative storage cleanup.
 
 ### Scope
 
 - Implement endpoints:
-  - `GET /api/jobs`;
-  - `GET /api/jobs/{job_id}`;
-  - `DELETE /api/jobs/{job_id}`;
-  - `GET /api/jobs/{job_id}/summary`;
-  - `GET /api/jobs/{job_id}/detections`;
-  - `GET /api/jobs/{job_id}/tracks`;
-  - `GET /api/jobs/{job_id}/result`;
-  - `GET /api/jobs/{job_id}/download/media`;
-  - `GET /api/jobs/{job_id}/download/csv`;
-  - `GET /api/jobs/{job_id}/download/json`.
-- Enforce ownership or admin access on every job/result/download route.
-- Support pagination and filters for job lists.
-- Hide soft-deleted jobs from normal user lists.
-- Return status, progress, heartbeat, timestamps, summary, and safe download URLs/references.
-- Serve downloads only after verifying that the file belongs to the requested job.
-- Return clear missing-file errors without exposing internal paths.
-- Treat no-detection completed jobs as successful results.
-- Add tests for ownership, downloads, missing result files, and soft deletion/cancellation behavior.
+  - `GET /api/admin/stats`;
+  - `GET /api/admin/jobs`;
+  - `GET /api/admin/users`;
+  - `POST /api/admin/storage/cleanup`.
+- Enforce admin role explicitly on all admin endpoints.
+- Provide global processing statistics and recent global job history.
+- Provide basic user list without password hashes or sensitive fields.
+- Implement conservative cleanup rules.
+- Cleanup must not remove:
+  - active model weights;
+  - model cards for active models;
+  - files referenced by non-deleted records;
+  - recent user results accidentally;
+  - files needed by visible completed jobs.
+- Log cleanup actions safely.
+- Add admin/regular-user access tests and cleanup safety tests.
 
 ### Relevant docs
 
 - `docs/API.md`
-- `docs/DATA_MODEL.md`
 - `docs/AUTH_SECURITY.md`
-- `docs/CV_PIPELINE.md`
+- `docs/DATA_MODEL.md`
+- `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Users list and view only own jobs.
-- Admin can view all jobs through allowed permissions/routes.
-- Result endpoints enforce ownership.
-- Downloads enforce ownership and resource association.
-- Absolute filesystem paths are not exposed.
-- Completed no-detection jobs can still provide CSV/JSON downloads when files exist.
-- Backend tests pass.
+- Regular users cannot access admin routes.
+- Admin can view global stats, jobs, and basic users.
+- Cleanup dry-run or conservative mode works if implemented.
+- Cleanup does not delete referenced files or active model artifacts.
+- Admin endpoint tests pass.
 
 ### Commit
 
-`feat(backend-results): add jobs results detections tracks and downloads API`
+`feat(backend-admin): add admin stats users jobs and safe storage cleanup`

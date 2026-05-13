@@ -1,44 +1,46 @@
-# Phase 10 Planning Review Resolution
+# Phase 11 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude planning review found no blocking issues. Accepted changes are applied to the Phase 10 `.context/` implementation contract only. No source code changed.
+Claude planning review is resolved. All review items are either accepted or resolved by tightening the Phase 11 contract. No item conflicts with product docs. No user decision is required for this phase because ambiguous cleanup deletion is constrained to the safest documented behavior.
 
 ## Resolution table
 
-| Review item | Resolution | Rationale | Contract update |
-|---|---|---|---|
-| Important 1: Phase 10 tests do not explicitly prove inactive users are rejected on new result/download routes | accepted | `docs/AUTH_SECURITY.md` requires inactive users be blocked from protected API routes, including result viewing and export downloads. | Updated `.context/research.md`, `.context/design.md`, and `.context/plan.md` to require inactive-user rejection tests for at least one representative result route and one download route. |
-| Important 2: download association rule is underspecified for stored paths pointing outside requested job result area | accepted | `docs/API.md` requires file/resource association before serving. `docs/AUTH_SECURITY.md` forbids serving files without ownership and resource association. `docs/ARCHITECTURE.md` documents result artifacts under `results/{job_id}/`. | Updated `.context/research.md`, `.context/design.md`, and `.context/plan.md` to require selected job paths to live under `results/{job_id}/` for the requested job, in addition to authorization, relative-path validation, safe join, and file existence checks. |
-| Optional 1: make `GET /api/jobs/{job_id}/result` availability semantics explicit | accepted | Explicit semantics prevent clients from treating a recorded DB path as downloadable when the file is missing. This stays within `docs/API.md` missing-file and safe-download rules. | Updated `.context/research.md`, `.context/design.md`, and `.context/plan.md` to define `available` as file-present availability after association and safe path checks. |
-| Optional 2: add assertion that result/detail JSON never contains raw storage field names | accepted | `docs/API.md` requires logical references or download URLs instead of internal storage paths. Raw field names create easy regression surface. | Updated `.context/design.md` and `.context/plan.md` to assert JSON excludes `result_media_path`, `csv_path`, and `json_path`. |
-| Question 1: exact download association rule | accepted | Resolved from product docs, no user decision needed. | Chosen rule: selected result/export path must come from the authorized job row and live under `results/{job_id}/` for the requested job. |
-| Question 2: `available` means DB path present or file exists on disk | accepted | File-present semantics are safer for download UI/API behavior and align with missing-file handling. | Chosen rule: `available` means path recorded, associated with the job, safely resolved under `STORAGE_ROOT`, and file exists on disk. |
+| ID | Claude item | Resolution | Rationale | Contract updates |
+|---|---|---|---|---|
+| I1 | Active model card protection too vague. | accepted | `docs/AUTH_SECURITY.md` requires active model cards to remain. `docs/ARCHITECTURE.md` documents `models/{model_version_id}/model_card.json`; `docs/DATA_MODEL.md` stores only `model_versions.weights_path`, so implementation must derive protection from the active model directory or `weights_path`. | `.context/design.md`, `.context/plan.md` |
+| I2 | Referenced directory paths need prefix protection, not exact-path protection only. | accepted | `experiment_runs.artifacts_path` can reference a report artifact directory. Exact-path-only cleanup can delete referenced descendants. | `.context/design.md`, `.context/plan.md` |
+| I3 | Recent user-result safety lacks direct test. | accepted | Product docs require cleanup not delete recent user results accidentally, but no retention window exists. Contract now forbids physical deletion from `uploads/`, `results/`, `reports/`, `models/`, and `datasets/` in Phase 11 unless a future retention policy is approved; tests must prove a fresh unreferenced `results/` file remains. | `.context/design.md`, `.context/plan.md` |
+| O1 | Make `backend/index.md` update non-optional if new backend files are created. | accepted | `docs/index.md` says component index files track current contents. Phase 11 creates backend admin files, so backend index must be updated. | `.context/plan.md` |
+| O2 | Prefer cleanup response with counts/categories over path lists. | accepted | Count/category response reduces path exposure risk and satisfies safe reporting. If any paths are returned, they must be relative/logical only. | `.context/design.md`, `.context/plan.md` |
+| Q1 | What retention window defines "recent"? | accepted | No retention window is documented. Phase 11 must not invent one; cleanup must not physically delete user result/media/report/model/dataset files. | `.context/design.md`, `.context/plan.md` |
+| Q2 | Should cleanup physically delete files in Phase 11, or only report eligible files until retention policy exists? | accepted | Phase 11 may physically delete only clearly safe, unreferenced `temp/` files. Other folders are dry-run/report-only until product docs define retention. | `.context/design.md`, `.context/plan.md` |
 
 ## Accepted changes applied
 
-- Inactive-user tests required for representative Phase 10 result and download routes.
-- Download association now requires `results/{job_id}/` path namespace for the requested job.
-- Download helper must reject wrong-job result directories even if the stored path is relative and safe-joined under `STORAGE_ROOT`.
-- Result metadata availability now means file exists and can be safely downloaded now.
-- Result/detail JSON must not expose raw storage field names `result_media_path`, `csv_path`, or `json_path`.
+- Cleanup protection must include active model `weights_path` and the derived active model directory, including `model_card.json`.
+- Cleanup protection must treat referenced directories as protected prefixes, not just exact paths.
+- `experiment_runs.artifacts_path` descendants must remain protected.
+- Phase 11 cleanup must not physically delete files from `uploads/`, `results/`, `reports/`, `models/`, or `datasets/` without a future documented retention policy.
+- Phase 11 may physically delete only unreferenced `temp/` files after safe path validation.
+- Cleanup response should use counts/categories; any returned path-like value must be relative/logical and never absolute.
+- Tests must cover active model card/directory protection, referenced directory prefix protection, fresh result preservation, no absolute path exposure, and `temp/`-only physical deletion behavior.
+- `backend/index.md` update is required if Phase 11 creates backend files or changes backend command/file listings.
 
 ## Rejected items
 
-- None.
+None.
 
 ## Duplicate items
 
-- None.
+None.
 
 ## Items needing user decision
 
-- None.
+None for Phase 11.
+
+Future product decision, not a Phase 11 blocker: define a concrete retention window and deletion eligibility policy if cleanup should remove old `uploads/`, `results/`, `reports/`, `models/`, or `datasets/` files.
 
 ## Final contract status
 
-- `.context/research.md`: updated for job-specific result namespace, file-present availability, and inactive-user test requirement.
-- `.context/design.md`: updated for result/download association, availability semantics, raw storage field-name assertions, and inactive-user route coverage.
-- `.context/plan.md`: updated with concrete test and implementation requirements for accepted items.
-- Final Phase 10 implementation contract remains scoped to backend jobs/results/detections/tracks/download APIs only.
-- Verdict: READY_FOR_IMPLEMENTATION.
+`.context/research.md`, `.context/design.md`, and `.context/plan.md` are updated only for accepted review items. Final Phase 11 implementation contract is ready for implementation and remains scoped to admin backend APIs plus conservative storage cleanup.

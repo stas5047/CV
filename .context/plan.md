@@ -1,147 +1,134 @@
-# Phase 10 Implementation Plan
+# Phase 11 Implementation Plan
 
 ## Scope
 
-Phase only: Phase 10 - Jobs, results, detections, tracks, and safe downloads API.
+Phase only: admin backend APIs and safe storage cleanup.
 
-Do not implement:
+Do not implement frontend, experiments API, worker queue, CV processing, training utilities, schema migrations, or docs/product changes.
 
-- CV worker queue polling, media processing, export generation, or stale recovery;
-- frontend job/result pages;
-- experiments/admin APIs;
-- model registry changes;
-- storage cleanup;
-- training launch or training utilities;
-- new database fields unless a verified schema mismatch blocks Phase 10;
-- product doc changes.
+## Ordered atomic steps
 
-## Ordered atomic plan
+1. `@role/developer-backend` Inspect current backend route/schema/service patterns.
+   - Verify files: `backend/app/api/router.py`, `backend/app/api/jobs.py`, `backend/app/api/models.py`, `backend/app/schemas/jobs.py`, `backend/app/schemas/auth.py`, `backend/app/services/results.py`.
+   - Verifiable: exact existing response/list patterns identified before adding admin code.
 
-1. [@role/developer-backend] Re-read Phase 10 contract before coding.
-   - Verify `docs/phase.md` still says Phase 10.
-   - Verify relevant docs remain `docs/API.md`, `docs/DATA_MODEL.md`, `docs/AUTH_SECURITY.md`, `docs/CV_PIPELINE.md`, and `docs/TESTING_QA.md`.
-   - Verifiable: no source change in this step.
+2. `@role/developer-auth-security` Confirm admin dependency behavior.
+   - Verify `get_current_admin_user` depends on active authenticated user and returns 403 for non-admin.
+   - Verifiable: existing `backend/tests/test_security_utils.py` covers admin dependency.
 
-2. [@role/developer-backend] Inspect current job/media/model patterns.
-   - Read current jobs router/service/schemas, media list/detail/delete service, models list service, storage path helpers, auth dependency, and jobs tests.
-   - Verifiable: exact helper reuse and schema style identified before edits.
+3. `@role/developer-backend` Define admin API response/request schemas only from documented safe fields.
+   - Create `backend/app/schemas/admin.py`.
+   - Include no password hashes, tokens, absolute paths, or storage-root values.
+   - Prefer cleanup response counts and categories over path lists.
+   - If path-like cleanup details are returned, expose only relative/logical paths.
+   - If exact stats/cleanup JSON fields cannot be derived without inventing safe behavior, stop for user decision.
+   - Verifiable: schema fields map to existing documented DB/API concepts.
 
-3. [@role/tester] Add focused failing Phase 10 tests first.
-   - Extend `backend/tests/test_jobs_api.py` or add `backend/tests/test_job_results_api.py`.
-   - Cover job list/detail/delete, summary, detections, tracks, result metadata, downloads, ownership, admin visibility, inactive-user rejection, missing files, no-detection behavior, and path secrecy.
-   - Include at least one inactive-user test for a representative result route and one inactive-user test for a download route.
-   - Verifiable: targeted tests fail because Phase 10 endpoints/service behavior do not exist yet.
+4. `@role/developer-backend` Add admin service module.
+   - Create `backend/app/services/admin.py`.
+   - Add service functions for global stats, global jobs, basic users, and cleanup.
+   - Keep route handlers thin.
+   - Verifiable: routes will call service functions; no DB logic embedded in router.
 
-4. [@role/developer-backend] Add response/list schemas.
-   - Add paginated jobs list response.
-   - Add detail/summary/result metadata schemas using documented fields only.
-   - Add detection response with derived `center_x`, `center_y`, `bbox_width`, and `bbox_height`.
-   - Add track response with documented track summary fields.
-   - Do not expose raw stored relative paths or absolute paths in public JSON.
-   - Verifiable: schema tests/API assertions show safe fields only.
+5. `@role/developer-backend` Implement global stats query.
+   - Aggregate only from existing documented tables.
+   - Include no user secrets and no filesystem paths.
+   - Verifiable: admin stats endpoint returns deterministic aggregate values in tests.
 
-5. [@role/developer-backend] Add authorized job lookup helper.
-   - Load job with related media/model where useful.
-   - Enforce active user plus owner/admin access.
-   - Return safe 404 for missing/cross-owner inaccessible jobs.
-   - Decide and encode soft-deleted job detail behavior conservatively.
-   - Verifiable: cross-owner job detail/result/download tests return safe not-found and no data.
+6. `@role/developer-backend` Implement global admin job history.
+   - Prefer reuse of existing safe job detail/list response logic.
+   - Enforce admin-only route even if underlying service can list all for admins.
+   - Preserve pagination and relevant filters only if already supported safely.
+   - Verifiable: admin sees all non-deleted jobs; regular user cannot call route.
 
-6. [@role/developer-backend] Implement `GET /api/jobs` service logic.
-   - Support `limit` and `offset`.
-   - Support documented filters where practical: status, media type, date, model version, owner for admins.
-   - Hide `deleted_at` jobs from normal user lists.
-   - Restrict regular users to own jobs regardless of filters.
-   - Verifiable: list tests prove user scope, admin scope, filters, pagination, and soft-delete hiding.
+7. `@role/developer-backend` Implement basic admin users list.
+   - Use safe user fields only.
+   - Support pagination because users can grow.
+   - Exclude `password_hash`.
+   - Verifiable: response text never contains password hash values.
 
-7. [@role/developer-backend] Implement `GET /api/jobs/{job_id}` service logic.
-   - Return job status, progress, heartbeat, timestamps, input params, summary, safe result/download references, and media/model references where useful.
-   - Do not expose result/export storage paths.
-   - Verifiable: detail tests inspect fields and confirm no absolute paths, raw path fields, or raw storage field names such as `result_media_path`, `csv_path`, and `json_path`.
+8. `@role/developer-auth-security` Design cleanup protection set.
+   - Collect relative paths that must not be deleted from documented DB fields.
+   - Include non-deleted media/job references and active model artifacts.
+   - Protect active model `weights_path` and the derived active model directory, including `models/{model_version_id}/model_card.json` when derivable from documented layout.
+   - Treat referenced directories as protected prefixes, including `experiment_runs.artifacts_path` and derived active model directories.
+   - Treat invalid/absolute DB paths as protected skip/error, not delete targets.
+   - Verifiable: tests prove referenced files and descendants under referenced directories remain.
 
-8. [@role/developer-backend] Implement `DELETE /api/jobs/{job_id}` behavior.
-   - Apply doc-consistent soft-delete/cancellation behavior.
-   - Do not physically delete files.
-   - Do not require hard interruption of processing jobs.
-   - Verifiable: delete tests prove ownership, idempotent/safe outcome as designed, list hiding, and no file removal.
+9. `@role/developer-auth-security` Implement conservative cleanup behavior.
+   - Operate only under `STORAGE_ROOT` through `safe_join_storage_path`.
+   - Do not delete active model weights/cards, referenced files, visible completed job files, or ambiguous recent result files.
+   - Do not physically delete files from `uploads/`, `results/`, `reports/`, `models/`, or `datasets/` in Phase 11 because no retention window is documented.
+   - If physical deletion is implemented, limit it to clearly safe unreferenced files under `temp/`.
+   - Return only safe relative/logical cleanup information.
+   - Log safe counts/actions only.
+   - Verifiable: cleanup cannot remove protected fixtures or a fresh unreferenced `results/` file, deletes only eligible `temp/` files if deletion is implemented, and cannot report absolute paths.
 
-9. [@role/developer-backend] Implement summary endpoint.
-   - Return `processing_jobs.summary_json` with job status context as needed.
-   - Treat missing summary on non-completed/failed jobs as safe empty/null metadata, not server error.
-   - Keep no-detection summary valid with null confidence values.
-   - Verifiable: summary tests cover completed no-detection and missing summary cases.
+10. `@role/developer-backend` Add admin router.
+    - Create `backend/app/api/admin.py`.
+    - Routes:
+      - `GET /admin/stats`
+      - `GET /admin/jobs`
+      - `GET /admin/users`
+      - `POST /admin/storage/cleanup`
+    - Use `get_current_admin_user` on every route.
+    - Verifiable: generated routes appear under `/api/admin/*`.
 
-10. [@role/developer-backend] Implement detections endpoint.
-    - Query `detections` by authorized `job_id`.
-    - Support pagination if result size can grow.
-    - Optionally support documented detection filters: frame index, confidence range, track ID.
-    - Compute derived center/size values from bbox corners.
-    - Verifiable: detection tests prove job scoping, derived values, pagination/filtering, and empty no-detection response.
+11. `@role/developer-backend` Include admin router.
+    - Modify `backend/app/api/router.py`.
+    - Verifiable: `GET /api/admin/stats` resolves in TestClient.
 
-11. [@role/developer-backend] Implement tracks endpoint.
-    - Query `tracks` by authorized `job_id`.
-    - Return documented track summary fields.
-    - Return empty list for image/no-track/no-detection jobs.
-    - Verifiable: track tests prove job scoping, data shape, and empty list behavior.
+12. `@role/tester` Add admin API tests.
+   - Create `backend/tests/test_admin_api.py`.
+   - Cover guest, regular user, inactive admin, and active admin access.
+   - Cover global jobs/users/stats behavior.
+   - Cover cleanup safety and no absolute path exposure.
+   - Cover active model card/directory protection when only `weights_path` is stored.
+   - Cover referenced directory prefix protection for experiment artifacts.
+   - Cover fresh unreferenced `results/` file preservation.
+   - Cover temp-only physical deletion if cleanup deletes any files in Phase 11.
+   - Verifiable: targeted test file fails before implementation and passes after implementation.
 
-12. [@role/developer-backend] Implement result metadata endpoint.
-    - Return result availability and safe download URLs/references for annotated media, CSV, and JSON.
-    - Define `available` as file-present availability: the path is recorded, passes job-specific association, resolves under `STORAGE_ROOT`, and exists as a file.
-    - Include job/media/model/summary references needed by frontend without storage internals.
-    - Do not expose missing-file internal paths when checking availability.
-    - Verifiable: result metadata tests confirm safe references, file-present availability semantics, no raw storage field names, and no path leakage.
-
-13. [@role/developer-auth-security] Implement download file resolution helper.
-    - Re-check job ownership/admin access.
-    - Select only one of the job-owned path fields: `result_media_path`, `csv_path`, or `json_path`.
-    - Validate relative path and safe-join under `STORAGE_ROOT`.
-    - Require selected result/export path to live under `results/{job_id}/` for the requested job.
-    - Verify file exists and is a file.
-    - Use sanitized download filename.
-    - Return safe missing-file errors with no internal path.
-    - Verifiable: download tests cover success, missing file, cross-owner, path traversal/absolute path rejection, wrong-job result directory rejection, inactive-user rejection, and no path leakage.
-
-14. [@role/developer-backend] Add download routes.
-    - Add:
-      - `GET /api/jobs/{job_id}/download/media`
-      - `GET /api/jobs/{job_id}/download/csv`
-      - `GET /api/jobs/{job_id}/download/json`
-    - Set appropriate media types for image/video/csv/json where practical.
-    - Verifiable: TestClient downloads fixture files from authorized jobs.
-
-15. [@role/tester] Verify no-detection completed-job behavior.
-    - Seed completed job with `summary_json.total_detections = 0`, null confidence values, empty detections/tracks, and CSV/JSON fixture paths.
-    - Assert summary/result/detections/tracks/downloads behave as successful result.
-    - Verifiable: no-detection tests pass without failed-job or error semantics.
-
-16. [@role/tester] Run targeted Phase 10 gate.
-    - Command from `backend/`: `python -m pytest tests/test_jobs_api.py`
-    - If separate file added: `python -m pytest tests/test_job_results_api.py`
-    - Expected: PASS after implementation.
-
-17. [@role/tester] Run related security/regression gates.
-    - Command from `backend/`: `python -m pytest tests/test_media_api.py tests/test_auth.py tests/test_security_utils.py`
-    - Expected: PASS.
-    - Reason: Phase 10 depends on ownership, auth, and path safety.
-
-18. [@role/tester] Run lint gate.
-    - Command from `backend/`: `python -m ruff check .`
+13. `@role/tester` Run targeted admin tests.
+    - Command: `python -m pytest tests/test_admin_api.py`
+    - Workdir: `backend/`
     - Expected: PASS.
 
-19. [@role/code-reviewer] Review Phase 10 diff against docs.
-    - Check endpoint list matches `docs/phase.md` and `docs/API.md`.
-    - Check ownership/admin access on every route.
-    - Check soft-deleted jobs hidden from normal lists.
-    - Check no absolute paths or raw storage paths in JSON responses.
-    - Check downloads verify job association and path safety.
-    - Check association rejects paths outside `results/{job_id}/`.
-    - Check inactive users cannot access representative result/download routes.
-    - Check no-detection results are not treated as failures.
-    - Check detections/tracks stay CV-only and image-space.
-    - Check no worker/frontend/later-phase functionality leaked in.
-    - Verifiable: review notes no blocking doc mismatch, or blocker cites exact file/doc rule.
+14. `@role/tester` Run backend lint.
+    - Command: `python -m ruff check .`
+    - Workdir: `backend/`
+    - Expected: PASS.
 
-20. [@role/docs-maintainer] Update backend index only if implementation changes file inventory.
-    - Update `backend/index.md` if new result/service/schema/test files are added.
-    - Do not modify product docs under `docs/`.
-    - Verifiable: docs change, if any, is limited to backend-local index.
+15. `@role/tester` Run backend suite if targeted checks pass.
+    - Command: `python -m pytest`
+    - Workdir: `backend/`
+    - Expected: PASS.
+
+16. `@role/code-reviewer` Review phase scope and safety.
+    - Check no frontend/worker/training/schema/product-doc changes.
+    - Check all admin routes require admin role.
+    - Check cleanup cannot delete protected files.
+    - Check responses/logs omit secrets and absolute paths.
+    - Verifiable: review notes no scope creep or lists exact blockers.
+
+17. `@role/docs-maintainer` Update `backend/index.md` because Phase 11 creates backend admin files and the component index must stay current.
+    - Do not update product docs.
+    - Verifiable: index mentions admin API files honestly and keeps commands accurate.
+
+## Quality gates for phase
+
+- `python -m pytest tests/test_admin_api.py` from `backend/`
+- `python -m ruff check .` from `backend/`
+- `python -m pytest` from `backend/`
+
+## Explicit non-goals
+
+- No frontend admin page.
+- No experiments endpoints.
+- No model training/import changes.
+- No worker cleanup task.
+- No hard deletion of DB rows.
+- No deletion outside `STORAGE_ROOT`.
+- No physical deletion from `uploads/`, `results/`, `reports/`, `models/`, or `datasets/` without a future documented retention policy.
+- No new roles beyond `user` and `admin`.
+- No exposure of absolute paths or password hashes.

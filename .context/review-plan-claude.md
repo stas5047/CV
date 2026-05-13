@@ -2,11 +2,9 @@
 
 ## Summary
 
-Phase 10 planning contract matches docs in main shape: backend-only jobs/results/download API, ownership/admin checks, safe downloads, soft deletion, no-detection success behavior, CV-only outputs, and focused backend/security tests.
+Plan matches Phase 11 scope: admin-only backend routes, no frontend/worker/training/schema creep, admin dependency required, safe responses, targeted backend tests.
 
-No blocking issue found. Two important changes should be made before implementation: prove inactive users cannot use the new result/download routes, and tighten download association beyond trusting a stored job path alone.
-
-Risk level placeholder was not filled in the prompt. Treated as HIGH because this phase exposes protected result data and file downloads.
+Changes needed before implementation: tighten cleanup protection model and tests. Risk sits in filesystem deletion, not route scaffolding.
 
 ## Blocking issues
 
@@ -14,30 +12,30 @@ None.
 
 ## Important issues
 
-1. Phase 10 tests do not explicitly prove inactive users are rejected on the new job/result/download routes.
-   - Evidence: `docs/AUTH_SECURITY.md` Account Activity says inactive users must not upload, create jobs, view results, download exports, or access authenticated endpoints. Ownership checks list summaries, detections, tracks, and downloads. `.context/design.md` includes inactive-user route tests, but `.context/plan.md` step 3 omits inactive-user cases for Phase 10 endpoints and step 17 only runs existing auth/security regression tests.
-   - Risk: a new route could accidentally depend on token validity only, bypass active-account enforcement for result metadata or file downloads.
-   - Required change: add at least one focused Phase 10 inactive-user test covering a representative result route and a download route, or explicitly apply the same active-user dependency across every route and assert it through parametrized tests.
+1. Active model card protection too vague.
+   - Evidence: `docs/AUTH_SECURITY.md` says admin cleanup must not remove active model weights or model cards. `docs/API.md` repeats active model weights safety. `docs/ARCHITECTURE.md` documents model layout with `models/{model_version_id}/weights.pt` and `models/{model_version_id}/model_card.json`. `docs/DATA_MODEL.md` stores only `model_versions.weights_path`, no explicit model-card path.
+   - Plan evidence: `.context/plan.md` steps 8-9 say protect active model artifacts/weights/cards, but do not say how to derive/protect `model_card.json` when DB has only `weights_path`; test wording says "when represented by documented paths", which can skip real active model cards.
+   - Required change: implementation plan/checks must explicitly protect active model card path or whole active model directory derived from active model `weights_path`.
 
-2. Download association rule is underspecified for stored paths that point outside the requested job's own result area.
-   - Evidence: `docs/API.md` Download and File Serving Rules require the API to ensure the requested file belongs to the requested job/resource. `docs/AUTH_SECURITY.md` Path Traversal Prevention requires serving files only after verifying ownership and resource association. `.context/design.md` says association means the path is read from the authorized `processing_jobs` row. `.context/plan.md` step 13 validates relative path and safe-joins under `STORAGE_ROOT`, but does not require a job-specific result namespace/prefix check or another association proof.
-   - Risk: if a worker bug or bad seed/test row stores `results/other-job/export.csv` on this job row, an authorized user could download a file not produced for that job. Safe-join prevents traversal, but not cross-job file association drift.
-   - Required change: define and test a concrete association rule for Phase 10 downloads, such as requiring result paths to live under a generated job-specific directory containing the `job_id`, or another documented predicate that rejects a path associated with another job.
+2. Referenced directory paths need prefix protection, not exact-path protection only.
+   - Evidence: `docs/DATA_MODEL.md` lists `experiment_runs.artifacts_path` as relative path field. `docs/ARCHITECTURE.md` stores reports under directories like `reports/{experiment_id}/metrics.json` and `reports/{experiment_id}/confusion_matrix.png`.
+   - Plan evidence: `.context/plan.md` step 8 says collect relative paths from documented DB fields. Exact file-path protection can miss descendants under referenced artifact directories.
+   - Required change: cleanup protection set must treat referenced artifact directories and derived active model directories as protected prefixes, with tests proving child files remain.
+
+3. Recent user-result safety lacks direct test.
+   - Evidence: `docs/API.md` and `docs/AUTH_SECURITY.md` both say cleanup must not delete recent user results accidentally. `docs/DATA_MODEL.md` allows physical deletion only through safe admin cleanup and warns against deleting recent user results.
+   - Plan evidence: `.context/plan.md` tests protect referenced files, active model artifacts, visible completed jobs, and path escape, but no explicit recent orphan/unreferenced result file test.
+   - Required change: add targeted cleanup test where a fresh file under `results/` remains untouched, or make cleanup dry-run/no-delete outside `temp/` until retention policy exists.
 
 ## Optional improvements
 
-1. Make `GET /api/jobs/{job_id}/result` availability semantics explicit.
-   - Evidence: `.context/plan.md` step 12 says metadata may not require files to exist. That is acceptable if fields mean "DB path present", but unclear if fields mean "download is currently available".
-   - Low-risk improvement: name fields so clients can distinguish path-recorded vs file-present, or check file existence for availability without exposing paths.
-
-2. Add one assertion that result/detail JSON never contains raw storage field names.
-   - Evidence: `docs/API.md` forbids unsafe absolute paths and asks for download URLs or logical references instead of internal paths. Plan already covers path secrecy; checking raw names like `result_media_path`, `csv_path`, and `json_path` would make regression obvious.
+- Make `backend/index.md` update non-optional if new backend files are created, because `docs/index.md` says component index files track current contents. Product docs need no change.
+- Prefer cleanup response with counts and categories over path lists. If paths are returned, keep only relative/logical paths.
 
 ## Questions for resolution
 
-1. What exact download association rule should implementation enforce: job-specific result directory/prefix, `job_id` embedded in generated path, or another predicate?
-
-2. Should result metadata `available` mean the DB path exists on the job row, or the file exists on disk and can be downloaded now?
+- What retention window defines "recent" for cleanup? If unresolved, safest implementation is dry-run/no-delete for `uploads/`, `results/`, `reports/`, `models/`, and `datasets/`, with possible narrow cleanup of unreferenced `temp/`.
+- Should cleanup physically delete files in Phase 11, or only report eligible files until retention policy exists?
 
 ## Files consulted
 
@@ -50,7 +48,7 @@ None.
 - `.context/design.md`
 - `.context/plan.md`
 - `docs/API.md`
-- `docs/DATA_MODEL.md`
 - `docs/AUTH_SECURITY.md`
-- `docs/CV_PIPELINE.md`
+- `docs/DATA_MODEL.md`
+- `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`

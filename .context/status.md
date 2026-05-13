@@ -1,49 +1,44 @@
-# Phase 10 Status - Jobs, results, detections, tracks, and safe downloads API
+# Phase 11 Status
 
-## Implementation
+## Current state
 
-- Phase implemented: `Phase 10 - Jobs, results, detections, tracks, and safe downloads API`.
-- Scope kept to backend job list/detail/delete, summary, detection list, track list, result metadata, and safe download endpoints.
-- Later phases not implemented: CV worker queue polling/claiming, media processing/export generation, frontend job/result pages, experiments/admin APIs, storage cleanup, or training utilities.
+Implemented.
 
-## Files Changed By Codex
+## Scope completed
 
-- `backend/app/api/jobs.py`
-- `backend/app/schemas/jobs.py`
-- `backend/app/services/jobs.py`
-- `backend/app/services/results.py`
-- `backend/tests/test_jobs_api.py`
-- `backend/index.md`
-- `.context/status.md`
+- Added admin-only backend routes:
+  - `GET /api/admin/stats`
+  - `GET /api/admin/jobs`
+  - `GET /api/admin/users`
+  - `POST /api/admin/storage/cleanup`
+- Added safe admin response schemas.
+- Added admin service logic for global stats, user listing, job history reuse, and conservative storage cleanup.
+- Storage cleanup physically deletes only unreferenced files under `temp/`.
+- Storage cleanup protects non-deleted DB references, active model weights, derived active model card/directories, experiment artifact directories, and fresh result files.
+- Added targeted admin API tests.
+- Updated `backend/index.md`.
+- Final code-review fix corrected dry-run cleanup accounting with explicit `would_delete_*` response counters.
 
-## Quality Gates
+## Quality gates
 
-- `cd backend; python -m pytest tests/test_jobs_api.py` - PASS, 25 passed.
-- `cd backend; python -m pytest tests/test_media_api.py tests/test_auth.py tests/test_security_utils.py` - PASS, 60 passed.
-- `cd backend; python -m ruff check .` - PASS.
+- `python -m pytest tests/test_admin_api.py` from `backend/`: PASS
+- `python -m ruff check .` from `backend/`: PASS
+- `python -m pytest` from `backend/`: PASS
 
-## Code Review Resolution
+## Security/privacy
 
-- `.context/review-code-resolution.md` updated.
-- `.context/review-code-openai.md` verdict: APPROVED; no critical, important, or optional issues.
-- `.context/review-code-claude.md` is absent or empty; no issues to resolve.
-- No accepted source fixes were required after code review.
-- Final verification reran after resolution update and passed:
-  - `cd backend; python -m pytest tests/test_jobs_api.py` - PASS, 25 passed.
-  - `cd backend; python -m pytest tests/test_media_api.py tests/test_auth.py tests/test_security_utils.py` - PASS, 60 passed.
-  - `cd backend; python -m ruff check .` - PASS.
+- All admin routes use `get_current_admin_user`.
+- Regular users receive 403 for admin routes; inactive admin tokens receive 401 through active-user dependency.
+- User listing uses `UserResponse` and does not expose password hashes.
+- Job listing reuses safe job detail responses and does not expose internal result paths.
+- Cleanup response and logs contain counts/categories only, not absolute storage paths or secrets.
+- Dry-run cleanup logs and responses now distinguish actual deletions from would-delete candidates.
 
-## Security And Privacy
+## Deviations
 
-- All new job/result/download routes require active JWT user through `get_current_active_user`.
-- Regular users can access only own non-deleted jobs; admins can access all visible jobs.
-- Cross-owner and soft-deleted job access returns safe not-found behavior.
-- Download resolution re-checks ownership/admin access, validates storage paths, requires `results/{job_id}/` association, checks file existence, and returns safe 404 errors without internal paths.
-- JSON responses expose download URLs/availability only; no `result_media_path`, `csv_path`, `json_path`, absolute storage paths, tokens, password hashes, or secrets are exposed.
-- No-detection completed jobs return empty detections/tracks and allow CSV/JSON downloads when files exist.
+- None from `.context/design.md`, `.context/plan.md`, or `.context/review-plan-resolution.md`.
 
-## Notes
+## Remaining risks
 
-- Existing stale-doc conflict remains as recorded in `.context/research.md`: `docs/index.md` current-state text lags actual backend implementation.
-- No database schema or migration change was needed; existing Phase 3 tables support Phase 10.
-- No real mistake logged.
+- Product docs do not define retention policy for non-temp storage cleanup, so `uploads/`, `results/`, `reports/`, `models/`, and `datasets/` remain report-only.
+- `.context/research.md` notes stale implementation-state text in `docs/index.md`; no product behavior conflict found for Phase 11.

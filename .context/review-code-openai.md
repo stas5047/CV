@@ -1,12 +1,12 @@
-# OpenAI Code Review - Phase 10
+# OpenAI Code Review - Phase 11
 
-## Verdict: APPROVED
+## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Phase 10 backend implementation matches scoped contract. Jobs list/detail/delete, summary, detections, tracks, result metadata, and download routes are present under `/api/jobs`; route handlers use active-user auth; service code enforces owner/admin visibility; downloads validate relative paths, require `results/{job_id}/` association, check file existence, and avoid path disclosure.
+Phase 11 implementation adds the required admin-only routes, safe schemas, global stats/user/job listing, and conservative storage cleanup. Admin dependency usage is consistent on all new routes, responses avoid password hashes and absolute paths in reviewed surfaces, and targeted plus full backend gates pass.
 
-No evidence-backed correctness, product-doc, architecture, security/privacy, or required-test defect found in reviewed Phase 10 diff.
+One important correctness issue remains in cleanup dry-run accounting: dry-run does not delete files, but response/log counters report those files as deleted.
 
 ## Critical issues
 
@@ -14,7 +14,11 @@ None.
 
 ## Important issues
 
-None.
+1. Dry-run cleanup reports files as deleted even when no deletion happened.
+   - Evidence: `backend/app/services/admin.py:107-110` skips `file_path.unlink()` when `dry_run` is true, but still calls `result.deleted(category)`. `backend/app/services/admin.py:116-125` then logs `deleted=%s` from that counter, and `StorageCleanupResponse.deleted_files` / `deleted_by_category` expose the same value.
+   - Impact: `POST /api/admin/storage/cleanup` with `{"dry_run": true}` gives false deletion counts. Admin audit/log output says files were deleted when they were only candidates.
+   - Test gap: `backend/tests/test_admin_api.py:261-314` covers real deletion, but has no dry-run assertion proving temp files remain and `deleted_files` semantics are truthful.
+   - Required fix: separate actual deletion counts from dry-run candidate counts, or report dry-run candidates under explicit `would_delete_*` fields. Add a dry-run test.
 
 ## Optional issues
 
@@ -22,30 +26,24 @@ None.
 
 ## Quality gate assessment
 
-Not rerun by this OpenAI review to avoid extra workspace writes. `.context/status.md` reports:
-
-- `cd backend; python -m pytest tests/test_jobs_api.py` - PASS, 25 passed.
-- `cd backend; python -m pytest tests/test_media_api.py tests/test_auth.py tests/test_security_utils.py` - PASS, 60 passed.
-- `cd backend; python -m ruff check .` - PASS.
-
-Coverage reviewed in `backend/tests/test_jobs_api.py` includes owner/admin scoping, soft-delete hiding, inactive result/download rejection, result path secrecy, job-specific download association, missing-file behavior, and completed no-detection CSV/JSON downloads.
+- `rtk git status --short`: inspected; Phase 11 source changes plus `.context`/phase docs present, and forbidden review files were not read.
+- `rtk git diff --stat`: inspected; tracked diff omits untracked admin files, so new file contents were read directly.
+- `rtk git diff`: inspected tracked changes.
+- `python -m pytest -p no:cacheprovider tests/test_admin_api.py` from `backend/`: PASS, 3 passed.
+- `python -m ruff check .` from `backend/`: PASS.
+- `python -m pytest -p no:cacheprovider` from `backend/`: PASS, 138 passed.
 
 ## Security/privacy assessment
 
-Applicable because Phase 10 adds protected result and download APIs.
+No blocking security/privacy issue found on touched surfaces. New admin routes use `get_current_admin_user`; regular users receive 403 and inactive admin tokens receive 401 in tests. User list uses `UserResponse`; job list reuses safe job response; cleanup response/logs use counts/categories, not absolute storage paths.
 
-- `backend/app/api/jobs.py` applies `get_current_active_user` to new job/result/download routes.
-- `backend/app/services/results.py` returns 404 for missing, cross-owner, soft-deleted, or invalid-associated job resources.
-- Download resolution uses safe storage join, rejects invalid relative paths, requires `results/{job_id}/` prefix, checks `is_file()`, and returns generic missing-file errors.
-- JSON responses expose download URLs/availability, not `result_media_path`, `csv_path`, `json_path`, absolute storage roots, tokens, password hashes, or secrets.
-- CV-only boundary preserved: responses expose job/media/model metadata, image-space detections, tracks, summaries, and download references only.
+Dry-run audit counters need correction because misleading cleanup logs are an audit-quality defect.
 
 ## Positive findings
 
-- Result metadata availability uses file-present semantics, not raw DB path presence.
-- No-detection completed jobs stay successful with empty detections/tracks and CSV/JSON download support when files exist.
-- Result/download service is split out of job creation service, keeping route handlers thin.
-- `backend/index.md` updated for new service/test surface.
+- Cleanup protects non-deleted DB references, active model directory/model card paths, experiment artifact prefixes, and fresh result files while deleting only unreferenced `temp/` files in the tested default path.
+- Admin stats/users/jobs stay within documented backend/admin scope and do not add frontend, worker, training, schema, or product-scope creep.
+- `backend/index.md` was updated for new backend admin files as required by the plan resolution.
 
 ## Files consulted
 
@@ -55,25 +53,24 @@ Applicable because Phase 10 adds protected result and download APIs.
 - `docs/ROADMAP.md`
 - `docs/phase.md`
 - `docs/API.md`
-- `docs/ARCHITECTURE.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/DATA_MODEL.md`
-- `docs/CV_PIPELINE.md`
+- `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
-- `rtk git status --short`
-- `rtk git diff --stat`
-- `rtk git diff`
-- `backend/app/api/jobs.py`
-- `backend/app/schemas/jobs.py`
-- `backend/app/services/jobs.py`
-- `backend/app/services/results.py`
-- `backend/app/core/storage_paths.py`
+- `backend/app/api/admin.py`
 - `backend/app/api/router.py`
+- `backend/app/schemas/admin.py`
+- `backend/app/services/admin.py`
+- `backend/app/services/results.py`
+- `backend/app/schemas/jobs.py`
+- `backend/app/schemas/auth.py`
+- `backend/app/core/authorization.py`
+- `backend/app/core/storage_paths.py`
 - `backend/app/db/models.py`
-- `backend/tests/test_jobs_api.py`
+- `backend/tests/test_admin_api.py`
 - `backend/index.md`

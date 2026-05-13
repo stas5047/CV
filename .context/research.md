@@ -1,133 +1,131 @@
-# Phase 10 Research
+# Phase 11 Research Contract
 
 ## Current phase
 
-- Confirmed from `docs/phase.md`: Phase 10 - Jobs, results, detections, tracks, and safe downloads API.
-- Direction: Backend.
-- Goal: implement job history, job details, result metadata, detections, tracks, summary, and download endpoints.
-- Risk level: not supplied by user prompt; placeholder remained unfilled. Assumption: HIGH because phase touches protected result/download APIs, ownership, soft deletion, storage path safety, and CV-only output boundaries.
+- Confirmed current phase: `Phase 11 - Admin backend APIs and safe storage cleanup`.
+- Direction: Backend / Admin.
+- Goal: Implement admin-only global statistics, global history, basic user list, and conservative storage cleanup.
+- Risk level: not provided by user; assume HIGH because phase adds admin-only global data visibility and physical file cleanup risk.
 
 ## Docs consulted
+
+Read first:
 
 - `AGENTS.md`
 - `CLAUDE.md`
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- Phase relevant docs from `docs/phase.md`:
-  - `docs/API.md`
-  - `docs/ARCHITECTURE.md` (consulted during planning-review resolution for concrete result artifact layout)
-  - `docs/DATA_MODEL.md`
-  - `docs/AUTH_SECURITY.md`
-  - `docs/CV_PIPELINE.md`
-  - `docs/TESTING_QA.md`
 
-Additional repo/context files consulted for implementation-state facts:
+Relevant docs listed by current phase:
 
-- `.context/status.md`
-- prior `.context/research.md`, `.context/design.md`, `.context/plan.md`
-- `backend/index.md`
-- selected backend source and test files listed below
+- `docs/API.md`
+- `docs/AUTH_SECURITY.md`
+- `docs/DATA_MODEL.md`
+- `docs/ARCHITECTURE.md`
+- `docs/TESTING_QA.md`
 
 ## Confirmed repository facts
 
-- `git status --short` before this contract work showed `docs/phase.md` already modified.
-- `.context/status.md` records Phase 9 complete: queued job creation and model selection resolution implemented.
-- Backend is an implemented FastAPI app with auth, media, models, and job creation routers.
-- `backend/app/api/router.py` already registers `auth`, `health`, `media`, `models`, and `jobs`.
-- `backend/app/api/jobs.py` currently implements only `POST /api/jobs`.
-- `backend/app/services/jobs.py` currently implements only job creation, own-media validation, parameter defaults, and model resolution.
-- `backend/app/schemas/jobs.py` currently contains `JobCreateRequest` and `JobResponse`.
-- `backend/tests/test_jobs_api.py` currently covers Phase 9 job creation/model-selection behavior only.
-- `backend/app/db/models.py` already defines:
-  - `ProcessingJob` with status, params, summary, result/export relative paths, progress, heartbeat, lock, retry, timestamps, and `deleted_at`;
-  - `Detection` with bbox, confidence, frame/timestamp, media/job links, and optional `track_id`;
-  - `Track` with per-job track summary fields and unique `(job_id, track_id)`;
-  - `MediaFile` with owner, soft deletion, media metadata, and relative stored path;
-  - `ModelVersion` with model metadata and active state.
-- `backend/app/core/storage_paths.py` provides relative path validation, safe storage join, upload filename sanitization, and safe download filename handling.
-- `backend/app/core/auth.py` provides active JWT user dependency.
-- `backend/app/core/authorization.py` provides admin and ownership helpers.
-- `backend/app/services/media.py` already shows list/detail/soft-delete patterns with user/admin visibility.
-- `backend/app/services/models.py` already shows paginated list and safe not-found patterns.
-- `backend/app/core/config.py` exposes `storage_root` and `active_model_id`.
-- Existing backend test suite uses `pytest`, `TestClient`, SQLite test databases, and helper fixtures in individual test modules.
+- `git status --short` shows existing modified files before this planning write:
+  - `.context/design.md`
+  - `.context/plan.md`
+  - `.context/research.md`
+  - `.context/review-code-openai.md`
+  - `.context/review-code-resolution.md`
+  - `.context/review-plan-claude.md`
+  - `.context/review-plan-resolution.md`
+  - `.context/status.md`
+  - `docs/phase.md`
+- Backend project exists with FastAPI, SQLAlchemy models, Alembic, tests, auth, media, model, job, result/download code.
+- API router currently includes `auth`, `health`, `media`, `models`, and `jobs`; no `admin` router is included.
+- `get_current_admin_user` exists in `backend/app/core/authorization.py` and returns HTTP 403 for non-admin users.
+- `UserResponse` exists and excludes `password_hash`.
+- `JobListResponse` / `JobDetailResponse` exist and avoid internal result paths.
+- `list_visible_jobs` already supports admin-wide job listing and owner/status/media/model/date filters when current user is admin.
+- Safe storage helpers exist: `validate_relative_storage_path`, `safe_join_storage_path`, `safe_download_filename`, upload filename sanitizer.
+- ORM models exist for `users`, `media_files`, `processing_jobs`, `detections`, `tracks`, `model_versions`, `experiment_runs`, and `experiment_metrics`.
+- Soft deletion exists for media/jobs via `deleted_at`.
+
+## WARNING: CONFLICT
+
+- `docs/index.md` says current implementation contains only Phase 1 placeholders and that `backend/`, `frontend/`, and `cv/` do not yet contain product application scaffolds.
+- Repository facts and `backend/index.md` show backend phases through job/result/download APIs exist.
+- Product behavior docs still align with Phase 11 route goals; implementation-state text in `docs/index.md` is stale.
 
 ## Existing implementation state
 
-Implemented before Phase 10:
-
-- `/api/health` and `/api/health/db`.
-- JWT auth, public registration, login, current-user endpoint.
-- Active-account enforcement.
-- Admin dependency and ownership helpers.
-- Relative storage path and safe filename utilities.
-- Media upload, list, detail, and soft-delete API.
-- Model registry list, detail, register, and activate API.
-- SQLAlchemy schema and initial Alembic migration for documented tables.
-- Local/demo setup and seeded admin command.
-- `POST /api/jobs` for queued job creation with validated params and model selection priority.
-
-Not implemented yet:
-
-- `GET /api/jobs`.
-- `GET /api/jobs/{job_id}`.
-- `DELETE /api/jobs/{job_id}`.
-- `GET /api/jobs/{job_id}/summary`.
-- `GET /api/jobs/{job_id}/detections`.
-- `GET /api/jobs/{job_id}/tracks`.
-- `GET /api/jobs/{job_id}/result`.
-- `GET /api/jobs/{job_id}/download/media`.
-- `GET /api/jobs/{job_id}/download/csv`.
-- `GET /api/jobs/{job_id}/download/json`.
-- Result/download schemas and service helpers.
-- Job list filters and pagination.
-- Download file association checks.
-- Tests for ownership, downloads, missing files, no-detection completed jobs, soft deletion, and cancellation behavior.
-- CV worker processing, export generation, and frontend job/result pages.
+- Implemented backend surfaces:
+  - health endpoints;
+  - settings/logging/CORS;
+  - SQLAlchemy data model and initial migration;
+  - setup/storage bootstrap/admin seed;
+  - JWT auth, register/login/me;
+  - authorization and path safety utilities;
+  - media upload/list/detail/soft-delete;
+  - model registry list/detail/register/activate;
+  - job create/list/detail/delete/summary/detections/tracks/result/download.
+- Not implemented in this checkout:
+  - `GET /api/admin/stats`;
+  - `GET /api/admin/jobs`;
+  - `GET /api/admin/users`;
+  - `POST /api/admin/storage/cleanup`;
+  - admin API schemas/services/tests.
+- Existing tests use SQLite-backed FastAPI `TestClient` fixtures with local temp storage.
 
 ## Unknowns and assumptions
 
-- WARNING: CONFLICT
-  - `docs/index.md` says backend/frontend/CV folders contain placeholder Dockerfiles only and no product app scaffolds/routes/tests.
-  - Actual repo and `backend/index.md` show implemented backend auth, media, models, schema, migrations, setup, and Phase 9 job creation.
-  - Contract uses `docs/phase.md` for current phase and actual backend files for implementation-state facts.
-- User prompt left `<PHASE NUMBER AND TITLE>` and `<LOW | MEDIUM | HIGH>` placeholders unfilled. Assumption: current phase comes from `docs/phase.md`; risk treated as HIGH.
-- Docs do not define exact response schemas for Phase 10 endpoints. Assumption: use documented fields from `processing_jobs`, `detections`, `tracks`, media/model metadata, derived bbox values, summary JSON, and safe download URLs/references only.
-- Docs do not define exact job list filter query names. Assumption: use documented filters already named in `docs/API.md`: status, media type, date, model version, owner for admins, with existing backend pagination style.
-- Docs do not define exact DELETE semantics for processing jobs. Assumption: queued jobs may become `cancelled` and/or soft-deleted; processing jobs should not be physically interrupted; all normal lists hide `deleted_at`.
-- Docs require file belongs to requested job before download. Phase 10 contract uses the documented `docs/ARCHITECTURE.md` artifact layout as the concrete association rule: result/download paths must be under `results/{job_id}/` for the requested job, be selected from that authorized job row, pass relative-path validation, resolve under `STORAGE_ROOT`, and exist as a file at serving time.
-- Result metadata availability means the corresponding job path is present, passes the same `results/{job_id}/` association rule, resolves safely under `STORAGE_ROOT`, and the file exists on disk. Missing files should render unavailable metadata or safe 404 download errors without exposing internal paths.
-- Phase 10 tests must include inactive-user rejection for at least one representative result route and one download route, because `docs/AUTH_SECURITY.md` requires inactive users be blocked from all protected result/download access.
-- Docs require no-detection completed jobs to remain successful and keep CSV/JSON downloads when files exist. Assumption: zero detections/tracks returns empty lists and summary may contain null confidence values without treating job as failed.
-- CV worker/export generation is not in scope; tests may create database rows and fixture files directly to exercise result/download API behavior.
+Confirmed facts:
+
+- Admin routes must require explicit admin role.
+- Regular users must not access admin routes.
+- Admin user list must not expose password hashes or sensitive fields.
+- Cleanup must not delete active model weights, active model cards, files referenced by non-deleted records, recent user results accidentally, or files needed by visible completed jobs.
+- Storage paths in DB and API responses must remain relative/logical; no absolute paths exposed.
+- Cleanup actions must be logged safely.
+
+Assumptions:
+
+- Use existing admin dependency rather than adding new role system.
+- Use existing response patterns with paginated lists where lists can grow.
+- `GET /api/admin/jobs` can reuse existing safe job detail/list response behavior rather than exposing DB path fields.
+- `GET /api/admin/users` can reuse safe user profile fields already exposed by `UserResponse`.
+- Cleanup should start maximally conservative. Because docs do not define a deletion age/retention policy, Phase 11 must not physically delete from `uploads/`, `results/`, `reports/`, `models/`, or `datasets/`; it may only report those categories. Physical deletion, if implemented, must be limited to clearly safe unreferenced files under `temp/`.
+- No frontend, worker, training, schema migration, or product-doc change belongs in this phase unless admin implementation proves a documented backend command/index update is required.
+
+Unknowns needing care during implementation:
+
+- Exact response fields for global stats are not specified in current phase docs.
+- Exact request/response contract for storage cleanup is not specified.
+- Exact retention rule for "recent user results" is not specified.
+- Whether admin job history must live only under `/api/admin/jobs` or may internally reuse existing `/api/jobs` logic is not specified; public route must still exist as documented.
+- `model_versions` stores `weights_path` but not a model-card path, so active model-card protection must be derived from the active model directory or documented `models/{model_version_id}/model_card.json` layout.
 
 ## Files likely relevant for implementation
 
-Existing files likely touched:
+Likely create:
 
-- `backend/app/api/jobs.py`
-- `backend/app/services/jobs.py`
-- `backend/app/schemas/jobs.py`
-- `backend/app/db/models.py`
-- `backend/app/core/auth.py`
+- `backend/app/api/admin.py`
+- `backend/app/schemas/admin.py`
+- `backend/app/services/admin.py`
+- `backend/tests/test_admin_api.py`
+
+Likely modify:
+
+- `backend/app/api/router.py`
+- `backend/index.md` only if commands/files list changes are part of workflow
+
+Likely read/reference:
+
 - `backend/app/core/authorization.py`
 - `backend/app/core/storage_paths.py`
+- `backend/app/core/logging.py`
 - `backend/app/core/config.py`
-- `backend/tests/test_jobs_api.py`
-- `backend/tests/conftest.py`
-- `backend/index.md`
-
-Potential new files, if splitting keeps responsibilities clearer:
-
+- `backend/app/db/models.py`
+- `backend/app/schemas/auth.py`
+- `backend/app/schemas/jobs.py`
 - `backend/app/services/results.py`
-- `backend/app/schemas/results.py`
-- `backend/tests/test_job_results_api.py`
-
-Files not expected to change in this phase:
-
-- Product docs under `docs/`.
-- Frontend source.
-- CV worker source.
-- Training source.
-- Alembic migration, unless implementation discovers verified schema mismatch.
+- `backend/tests/conftest.py`
+- `backend/tests/test_jobs_api.py`
+- `backend/tests/test_models_api.py`
+- `backend/tests/test_security_utils.py`
