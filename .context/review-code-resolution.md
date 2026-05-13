@@ -1,53 +1,53 @@
-# Phase 2 Code Review Resolution
+# Phase 3 Code Review Resolution
 
 ## Verdict: FIXED
 
-OpenAI/Codex review approved Phase 2 with one optional logging hardening item. No Claude code review file content was present. No blocking user decision needed.
-
 ## Resolution table
 
-| Priority | ID | Review source | Item | Resolution | Rationale |
+| ID | Source | Priority | Review item | Resolution | Reason |
 |---|---|---|---|---|---|
-| optional | O-1 | `.context/review-code-openai.md` | Logging redaction is keyword-based only; future raw secret values without sensitive key names may not be redacted. | accepted | Low-risk hardening within Phase 2 logging/security scope and consistent with `docs/AUTH_SECURITY.md` logging safety rules. |
+| OAI-I-1 | `.context/review-code-openai.md` | important | Image media can be stored with `frame_count = NULL`. | accepted | `docs/DATA_MODEL.md` requires image media to have `frame_count = 1`; SQL `CHECK` needs explicit non-null condition for images. |
+| OAI-I-2 | `.context/review-code-openai.md` | important | Relative path checks allow terminal `..` path segments such as `models/..` and `models\..`. | accepted | Phase 3 accepted practical DB checks for `..` traversal segments; terminal parent segments must be rejected too. |
 
 ## Accepted critical fixes
 
-None.
+- None.
 
 ## Accepted important fixes
 
-None.
+- Add explicit `frame_count IS NOT NULL` requirement for image media in ORM and migration image metadata check.
+- Extend relative path check in ORM and migration to reject paths ending in `/..` or `\..`.
+- Add focused database tests proving `frame_count = NULL`, terminal forward traversal, and terminal backslash traversal are rejected.
 
 ## Accepted optional fixes
 
-- O-1: Add value-aware logging redaction support and test coverage so configured sensitive values can be removed even when the log message lacks sensitive key names.
+- None.
 
 ## Rejected items
 
-None.
+- None.
 
 ## Duplicate items
 
-None.
+- None.
 
 ## Items needing user decision
 
-None.
+- None.
 
 ## Fixes applied
 
-- Updated `backend/app/core/logging.py` so `SecretRedactionFilter` redacts configured sensitive values in addition to sensitive key-name matches.
-- Updated `backend/app/core/config.py` with `Settings.sensitive_log_values()` for the database URL, JWT secret, and admin password.
-- Updated `backend/app/main.py` so application startup passes configured sensitive values into logging setup.
-- Added `backend/tests/test_logging.py` coverage for redacting a raw configured secret value when the message has no sensitive key name.
+- Updated `backend/app/db/models.py` image-media check so image rows require `frame_count IS NOT NULL`, `frame_count = 1`, `fps IS NULL`, and `duration_seconds IS NULL`.
+- Updated `backend/migrations/versions/20260513_0001_initial_schema.py` with the same image-media check for fresh PostgreSQL migrations.
+- Updated ORM and migration relative-path checks to reject terminal `/..` and `\..` traversal segments.
+- Added regression coverage in `backend/tests/test_data_model.py` for image `frame_count = NULL`, `models/..`, `models\..`, `uploads/secret/..`, and `uploads\secret\..`.
+- Updated `docs/mistakes-codex.md` for the real missed SQL NULL and terminal traversal cases.
 
 ## Final verification
 
-- `python -m pytest` from `backend/`: PASS, 9 tests.
+- `python -m pytest tests\test_data_model.py` from `backend/`: PASS, 7 tests.
 - `python -m ruff check .` from `backend/`: PASS.
-- `docker compose --env-file .env.example config`: PASS.
-- `docker compose --env-file .env.example up -d --build postgres backend`: PASS.
-- `Invoke-RestMethod -Uri 'http://localhost:8000/api/health'`: PASS, returned `{"status":"ok","service":"backend"}`.
-- `Invoke-RestMethod -Uri 'http://localhost:8000/api/health/db'`: PASS, returned `{"status":"ok","database":"available"}`.
-- `docker compose --env-file .env.example down`: PASS.
-- `git diff --check`: FAIL, pre-existing/out-of-scope trailing whitespace in `docs/phase.md:3`; not changed because accepted review fix scope only covered logging redaction.
+- `python -m pytest` from `backend/`: PASS, 16 tests.
+- `docker compose --env-file .env.example config` from repo root: PASS.
+- `docker compose --env-file .env.example build backend` from repo root: PASS.
+- `docker compose --env-file .env.example run --rm -e DATABASE_URL=postgresql+psycopg://aerovision:change-me-postgres-password@postgres:5432/aerovision_phase3_check backend alembic upgrade head` from repo root: initial run failed because the check database did not exist; after creating `aerovision_phase3_check`, PASS.

@@ -1,109 +1,70 @@
-# Phase 2 Plan - Backend FastAPI Scaffold, Settings, Logging, And Health
+# Phase 3 Plan - Database schema and initial Alembic migration
 
-## Scope
+1. `@role/developer-db` Confirm current backend DB foundation.
+   - Verify `backend/app/db/session.py`, existing dependencies, and absence of Alembic/model files.
+   - Output evidence in implementation notes or final report.
 
-Only Phase 2 work. No auth endpoints, no user tables, no migrations with schema, no upload/media/job/result/model/experiment/admin APIs, no worker queue, no frontend UI, no training utilities.
+2. `@role/developer-db` Create SQLAlchemy declarative metadata.
+   - Add shared base/metadata for all Phase 3 models.
+   - Verification: model metadata lists all required table names.
 
-## Ordered Atomic Plan
+3. `@role/developer-db` Add enum/check representation for documented fixed values.
+   - Cover user roles, media types, job statuses, and experiment types.
+   - Verification: invalid values fail in database/model tests.
 
-1. `@role/developer-backend` Verify current backend placeholder state.
-   - Read `backend/index.md`, `backend/Dockerfile`, `docker-compose.yml`, `.env.example`.
-   - Confirm no existing backend app or tests need preservation.
-   - Verifiable: exact files exist and backend app files are absent before scaffold.
+4. `@role/developer-db` Add `users` model.
+   - Include required fields, unique email, role constraint, active flag, created/updated timestamps.
+   - Verification: duplicate email rejected; invalid role rejected.
 
-2. `@role/developer-backend` Add backend dependency manifest.
-   - Create backend-local project manifest for FastAPI, Pydantic v2/settings, SQLAlchemy 2.x, Alembic dependency, PostgreSQL driver, ASGI server, CORS support through FastAPI/Starlette, pytest/httpx test tooling, and lint/format tooling.
-   - Keep dependencies backend-local.
-   - Verifiable: dependency install command exists for `backend/`.
+5. `@role/developer-db` Add `media_files` model.
+   - Include owner FK, metadata fields, relative stored path, soft deletion, timestamps, and user/date index.
+   - Verification: FK works; media type constraint works; index exists; image media rejects `frame_count != 1`, non-null `fps`, and non-null `duration_seconds`.
 
-3. `@role/developer-backend` Create backend package skeleton.
-   - Add backend package directories for app entrypoint, API router, core settings/logging/CORS, DB connectivity, and tests.
-   - Keep modules small and single-purpose.
-   - Verifiable: imports resolve from test runner.
+6. `@role/developer-db` Add `model_versions` model.
+   - Include documented metadata, relative weights path, metrics JSON, active flag, creator FK, timestamps.
+   - Verification: only one active model row allowed; multiple inactive model rows allowed; weights path rejects unsafe paths where database check exists.
 
-4. `@role/developer-backend` Implement typed settings.
-   - Load env values already present in `.env.example`.
-   - Parse `BACKEND_CORS_ORIGINS` as explicit origins.
-   - Reject wildcard `*` CORS origins in settings validation; local development must use explicit localhost origins.
-   - Keep secret-bearing fields masked or omitted from repr/logging.
-   - Do not add new product env vars unless needed for Phase 2 startup and documented.
-   - Verifiable: settings tests cover env parsing, wildcard CORS rejection, and secret-safe representation.
+7. `@role/developer-db` Add `processing_jobs` model.
+   - Include owner FK, media FK, model FK, status, params JSON, summary JSON, result/export paths, error/progress/lock/retry/time fields, soft deletion, timestamps.
+   - Verification: status constraint works; progress range works; queue/history/media indexes exist.
 
-5. `@role/developer-auth-security` Implement safe logging baseline.
-   - Configure structured application logging.
-   - Ensure known sensitive names/values are never logged by startup/config logging.
-   - Do not log raw `DATABASE_URL`, `JWT_SECRET_KEY`, `ADMIN_PASSWORD`, tokens, or passwords.
-   - Verifiable: tests or inspection prove no sensitive strings appear in configured log output.
+8. `@role/developer-db` Add `detections` model.
+   - Include job/media FKs, frame/timestamp/class/confidence/bbox/frame size/track ID fields and timestamp.
+   - Verification: FKs work; job/frame and media/frame indexes exist.
 
-6. `@role/developer-backend` Implement database connectivity skeleton.
-   - Create SQLAlchemy 2 engine/session helper from configured `DATABASE_URL`.
-   - Add minimal DB health function using a simple connectivity query.
-   - Do not add ORM models or schema.
-   - Verifiable: DB health helper can be mocked in route tests and can run against PostgreSQL in Docker smoke.
+9. `@role/developer-db` Add `tracks` model.
+   - Include job FK, track ID, class, frame range, count, confidence summary, timestamp.
+   - Verification: unique `(job_id, track_id)` rejected; lookup index exists.
 
-7. `@role/developer-backend` Implement API router and app entrypoint.
-   - Create FastAPI app with routes under `/api`.
-   - Add only `GET /api/health` and `GET /api/health/db`.
-   - Add CORS middleware using configured explicit origins.
-   - Do not allow wildcard CORS origins.
-   - Ensure health responses do not include secrets, raw config, stack traces, or filesystem paths.
-   - Verifiable: route tests pass for both endpoints.
+10. `@role/developer-db` Add `experiment_runs` and `experiment_metrics` models.
+    - Include experiment type, publication state, model/admin FKs, config/artifact fields, metric values, metadata JSON, timestamps.
+    - Verification: experiment type constraint works; experiment indexes exist; nullable metric value accepted.
 
-8. `@role/developer-backend` Add health/settings tests.
-   - Add tests for settings load, CORS parsing, wildcard CORS rejection, safe setting representation, health success, DB-health success with mocked helper, and DB-health failure without raw exception text, DSN, or secret leakage.
-   - Keep health response tests intentionally minimal so they assert safe status/availability without freezing an undocumented expanded schema.
-   - Keep tests scoped to Phase 2.
-   - Verifiable: backend test command passes.
+11. `@role/developer-db` Add practical relative-path database checks.
+   - Apply to documented path fields where feasible without replacing later service path utilities.
+   - Verification: Unix absolute paths, Windows drive-letter paths, UNC-style paths, and `..` traversal segments fail in smoke tests where database checks are implemented.
 
-9. `@role/developer-devops` Replace backend placeholder Docker startup.
-   - Update `backend/Dockerfile` to install backend dependencies and start ASGI backend.
-   - Keep container path `/app`.
-   - Preserve Compose shared storage mount at `/app/storage`.
-   - Verifiable: backend image builds and container starts.
+12. `@role/developer-db` Add Alembic configuration and initial migration.
+    - Wire Alembic env to backend settings and SQLAlchemy metadata.
+    - Generate or write initial migration from current models.
+    - Verification: `alembic upgrade head` applies on fresh PostgreSQL database.
 
-10. `@role/developer-devops` Adjust Compose only for Phase 2 backend health access if needed.
-    - Add backend port mapping using existing `BACKEND_PORT` if direct host health checks require it.
-    - Keep existing `postgres`, `backend`, `cv-worker`, `frontend` service names.
-    - Do not add new services.
-    - Verifiable: `docker compose --env-file .env.example config` passes.
+13. `@role/tester` Add focused database smoke tests.
+    - Cover Alembic metadata table registration, table existence, indexes, key constraints, FKs, image metadata invariants, active model uniqueness, multiple inactive models, nullable metric values, and path checks.
+    - Keep tests Phase 3 only; no auth/API/worker behavior tests.
+    - Verification: `python -m pytest` passes from `backend/`.
 
-11. `@role/docs-maintainer` Update backend-local docs only if commands or files change.
-    - Update `backend/index.md` with current files and backend-local install/test/start commands.
-    - Update README only if root startup or Compose behavior changes.
-    - Do not modify product docs.
-    - Verifiable: docs reflect actual commands and still state unavailable later-phase capabilities as `not available yet`.
+14. `@role/tester` Run relevant gates.
+    - `python -m ruff check .`
+    - `python -m pytest`
+    - Alembic migration apply against fresh PostgreSQL.
+    - Alembic migration inside backend container when Compose database is available.
 
-12. `@role/tester` Run relevant backend gates.
-    - Run backend dependency install/check command.
-    - Run backend lint/format check command if configured.
-    - Run backend tests.
-    - Run `docker compose --env-file .env.example config`.
-    - Run backend container startup/health smoke if feasible.
-    - Report unavailable commands as `not available yet`, not `PASS`.
+15. `@role/code-reviewer` Review Phase 3 scope and doc fit.
+    - Check no source work from later phases slipped in: auth endpoints, seed, uploads, jobs APIs, worker logic, frontend UI, training, Celery/Redis.
+    - Check no binary files, generated storage contents, secrets, or absolute stored paths.
+    - Verification: final review notes cite docs and touched files.
 
-13. `@role/code-reviewer` Review Phase 2 scope.
-    - Confirm only Phase 2 files/behavior changed.
-    - Confirm no auth endpoints, product routes, DB schema, migrations with tables, upload/job logic, worker logic, or frontend UI were added.
-    - Confirm logs and health payloads do not expose secrets.
-    - Confirm `/api` prefix and public health endpoints match docs.
-    - Verifiable: review notes cite files and tests.
-
-## Quality Gates For This Phase
-
-- `backend` dependency install command: `PASS` or `FAIL` once command exists.
-- `backend` lint/format check command: `PASS` or `FAIL` if configured; `not available yet` only if no lint tool was added.
-- `backend` tests command: `PASS` or `FAIL`.
-- CORS wildcard rejection settings test: `PASS` or `FAIL` as part of backend tests.
-- `docker compose --env-file .env.example config`: `PASS` or `FAIL`.
-- Backend Docker build/start smoke: `PASS` or `FAIL` if Docker available; otherwise exact blocker.
-- `GET /api/health`: `PASS` or `FAIL` once backend running.
-- `GET /api/health/db`: `PASS` or `FAIL` once backend and PostgreSQL running.
-
-## Later-Phase Work Explicitly Excluded
-
-- Phase 3 database schema and initial migration.
-- Phase 4 startup migrations, seed/setup, and storage bootstrap from backend.
-- Phase 5 auth/register/login/me.
-- Phase 6 authorization, ownership, path-safety utilities beyond minimal settings/logging safety.
-- Phase 7+ media upload, jobs, results, worker integration.
-- Frontend implementation phases.
+16. `@role/docs-maintainer` Update only implementation indexes if commands or backend contents changed.
+    - Product docs stay unchanged.
+    - Verification: `backend/index.md` updated only if implementation changes available commands/current files; `docs/index.md` unchanged unless source-of-truth docs change.

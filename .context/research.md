@@ -1,102 +1,111 @@
-# Phase 2 Research - Backend FastAPI Scaffold, Settings, Logging, And Health
+# Phase 3 Research - Database schema and initial Alembic migration
 
-## Current Phase
+## Current phase
 
-- Confirmed current phase: Phase 2 - Backend FastAPI scaffold, settings, logging, and health.
-- Source: `docs/phase.md`.
-- Risk: not provided by user as concrete value. Assumption: MEDIUM, because this phase creates backend foundation, environment parsing, logging safety, CORS, DB connectivity, Docker startup, and public health endpoints.
+- Phase: `Phase 3 - Database schema and initial Alembic migration`
+- Direction: Backend / Database
+- Goal: implement PostgreSQL schema and initial migration.
+- Risk: not provided by user; assumption: `MEDIUM` because phase changes persistent schema and migration path.
 
-## Docs Consulted
+## Docs consulted
 
 - `AGENTS.md`
 - `CLAUDE.md`
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
+- `docs/DATA_MODEL.md`
 - `docs/ARCHITECTURE.md`
 - `docs/API.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
-- Existing `.context/research.md`, `.context/design.md`, `.context/plan.md` were empty.
+- Relevant existing `.context/` files: present but empty for `research.md`, `design.md`, `plan.md`, `status.md`, and `review-plan-resolution.md`.
 
-## Confirmed Repository Facts
+## Confirmed repository facts
 
-- Checkout is Git repository.
-- `git status --short` shows modified context/review/status files and `docs/phase.md`.
-- Target files `.context/research.md`, `.context/design.md`, and `.context/plan.md` existed and were empty before this contract.
-- Root contains `docker-compose.yml`, `docker-compose.gpu.yml`, `Makefile`, `.env.example`, `README.md`, `AGENTS.md`, `CLAUDE.md`.
-- Existing top-level implementation folders: `backend/`, `frontend/`, `cv/`, `training/`, `scripts/`, `storage/`, `docs/`.
-- `backend/` contains only `Dockerfile` and `index.md`.
-- `backend/index.md` confirms no backend scaffold, dependency manifest, application package, migrations, or tests exist yet.
-- `backend/Dockerfile` is Phase 1 placeholder and does not start FastAPI.
-- `docker-compose.yml` defines `postgres`, `backend`, `cv-worker`, and `frontend`.
-- `docker-compose.yml` mounts `./storage:/app/storage` into `backend` and `cv-worker`.
-- `.env.example` includes safe placeholder values for database, auth, storage, backend, CV, worker, and local port variables.
-- README states Phase 1 scaffold only; `/api/health` and backend product routes are not available yet.
+- Git checkout exists.
+- `git status --short` showed existing modified files before this contract update:
+  - `.context/design.md`
+  - `.context/plan.md`
+  - `.context/research.md`
+  - `.context/review-code-openai.md`
+  - `.context/review-code-resolution.md`
+  - `.context/review-plan-claude.md`
+  - `.context/review-plan-resolution.md`
+  - `.context/status.md`
+  - `docs/phase.md`
+- Root contains `docker-compose.yml`, `docker-compose.gpu.yml`, `.env.example`, `Makefile`, `README.md`, `backend/`, `frontend/`, `cv/`, `training/`, `docs/`, and `scripts/`.
+- Backend scaffold exists from Phase 2:
+  - `backend/pyproject.toml`
+  - `backend/app/main.py`
+  - `backend/app/api/router.py`
+  - `backend/app/api/health.py`
+  - `backend/app/core/config.py`
+  - `backend/app/core/cors.py`
+  - `backend/app/core/logging.py`
+  - `backend/app/db/session.py`
+  - `backend/app/db/health.py`
+  - `backend/tests/`
+- Backend dependencies already include SQLAlchemy 2.x, Alembic, and psycopg.
+- `backend/app/db/session.py` creates SQLAlchemy engine from `DATABASE_URL` and exposes session factory.
+- `backend/index.md` says no ORM models, Alembic migration scripts, auth endpoints, product APIs, or worker queue logic exist yet.
+- `docker-compose.yml` defines `postgres`, `backend`, `cv-worker`, and `frontend`; backend and worker mount `./storage:/app/storage`.
+- `.env.example` contains database, auth, storage, backend, CV, worker, and port variables with safe placeholder values.
 
-## Existing Implementation State
+## Existing implementation state
 
-- Backend application: not implemented.
-- Backend dependency manifest: not implemented.
-- Backend settings loader: not implemented.
-- Backend structured logging: not implemented.
-- Backend API routes: not implemented.
-- `GET /api/health`: not implemented.
-- `GET /api/health/db`: not implemented.
-- Backend database connectivity layer: not implemented.
-- Backend CORS configuration: not implemented.
-- Backend tests: not implemented.
-- Alembic configuration: not implemented in current checkout, but Phase 2 requires dependency and connectivity skeleton only. Concrete schema/migrations belong to Phase 3.
-- Auth endpoints, JWT flow, user schema, upload APIs, jobs, worker queue, models, experiments, frontend UI: later phases, out of scope for Phase 2.
+- Phase 1 scaffold appears present.
+- Phase 2 backend foundation appears present:
+  - settings
+  - logging redaction baseline
+  - CORS validation
+  - database connectivity skeleton
+  - `/api/health`
+  - `/api/health/db`
+  - backend tests for health, settings, and logging
+- Phase 3 implementation not present:
+  - no SQLAlchemy declarative models found
+  - no Alembic configuration found
+  - no migration versions found
+  - no database constraint/index tests found
 
-## Confirmed Product Facts
+## Confirmed database requirements
 
-- All API routes must use `/api` prefix.
-- Health endpoints are public: `GET /api/health` and `GET /api/health/db`.
-- Health endpoints must not expose secrets, internal configuration, database passwords, JWT secrets, or raw environment values.
-- Backend is FastAPI with Pydantic v2, SQLAlchemy 2.x, Alembic, PostgreSQL driver, JWT auth helpers later, and test/lint tooling.
-- Backend must configure CORS from explicit `BACKEND_CORS_ORIGINS`; wildcard must not be used in non-local configurations.
-- Phase 2 implementation contract will reject wildcard CORS origins entirely, including local mode. This is stricter than docs, still doc-consistent, and avoids adding a new environment flag to define local/non-local mode.
-- Backend logs must not contain passwords, password hashes, JWT tokens, JWT secrets, DB passwords, admin password, or sensitive environment values.
-- PostgreSQL stores structured records only; no binary media storage.
-- Backend and CV worker communicate through PostgreSQL and shared storage, not HTTP job-loop calls.
-- Long media processing must not run inside backend requests.
-- Phase 2 validation expects backend lint/format checks, backend tests, safe health responses, DB health without secret leakage, and backend container startup in Docker Compose.
+- Required tables:
+  - `users`
+  - `media_files`
+  - `processing_jobs`
+  - `detections`
+  - `tracks`
+  - `model_versions`
+  - `experiment_runs`
+  - `experiment_metrics`
+- PostgreSQL stores structured records and metadata only.
+- Media, result media, CSV, JSON exports, model weights, datasets, and report artifacts stay in filesystem storage.
+- Database path fields must store relative paths only.
+- Soft deletion is required for `media_files` and `processing_jobs`.
+- Required queue fields on `processing_jobs` include status, progress, heartbeat, lock fields, retry count, start/complete timestamps, and result/export paths.
+- No-detection jobs complete with `status = completed`; zero detection rows are valid.
+- `model_versions.is_active` must support only one active default model.
+- `tracks` needs unique `(job_id, track_id)`.
+- Required indexes are listed in `docs/DATA_MODEL.md`.
 
-## Unknowns And Assumptions
+## Unknowns and assumptions
 
-- User did not replace `<PHASE NUMBER AND TITLE>` or `<LOW | MEDIUM | HIGH>` placeholders. Assumption: use `docs/phase.md` for phase and treat risk as MEDIUM.
-- Exact Python packaging tool is not prescribed. Assumption: choose one standard backend-local manifest during implementation, such as `pyproject.toml`, without adding unrelated repo tooling.
-- Exact health response JSON shape is not prescribed. Assumption: implement minimal stable safe JSON sufficient for frontend/service health, without exposing config values.
-- Exact lint/format tools are not prescribed. Assumption: use backend-local tools chosen in dependency manifest and document exact commands in `backend/index.md` if commands change.
-- Exact PostgreSQL driver is not prescribed beyond PostgreSQL driver. Assumption: use a SQLAlchemy 2-compatible driver and keep one consistent `DATABASE_URL` format.
-- Existing `docker-compose.yml` does not publish backend port. Phase 2 requires backend container startup and health endpoint verification; implementation may need to add backend port mapping using existing `BACKEND_PORT`.
-- Existing target context files were empty, so replacing them does not remove substantive content.
-- `.env.example` already uses explicit local frontend origins for `BACKEND_CORS_ORIGINS`, so rejecting wildcard values does not break documented local setup.
+- User did not replace `<PHASE NUMBER AND TITLE>` or `<LOW | MEDIUM | HIGH>` placeholders. Assumption: current phase comes from `docs/phase.md`; risk treated as `MEDIUM`.
+- Exact internal module split for models is not specified. Assumption: implementation may choose cohesive modules under existing `backend/app/db/` or nearby backend package paths.
+- Exact SQL type choices are not specified for JSON fields. Assumption: use PostgreSQL-compatible JSON type through SQLAlchemy, with migration output matching docs.
+- Exact UUID generation strategy is not specified. Assumption: use application-side UUID defaults unless migration policy chooses PostgreSQL UUID generation.
+- Exact timestamp timezone policy is not stated. Assumption: use timezone-aware UTC timestamps consistently.
+- Cross-table invariants may not all fit cleanly into database constraints. Docs allow documenting limitations where service validation must cover them.
+- Auth/user seed is later phase. Phase 3 should create schema only, not implement registration/login/seed behavior.
 
-## Files Likely Relevant For Implementation
+## Files likely relevant for implementation
 
-- `backend/Dockerfile`
-- `backend/index.md`
 - `backend/pyproject.toml`
-- `backend/alembic.ini`
-- `backend/app/__init__.py`
-- `backend/app/main.py`
-- `backend/app/core/config.py`
-- `backend/app/core/logging.py`
-- `backend/app/core/cors.py`
 - `backend/app/db/session.py`
-- `backend/app/api/__init__.py`
-- `backend/app/api/health.py`
-- `backend/app/api/router.py`
-- `backend/tests/conftest.py`
-- `backend/tests/test_settings.py`
-- `backend/tests/test_health.py`
-- `docker-compose.yml`
-- `.env.example`
-- `README.md`
-
-## Conflict Check
-
-- No `WARNING: CONFLICT` found between consulted docs for Phase 2 scope.
-- Potential implementation caution: `docker-compose.yml` currently has no backend published port, while Phase 2 validation needs direct health checks. This is not a docs conflict; it is an implementation gap.
+- `backend/app/db/__init__.py`
+- Backend ORM model modules under `backend/app/db/` or equivalent backend package path.
+- Alembic config and migration files under backend migration structure.
+- `backend/tests/` database/model smoke tests.
+- `docker-compose.yml` only for running PostgreSQL during migration validation, not for product behavior changes.
+- `backend/index.md` only if implementation changes backend-local commands or current contents in implementation phase.

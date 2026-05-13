@@ -1,43 +1,37 @@
-# Phase 2 Planning Review Resolution
+# Verdict: READY_FOR_IMPLEMENTATION
 
-## Verdict: READY_FOR_IMPLEMENTATION
+## Resolution table
 
-Claude review found no blocking issues. Accepted items were applied to the Phase 2 implementation contract only. No source code changes were made.
-
-## Resolution Table
-
-| ID | Claude review item | Resolution | Applied contract change |
+| ID | Claude item | Resolution | Contract update |
 |---|---|---|---|
-| I-1 | CORS wildcard restriction needs explicit implementation and test coverage. | accepted | `.context/research.md`, `.context/design.md`, and `.context/plan.md` now require rejecting wildcard `*` CORS origins during settings validation and testing that rejection. |
-| O-1 | Add targeted test that DB health failure response excludes raw DB exception text. | accepted | `.context/design.md` and `.context/plan.md` now require DB-health failure tests to assert no raw exception text, DSN, or secret leakage. |
-| O-2 | Make health response shape intentionally minimal in tests. | accepted | `.context/design.md` and `.context/plan.md` now require minimal health response assertions only for safe status/availability. |
-| Q-1 | What environment flag defines non-local for CORS wildcard rejection if wildcard is allowed locally? | accepted | Resolved by contract decision: no local wildcard exception, no new environment flag. Phase 2 rejects wildcard in all modes and uses explicit localhost origins for local development. |
+| I-1 | Media image invariants left optional. | accepted | `.context/design.md` and `.context/plan.md` now require Phase 3 DB/model tests to reject image media with `frame_count != 1`, non-null `fps`, or non-null `duration_seconds`. |
+| I-2 | Relative path checks need stronger examples. | accepted | `.context/design.md` and `.context/plan.md` now require unsafe path examples for Unix absolute, Windows drive-letter, UNC-style, and `..` traversal segments where DB checks are implemented. |
+| I-3 | Active model uniqueness test should prove multiple inactive models are allowed. | accepted | `.context/design.md` and `.context/plan.md` now require tests that second active model is rejected and multiple inactive model rows are accepted. |
+| O-1 | Add smoke test that all required table names are present in Alembic metadata before migration assertions. | accepted | `.context/design.md` and `.context/plan.md` now require Alembic/SQLAlchemy metadata table-registration smoke coverage. |
+| O-2 | Add test that nullable `experiment_metrics.metric_value` is accepted. | duplicate | Already present in `.context/design.md` test strategy and `.context/plan.md` step 10 before this resolution. Kept and reinforced in step 13 test summary. |
 
-## Accepted Changes Applied
+## Accepted changes applied
 
-- CORS settings must reject wildcard `*` origins in all modes.
-- Local development must use explicit origins such as `http://localhost:5173` and `http://127.0.0.1:5173`.
-- No new local/non-local environment flag is added for Phase 2.
-- Settings tests must cover wildcard CORS rejection.
-- DB-health failure tests must prove response excludes raw DB exception text, DSN, and secrets.
-- Health endpoint tests must avoid freezing an undocumented expanded schema.
+- Tightened Phase 3 media schema contract for documented image invariants.
+- Tightened relative-path validation examples without moving Phase 6 service path utilities into Phase 3.
+- Tightened active model uniqueness tests so implementation cannot use an overbroad `UNIQUE(is_active)` rule.
+- Added Alembic/SQLAlchemy metadata table-registration smoke coverage to Phase 3 test plan.
 
-## Rejected Items
+## Rejected items
 
-None.
+- None.
 
-## Duplicate Items
+## Duplicate items
 
-None.
+- O-2: nullable `experiment_metrics.metric_value` acceptance was already in the planning contract.
 
-## Items Needing User Decision
+## Items needing user decision
 
-None.
+- None.
 
-## Final Contract Status
+## Final contract status
 
-Phase 2 contract is ready for implementation.
-
-Scope remains limited to backend FastAPI scaffold, settings, safe logging, public health endpoints, database connectivity skeleton, explicit CORS, backend Docker startup, backend-local docs, and focused tests.
-
-Still excluded: auth endpoints, user tables, Alembic schema migrations, uploads, jobs, worker queue, CV processing, frontend UI, training utilities, and later-phase product APIs.
+- Phase 3 implementation contract remains scoped to database schema, SQLAlchemy models, Alembic initial migration, and focused database smoke tests.
+- No source code changes made.
+- No product docs changed.
+- No accepted item conflicts with `docs/DATA_MODEL.md`, `docs/ARCHITECTURE.md`, `docs/API.md`, or `docs/TESTING_QA.md`.

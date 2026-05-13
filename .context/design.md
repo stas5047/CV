@@ -1,116 +1,117 @@
-# Phase 2 Design - Backend FastAPI Scaffold, Settings, Logging, And Health
+# Phase 3 Design - Database schema and initial Alembic migration
 
-## Phase Goal
+## Phase goal
 
-Create backend foundation for AeroVision: FastAPI app, environment-based settings, safe logging baseline, public health endpoints, database connectivity skeleton, explicit CORS, backend Docker startup, and initial backend tests. Do not implement auth, database schema, uploads, jobs, CV processing, model registry, experiments, admin APIs, or frontend UI in this phase.
+Implement database schema foundation for documented MVP using SQLAlchemy 2.x models and Alembic initial migration. No API routes, auth flows, upload handling, worker logic, frontend UI, or training behavior in this phase.
 
-## Intended Behavior From Docs
+## Intended behavior from docs
 
-Confirmed facts:
+- PostgreSQL has documented tables:
+  - `users`
+  - `media_files`
+  - `processing_jobs`
+  - `detections`
+  - `tracks`
+  - `model_versions`
+  - `experiment_runs`
+  - `experiment_metrics`
+- Tables include required fields, foreign keys, relationships, soft-deletion fields, status/role/type constraints, unique constraints, and indexes from `docs/DATA_MODEL.md`.
+- Database stores metadata and structured records only.
+- File references use relative paths only for:
+  - `media_files.stored_path`
+  - `processing_jobs.result_media_path`
+  - `processing_jobs.csv_path`
+  - `processing_jobs.json_path`
+  - `model_versions.weights_path`
+  - `experiment_runs.artifacts_path`
+- `processing_jobs` supports PostgreSQL queue behavior required later:
+  - `queued`, `processing`, `completed`, `failed`, `cancelled`
+  - lock fields
+  - heartbeat
+  - retry count
+  - progress
+- Model registry supports one active model default where feasible with PostgreSQL constraint/index.
+- No-detection remains representable as completed job with zero detections and nullable confidence summaries in JSON summary data.
+- Migration applies to fresh PostgreSQL database and can run inside backend container.
 
-- Backend exposes REST API under `/api`.
-- Public health endpoints:
-  - `GET /api/health`
-  - `GET /api/health/db`
-- `GET /api/health` returns safe backend health status.
-- `GET /api/health/db` verifies PostgreSQL connectivity without leaking secrets.
-- Backend settings load from environment variables.
-- CORS uses explicit configured origins from `BACKEND_CORS_ORIGINS`.
-- Logs omit secrets, tokens, passwords, password hashes, DB passwords, admin password, and sensitive env values.
-- Backend container must start in Docker Compose.
-- Phase 2 adds tests for health and settings.
+## Architecture decisions
 
-Assumptions:
+- Use existing backend stack: SQLAlchemy 2.x, Alembic, psycopg, PostgreSQL.
+- Keep models in backend package; CV worker and frontend do not gain direct model ownership in this phase.
+- Use SQLAlchemy declarative models with explicit table names matching docs.
+- Use database-level constraints where docs require stable invariants:
+  - unique `users.email`
+  - role/status/type checks or enums
+  - foreign keys
+  - unique `(job_id, track_id)`
+  - active model uniqueness
+  - progress range
+  - image-media invariants: `frame_count = 1`, `fps = null`, and `duration_seconds = null`
+  - practical relative-path checks
+- Use service-level validation TODO/test coverage notes only for rules that need cross-table/media context and cannot be cleanly enforced by database constraints.
+- Keep Alembic metadata import tied to model metadata so future migrations are generated from same source.
+- Do not add Celery, Redis, worker processing, auth endpoints, seed logic, upload routes, or frontend behavior.
 
-- Health JSON can be minimal and safe because docs do not require exact response schema.
-- DB health may return available/unavailable status and appropriate HTTP behavior, but must not expose DSN, credentials, host internals, stack traces, or raw exception text.
-- Phase 2 may include Alembic dependency and placeholder config, but concrete migrations and SQLAlchemy models remain Phase 3.
+## Backend impact
 
-## Architecture Decisions
+- Adds ORM schema layer and migration plumbing.
+- Existing health endpoints and settings should keep working.
+- Existing database session helper may need to expose model metadata cleanly for Alembic.
+- No public API contract changes in this phase.
 
-- Create a backend-local Python project under `backend/`, keeping backend ownership separate from frontend and CV worker.
-- Use a small app factory or main module that includes an `/api` router and health router.
-- Keep route handlers thin. Health route calls a database connectivity helper instead of embedding DB setup directly in route body.
-- Use Pydantic v2 settings model for environment parsing and validation.
-- Parse `BACKEND_CORS_ORIGINS` as explicit origins list.
-- Reject `*` in `BACKEND_CORS_ORIGINS` during settings validation rather than adding a local/non-local environment flag. Local development should use explicit localhost origins, as `.env.example` already does.
-- Add secret-safe settings representation so logs/tests do not print sensitive values.
-- Add logging setup with redaction or omission for known sensitive fields.
-- Add SQLAlchemy 2 engine/session skeleton only; no models, no migrations beyond optional empty Alembic scaffolding.
-- Update backend Dockerfile from placeholder to install backend dependencies and start ASGI app.
-- Adjust Compose only as needed for Phase 2 backend startup and health verification, using existing environment variables and shared storage mount.
+## DB impact
 
-## Backend Impact
+- Adds initial schema for all documented tables.
+- Adds constraints, indexes, and relationships needed by later phases.
+- Adds Alembic baseline migration.
+- Adds database smoke tests for constraints and indexes.
 
-- Backend project scaffold appears in `backend/`.
-- Backend app serves only Phase 2 public health endpoints.
-- Backend settings include existing env groups needed by Phase 2:
-  - database URL;
-  - JWT/auth placeholders from `.env.example` as settings only, not auth logic;
-  - storage root/model root as settings only;
-  - CORS origins;
-  - upload size limits as settings only.
-- Backend startup must not run migrations or seed setup in Phase 2 unless docs change; that belongs to Phase 4.
-- Backend must not implement auth endpoints in Phase 2.
+## API impact
 
-## API Impact
+- No route or response behavior changes.
+- API docs only inform schema support for future endpoints.
 
-- Adds `GET /api/health`.
-- Adds `GET /api/health/db`.
-- No other API routes in Phase 2.
-- Health responses must be public and safe.
-- API must not expose absolute filesystem paths, credentials, stack traces, JWT secrets, raw tokens, or database URL.
+## Frontend impact
 
-## DB Impact
+- None.
 
-- Add database connectivity skeleton only.
-- No concrete tables, constraints, seed data, or migrations in this phase.
-- DB health performs a minimal connectivity check against PostgreSQL.
-- Phase 3 remains responsible for SQLAlchemy models and initial Alembic migration.
+## Security/privacy impact
 
-## Frontend Impact
+- `users.password_hash` exists but password hashing/auth implementation is later.
+- Database must not include plain password fields.
+- Path fields must not accept absolute path values where practical database checks can reject them.
+- Migration/test outputs must not include real secrets.
+- No API path exposure changes in this phase.
 
-- None, except Compose/frontend may continue to point at backend `/api`.
-- No React UI changes in Phase 2.
+## Test strategy
 
-## Security/Privacy Impact
+- Backend lint:
+  - `python -m ruff check .`
+- Backend tests:
+  - `python -m pytest`
+- Migration validation:
+  - apply Alembic initial migration against fresh PostgreSQL database.
+  - run migration inside backend container when Compose database is available.
+- Data model smoke tests:
+  - required tables exist.
+  - required table names are present in SQLAlchemy/Alembic metadata before migration assertions.
+  - required indexes exist.
+  - invalid enum/check values are rejected.
+  - invalid progress is rejected.
+  - image media with non-`1` `frame_count`, non-null `fps`, or non-null `duration_seconds` is rejected.
+  - duplicate email is rejected.
+  - duplicate `(job_id, track_id)` is rejected.
+  - second active model is rejected.
+  - multiple inactive model versions are accepted.
+  - foreign-key integrity is enforced.
+  - unsafe path values are rejected where database checks are implemented, including Unix absolute paths, Windows drive-letter paths, UNC-style paths, and `..` traversal segments.
+  - nullable `experiment_metrics.metric_value` is accepted.
+- Existing health/settings/logging tests remain passing.
 
-- Settings must treat `JWT_SECRET_KEY`, `ADMIN_PASSWORD`, `POSTGRES_PASSWORD`, database URL, and tokens as sensitive.
-- Logging must not emit secrets or full settings dumps.
-- DB health must not return connection strings, passwords, exception tracebacks, or internal env values.
-- CORS must use explicit configured origins.
-- CORS settings must reject wildcard origins so non-local wildcard drift cannot occur.
-- Public health endpoints must not reveal more than service/database availability.
+## Ambiguities or conflicts
 
-## Test Strategy
-
-Relevant checks only:
-
-- Backend settings tests:
-  - required env values load;
-  - CORS origins parse as explicit list;
-  - wildcard CORS origins are rejected;
-  - sensitive fields are not exposed by settings representation/log output.
-- Backend health tests:
-  - `GET /api/health` returns success and safe payload;
-  - `GET /api/health` payload contains no sensitive values;
-  - `GET /api/health/db` calls DB health helper and returns safe available response when helper succeeds;
-  - `GET /api/health/db` returns safe unavailable response when helper fails, without raw exception text, DSN, or secret leakage.
-  - health response assertions intentionally freeze only minimal safe status/availability fields, not an expanded product schema.
-- Backend command checks:
-  - backend lint/format command if configured;
-  - backend test suite;
-  - Docker Compose backend build/start smoke when available.
-
-Out of scope tests:
-
-- Auth, ownership, uploads, jobs, model selection, worker queue, CV processing, frontend routes, exports, admin routes.
-
-## Ambiguities Or Conflicts
-
-- No docs conflict found for Phase 2.
-- Risk value not provided by user; contract assumes MEDIUM.
-- Exact health response schema is unspecified; implementation should keep it minimal and avoid treating chosen shape as product-wide contract beyond Phase 2 tests.
-- Exact dependency manager and lint tools are unspecified; implementation should pick pragmatic backend-local tooling and document commands if added.
-- Whether to add `alembic.ini` in Phase 2 is mildly ambiguous: phase requires Alembic dependency, while Phase 3 owns initial migration. Safer design: include dependency and optional config placeholder only if needed by backend tooling; do not create migration scripts or schema in Phase 2.
-- Claude review asked what flag defines non-local CORS behavior if wildcard is allowed locally. Final contract avoids the ambiguity by rejecting wildcard CORS values in all modes.
+- No `WARNING: CONFLICT` found between `docs/phase.md`, `docs/ROADMAP.md`, and relevant docs.
+- Ambiguity: exact module layout for ORM models is unspecified.
+- Ambiguity: UUID default generation location is unspecified.
+- Ambiguity: timestamp timezone convention is unspecified.
+- Ambiguity: relative-path validation depth at database layer is partly practical; Phase 3 must still reject obvious unsafe stored paths, while deeper filename/storage sanitization belongs to Phase 6 service utilities.

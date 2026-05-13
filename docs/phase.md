@@ -1,38 +1,43 @@
-## Phase 2 - Backend FastAPI scaffold, settings, logging, and health
+## Phase 3 - Database schema and initial Alembic migration
 
-**Direction:** Backend  
-**Goal:** Create the FastAPI backend foundation with configuration, logging, and health checks.
+**Direction:** Backend / Database  
+**Goal:** Implement the concrete PostgreSQL schema and initial migration.
 
 ### Scope
 
-- Scaffold `backend/` Python project.
-- Add dependency management for FastAPI, Pydantic v2, Uvicorn/Gunicorn-Uvicorn, SQLAlchemy 2.x, Alembic, PostgreSQL driver, auth/security helpers, testing tools, and lint/format tools.
-- Implement typed settings loaded from environment variables.
-- Implement app factory or main app module.
-- Implement structured logging baseline that does not log secrets.
-- Implement public health endpoints:
-  - `GET /api/health`;
-  - `GET /api/health/db`.
-- Add database connectivity layer skeleton.
-- Add CORS configuration using explicit configured origins.
-- Add backend Dockerfile and startup entrypoint placeholder.
-- Add initial backend tests for health and settings.
+- Add SQLAlchemy models for:
+  - `users`;
+  - `media_files`;
+  - `processing_jobs`;
+  - `detections`;
+  - `tracks`;
+  - `model_versions`;
+  - `experiment_runs`;
+  - `experiment_metrics`.
+- Use UUID primary keys where appropriate.
+- Add required enums/checks for roles, media types, job statuses, and experiment types.
+- Add required foreign keys, relationships, indexes, unique constraints, and soft-deletion fields.
+- Enforce only one active model version at a time where feasible with PostgreSQL constraints/indexes.
+- Enforce relative-path storage at service validation level, and add database checks where practical.
+- Add Alembic configuration and generate initial migration.
+- Add database smoke tests for constraints and relationships.
+- Document limitations where cross-table rules cannot be expressed cleanly in the database.
 
 ### Relevant docs
 
+- `docs/DATA_MODEL.md`
 - `docs/ARCHITECTURE.md`
 - `docs/API.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Backend lint/format checks pass.
-- Backend test suite passes.
-- `GET /api/health` returns a safe status response.
-- `GET /api/health/db` verifies PostgreSQL connectivity without leaking secrets.
-- Backend container starts in Docker Compose.
+- Alembic migration applies successfully to a fresh PostgreSQL database.
+- Alembic migration can be run inside the backend container.
+- Representative invalid rows are rejected by database constraints or covered by service validation TODO/tests.
+- Required indexes exist.
+- Backend test suite still passes.
 
 ### Commit
 
-`feat(backend): scaffold FastAPI settings logging and health`
+`feat(backend-db): add SQLAlchemy models and initial Alembic migration`
