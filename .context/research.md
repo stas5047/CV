@@ -1,46 +1,29 @@
-# Phase 7 Research - Media Upload API and Metadata Extraction
+# Phase 8 Research
 
-## Current Phase
+## Current phase
 
-Confirmed from `docs/phase.md`:
+- Confirmed from `docs/phase.md`: Phase 8 - Model registry backend API.
+- Direction: Backend / Admin.
+- Goal: implement model registry records, active model management, and model path validation.
+- Risk level: not supplied by user prompt. Assumption: MEDIUM, because phase touches authenticated backend API, admin-only mutations, model-path safety, and active-model state.
 
-- Phase: `Phase 7 - Media upload API and metadata extraction`
-- Direction: Backend
-- Goal: Implement media upload, validation, storage, metadata extraction, listing, detail, and soft deletion.
-- Risk level: not specified by user input. Assumption: `MEDIUM`, because phase touches authenticated uploads, ownership, storage paths, database records, and file validation.
-
-## Docs Consulted
-
-Required first-read docs:
+## Docs consulted
 
 - `AGENTS.md`
 - `CLAUDE.md`
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-
-Phase relevant docs from `docs/phase.md`:
-
 - `docs/API.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/DATA_MODEL.md`
-- `docs/ARCHITECTURE.md`
+- `docs/CV_PIPELINE.md`
+- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
-Existing `.context/` artifacts:
+## Confirmed repository facts
 
-- `.context/status.md` exists but is empty.
-- `.context/research.md` exists but was empty before this update.
-- `.context/design.md` exists but was empty before this update.
-- `.context/plan.md` exists but was empty before this update.
-- `.context/review-plan-resolution.md` exists but is empty.
-
-No doc conflict found in consulted files.
-
-## Confirmed Repository Facts
-
-- Git checkout exists.
-- `git status --short` showed existing modified files before this work:
+- `git status --short` showed existing modified files before this contract work:
   - `.context/design.md`
   - `.context/plan.md`
   - `.context/research.md`
@@ -50,102 +33,90 @@ No doc conflict found in consulted files.
   - `.context/review-plan-resolution.md`
   - `.context/status.md`
   - `docs/phase.md`
-- Required backend project exists under `backend/`.
-- Backend already has FastAPI app, `/api` router, auth routes, settings, logging, database session, SQLAlchemy models, Alembic migration, setup/seed/storage bootstrap, security/path helpers, and tests.
-- Existing routes included by `backend/app/api/router.py`:
-  - auth router
-  - health router
-- No media API route file exists yet.
-- No media schemas exist yet.
-- No media upload tests exist yet.
-- `backend/pyproject.toml` dependencies currently do not include `python-multipart`, Pillow, or OpenCV.
-- `backend/app/core/config.py` already exposes:
-  - `storage_root`
-  - `max_image_size_mb`
-  - `max_video_size_mb`
-- `backend/app/core/storage_paths.py` already exposes:
+- Root has `backend/`, `frontend/`, `cv/`, `training/`, `docs/`, `docker-compose.yml`, `docker-compose.gpu.yml`, `.env.example`, `Makefile`, and `scripts/bootstrap-storage.ps1`.
+- Backend exists as FastAPI app, not placeholder-only.
+- Backend dependencies include FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, psycopg, python-jose, passlib/bcrypt, Pillow, OpenCV headless, pytest, and Ruff.
+- Backend router currently includes auth, health, and media routers only.
+- `backend/app/db/models.py` already defines `ModelVersion` with documented fields:
+  - `id`
+  - `name`
+  - `model_family`
+  - `variant`
+  - `weights_path`
+  - `dataset_name`
+  - `dataset_split_description`
+  - `metrics_json`
+  - `is_active`
+  - `created_by_user_id`
+  - `created_at`
+  - `updated_at`
+- `ModelVersion` already has a database check for `model_family IN ('YOLO26', 'YOLO11')`.
+- `ModelVersion.weights_path` already has relative-path check constraint.
+- `model_versions` already has unique active-model partial index `uq_model_versions_active_true`.
+- `Settings` already exposes `storage_root` and `models_root`.
+- `storage_paths.py` already provides:
   - `validate_relative_storage_path`
   - `safe_join_storage_path`
-  - `sanitize_upload_filename`
-  - `safe_download_filename`
-- `backend/app/core/authorization.py` already exposes admin and ownership helpers.
-- `backend/app/db/models.py` already defines `MediaFile` with documented fields and image metadata check.
-- `backend/app/setup.py` already creates required storage folders, including `uploads`.
+  - filename helpers
+- `authorization.py` already provides active-user auth dependency through `get_current_active_user` and admin dependency `get_current_admin_user`.
+- Existing tests cover schema constraints, auth, security utilities, settings, setup, health, media validation, and media API.
 
-## Existing Implementation State
+## Existing implementation state
 
-Confirmed implemented before Phase 7:
+- Implemented:
+  - FastAPI app factory and `/api` router.
+  - Health API.
+  - JWT auth, public registration, login, current-user endpoint.
+  - Active-user enforcement.
+  - Admin dependency.
+  - Ownership helpers.
+  - Storage relative-path validation and safe join.
+  - Media upload/list/detail/soft-delete API.
+  - SQLAlchemy schema and initial Alembic migration for documented tables.
+  - Storage setup and seeded admin command.
+- Not implemented in current backend:
+  - `GET /api/models`
+  - `GET /api/models/{model_id}`
+  - `POST /api/models`
+  - `PATCH /api/models/{model_id}/activate`
+  - Model API schemas.
+  - Model API service/domain module.
+  - Model API tests.
+- CV worker, frontend model page, jobs/results APIs, and experiment APIs are outside this phase.
 
-- Health API under `/api/health` and `/api/health/db`.
-- Auth API for register, login, and current user.
-- JWT auth and inactive-user enforcement.
-- Admin dependency and ownership helper primitives.
-- Relative path validation and safe storage join helpers.
-- Filename sanitization helper.
-- Database schema for `media_files`.
-- Soft deletion column `media_files.deleted_at`.
-- Backend tests for auth, settings, logging, setup, data model, and security utilities.
+## Unknowns and assumptions
 
-Confirmed not implemented yet:
+- WARNING: CONFLICT
+  - `docs/index.md` says `backend/`, `frontend/`, and `cv/` contain placeholder Dockerfiles only and no product app scaffold/routes/tests.
+  - `README.md` says auth/uploads are not available yet and current state is Phase 4.
+  - Actual repo and `backend/index.md` show backend auth, security, media API, schema, migrations, and tests exist.
+  - `docs/phase.md` identifies Phase 8. Contract assumes `docs/phase.md` is current phase source and uses actual backend state for implementation planning.
+- User prompt left phase title and risk placeholders unfilled. Assumption: current phase from `docs/phase.md`; risk MEDIUM.
+- Planning review resolution chose the Phase 8 canonical `weights_path` wire/database form as relative to `STORAGE_ROOT` with the `models/.../weights.pt` prefix.
+  - Implementation should resolve the stored value against `STORAGE_ROOT`, then require the resolved file to live under configured `MODELS_ROOT`.
+  - Positive tests should use the exact canonical form, for example `models/yolo26s-seraphim-subset-v1/weights.pt`.
+  - Paths outside `MODELS_ROOT`, absolute paths, traversal paths, empty paths, and missing files must be rejected.
+- Docs do not define exact model request/response JSON field names beyond `model_versions` documented fields.
+  - Assumption: Pydantic schemas mirror documented `model_versions` metadata and existing backend naming style.
+- Docs say admin registers existing weights paths. Assumption: creation should verify the resolved weights file exists and is a file; no `.pt` upload is implemented.
+- Docs allow YOLO11 only as documented fallback. Phase 8 does not define a required fallback-documentation field, so implementation should not invent a new mandatory field. It must store/report `model_family = YOLO11` accurately and preserve supplied fallback documentation metadata, for example in `metrics_json`, without treating YOLO11 as an alternative primary model.
+- No model size field exists in `model_versions`; model size may live in `metrics_json` or later summary data. Do not add schema fields in this phase.
 
-- `POST /api/media`
-- `GET /api/media`
-- `GET /api/media/{media_id}`
-- `DELETE /api/media/{media_id}`
-- Upload extension/MIME/size/category validation wired to API.
-- Generated upload storage path creation through API.
-- Media metadata extraction in backend upload flow.
-- Media ownership/admin visibility in API.
-- Soft-delete API behavior.
-- Media pagination/filtering in API.
+## Files likely relevant for implementation
 
-## Unknowns And Assumptions
-
-Confirmed unknowns:
-
-- Exact paginated response shape is not fully specified in docs.
-- Exact error response strings are not specified beyond safe/clear errors.
-- Exact behavior when metadata extraction fails but file type/size is valid is not specified.
-
-Assumptions for implementation contract:
-
-- Use existing backend patterns: route modules under `backend/app/api/`, schemas under `backend/app/schemas/`, tests under `backend/tests/`.
-- Use FastAPI `UploadFile`, which requires `python-multipart`.
-- Use decoder-backed validation for content/category checks: Pillow for image validation/metadata and `opencv-python-headless` for video validation/metadata, unless implementation discovers a platform blocker before source changes.
-- Treat uploaded `Content-Type` as advisory only; accepted uploads must pass extension/category checks and decoded content validation.
-- Use generated relative paths matching documented pattern: `uploads/{user_id}/{media_id}/original.{ext}`.
-- Use sanitized original filename only for display metadata.
-- Treat metadata fields as nullable where docs allow unknown values, except image invariant requires `frame_count = 1`, `fps = null`, `duration_seconds = null`.
-- If metadata extraction fails for an otherwise valid upload, reject with safe validation error unless implementation can still satisfy required image invariants and file category rules.
-- Pagination should be minimal but explicit and bounded, with access control enforced before response.
-- Media responses must omit `stored_path` and expose only safe metadata/logical identifiers.
-- Phase 7 media list/detail should hide soft-deleted media for both users and admins; deleted rows remain in the database for referential integrity and possible later admin audit/storage cleanup.
-
-## Files Likely Relevant For Implementation
-
-Existing files likely touched:
-
-- `backend/pyproject.toml`
-- `backend/app/api/router.py`
-- `backend/app/api/deps.py`
-- `backend/app/core/config.py`
-- `backend/app/core/storage_paths.py`
-- `backend/app/core/authorization.py`
-- `backend/app/db/models.py`
-- `backend/tests/conftest.py`
-
-Likely new backend files, following existing project patterns:
-
-- `backend/app/api/media.py`
-- `backend/app/schemas/media.py`
-- `backend/app/services/media.py`
-- `backend/tests/test_media_api.py`
-- `backend/tests/test_media_validation.py`
-
-Files not in Phase 7 scope:
-
-- Frontend files.
-- CV worker files.
-- Job creation/result/download routes.
-- Product docs.
-- Migration/schema files, unless implementation discovers current `media_files` schema cannot support documented Phase 7 behavior.
+- Existing:
+  - `backend/app/api/router.py`
+  - `backend/app/api/deps.py`
+  - `backend/app/core/authorization.py`
+  - `backend/app/core/config.py`
+  - `backend/app/core/storage_paths.py`
+  - `backend/app/db/models.py`
+  - `backend/tests/conftest.py`
+  - `backend/tests/test_data_model.py`
+  - `backend/tests/test_security_utils.py`
+  - `backend/pyproject.toml`
+- Likely new backend modules following existing resource pattern:
+  - `backend/app/api/models.py`
+  - `backend/app/schemas/models.py`
+  - `backend/app/services/models.py`
+  - `backend/tests/test_models_api.py`

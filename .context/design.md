@@ -1,233 +1,175 @@
-# Phase 7 Design - Media Upload API and Metadata Extraction
+# Phase 8 Design
 
-## Phase Goal
+## Phase goal
 
-Build backend media API for authenticated image/video upload, validation, storage, metadata persistence, media listing/detail, and soft deletion, exactly as Phase 7 documents require.
+Implement backend model registry API for Phase 8 only:
 
-## Intended Behavior From Docs
+- authenticated model viewing;
+- admin-only model registration;
+- admin-only active-model selection;
+- relative model weights path validation under model storage;
+- one active model at a time.
 
-Confirmed behavior:
+## Intended behavior from docs
 
-- `POST /api/media` uploads and registers image or video media.
-- `GET /api/media` lists media visible to current user.
-- `GET /api/media/{media_id}` returns media metadata.
-- `DELETE /api/media/{media_id}` soft-deletes media metadata.
-- Guests cannot access media endpoints.
-- Regular users can access only own media.
-- Admins can access all media metadata.
-- Admin uploads are scoped to admin account.
-- Deletion uses `deleted_at` only.
-- Physical file deletion is not part of Phase 7.
-- Soft-deleted media is hidden from normal user lists.
-- Upload validation must happen before accepted storage and job creation:
-  - extension
-  - MIME type
-  - file size
-  - file category: image or video
-  - filename safety
-- Accepted image extensions:
-  - `.jpg`
-  - `.jpeg`
-  - `.png`
-  - `.webp`
-- Accepted video extensions:
-  - `.mp4`
-  - `.avi`
-  - `.mov`
-  - `.mkv`
-- Upload limits come from:
-  - `MAX_IMAGE_SIZE_MB`
-  - `MAX_VIDEO_SIZE_MB`
-- Internal storage paths must be generated, relative, and under `STORAGE_ROOT`.
-- Raw user filenames must not control filesystem paths.
-- Original filename may be stored only after sanitization.
-- Recommended upload path pattern:
-  - `uploads/{user_id}/{media_id}/original.{ext}`
-- PostgreSQL stores metadata only, never binary media.
-- Metadata to extract when feasible:
-  - width
-  - height
-  - frame count
-  - FPS
-  - duration
-- Image records must store:
-  - `frame_count = 1`
-  - `fps = null`
-  - `duration_seconds = null`
-- API responses must not expose unsafe absolute filesystem paths.
-- No long media processing belongs in upload request.
+Confirmed:
 
-## Architecture Decisions
+- All API routes are under `/api`.
+- Required endpoints:
+  - `GET /api/models`
+  - `GET /api/models/{model_id}`
+  - `POST /api/models`
+  - `PATCH /api/models/{model_id}/activate`
+- Guests cannot access model endpoints.
+- Authenticated users can list and view model versions.
+- Regular users cannot register or activate models.
+- Admins can register and activate model versions.
+- Model family must be `YOLO26` or documented fallback `YOLO11`.
+- First implementation registers existing relative weights paths under model storage.
+- Large `.pt` upload through web UI/API is not required.
+- `weights_path` must be relative; absolute paths and traversal paths are invalid.
+- Only one model version may be active at once.
+- Model registry must represent actual model family used.
+- Training must not be launched from API or UI.
 
-Confirmed architecture:
+Assumptions:
 
-- Backend owns public media API, auth, validation, upload storage, and `media_files` records.
-- Shared storage stores upload bytes.
-- Database stores relative `stored_path` and metadata only.
-- CV worker remains out of Phase 7.
-- Frontend remains out of Phase 7.
+- Responses expose model metadata from documented `model_versions` fields, with no absolute filesystem paths.
+- `weights_path` wire/database values are canonical relative-to-`STORAGE_ROOT` paths with the `models/.../weights.pt` prefix.
+- The service resolves `weights_path` against `STORAGE_ROOT`, then verifies the resolved file is inside configured `MODELS_ROOT`.
+- Registration verifies weights path exists under configured model storage.
+- Activation uses existing `model_versions.is_active` state; no new table or migration expected.
+- Existing `metrics_json` stores key metrics and placeholder/null metric values if needed.
+- For `YOLO11`, Phase 8 stores/reports the actual `model_family` and preserves supplied fallback documentation metadata, but does not invent a new required metadata field absent from product docs.
 
-Implementation design:
+## Architecture decisions
 
-- Add one media API router under `/api/media`.
-- Keep route handlers thin.
-- Put upload validation, storage path generation, file writing, and metadata extraction in backend service/helper code.
-- Reuse existing auth dependency `get_current_active_user`.
-- Reuse existing `ensure_owner_or_admin` and `owner_id_from_media`.
-- Reuse existing `sanitize_upload_filename`, `validate_relative_storage_path`, and `safe_join_storage_path`.
-- Generate `media_id` before writing file so path can include `{media_id}`.
-- Write file only after extension/category/size checks pass.
-- Store generated relative path, never returned as absolute host/container path.
-- Use database transaction so persisted record matches accepted upload. If file write succeeds but DB commit fails, remove the newly written upload file as cleanup best effort.
-- Do not delete physical file on `DELETE /api/media`; only set `deleted_at`.
-- Exclude deleted media from regular list/detail behavior. Admin visibility may include broader metadata, but this phase should not add separate admin-only routes absent from Phase 7.
+- Keep route handlers thin and put model registry rules in a service module.
+- Reuse existing auth dependencies:
+  - `get_current_active_user` for list/detail.
+  - `get_current_admin_user` for create/activate.
+- Reuse existing storage path utility for relative path validation and safe path resolution.
+- Do not add file upload for weights.
+- Do not add training launch behavior.
+- Do not add CV worker behavior.
+- Do not modify database schema unless implementation discovers existing migration/model mismatch.
+- For activation, update current active model to inactive and requested model to active in one database transaction. Rely on existing unique partial index as final guard.
+- On missing models, return safe not-found error without exposing whether hidden admin state exists.
 
-## Backend Impact
+## Backend impact
 
 Touched:
 
-- API router include media router.
-- New schemas for media responses and paginated/list responses.
-- New media service/helpers for validation, storage, and metadata.
-- Tests for media endpoints and validation.
-- Dependency manifest may need upload/metadata dependencies.
+- Add model registry router under existing `/api` router.
+- Add Pydantic request/response schemas for model registry.
+- Add model service functions for list, get, create, activate, and path validation.
+- Add backend tests for access control, validation, and active-model behavior.
 
 Not touched:
 
-- Auth token format.
-- Job creation.
-- Result/download routes.
-- Worker processing.
-- Frontend UI.
+- Jobs API.
+- Results/download API.
+- Experiments API.
+- CV worker.
+- Training utilities.
+- Frontend.
 
-## API Impact
+## API impact
 
-Phase 7 endpoints only:
+Implemented endpoints only:
 
-- `POST /api/media`
-- `GET /api/media`
-- `GET /api/media/{media_id}`
-- `DELETE /api/media/{media_id}`
+- `GET /api/models`
+- `GET /api/models/{model_id}`
+- `POST /api/models`
+- `PATCH /api/models/{model_id}/activate`
 
-Response design constraints:
+Access behavior:
 
-- Return media metadata for create/read/list.
-- Include safe identifiers and metadata.
-- Omit `stored_path` from normal create/read/list responses.
-- Do not expose shared-storage layout such as `uploads/{user_id}/{media_id}/...` unless a later doc explicitly requires it.
-- Do not expose absolute file paths.
-- Do not expose password hashes, tokens, secrets, stack traces, or storage root.
-- Use clear HTTP errors for unauthorized, forbidden/hidden ownership, unsupported file type, invalid MIME, oversized file, unsafe filename, missing resource.
-- Use minimal bounded pagination for list responses:
-  - `limit` with a conservative maximum;
-  - `offset`;
-  - optional `media_type`;
-  - admin-only owner filter only if implemented with backend role enforcement.
+- Guest: 401 on all model endpoints.
+- Authenticated user: can list/view; 403 on create/activate.
+- Admin: can list/view/create/activate.
 
-## DB Impact
+Validation behavior:
 
-Existing `media_files` table already has required Phase 7 fields:
+- Reject invalid `model_family`.
+- Reject absolute, empty, or traversal `weights_path`.
+- Reject paths outside configured model storage.
+- Reject missing/non-file weights path.
+- Accept canonical positive paths such as `models/yolo26s-seraphim-subset-v1/weights.pt`.
+- Preserve exactly one active model.
 
-- `id`
-- `user_id`
-- `original_filename`
-- `stored_path`
-- `media_type`
-- `mime_type`
-- `file_size_bytes`
-- `width`
-- `height`
-- `frame_count`
-- `fps`
-- `duration_seconds`
-- `deleted_at`
-- `created_at`
+## Database impact
 
-Expected DB changes:
+- Use existing `model_versions` table and `ModelVersion` ORM class.
+- Use existing `model_family` check constraint.
+- Use existing `weights_path` relative-path check.
+- Use existing unique active-model partial index.
+- No new schema fields planned.
+- No Alembic migration planned unless a verified mismatch blocks Phase 8 behavior.
 
-- No schema change expected.
-- If implementation discovers missing constraint/index versus docs, stop and report before modifying migration/schema.
+## Frontend impact
 
-## Security/Privacy Impact
+- No frontend source changes in this phase.
+- Future frontend can consume model list/detail endpoints after backend is complete.
+
+## Security/privacy impact
 
 Touched:
 
-- Authenticated upload endpoint.
-- Ownership rules for list/detail/delete.
-- Admin broader metadata visibility.
-- File validation before storage.
-- Filename sanitization.
-- Path traversal prevention.
-- Relative path rule.
-- Size limits.
-- MIME/extension/category checks.
+- Protected endpoints require valid JWT and active user.
+- Admin-only mutations require admin role.
+- Model path validation must prevent absolute path exposure and traversal.
+- API responses must not expose host/container absolute paths.
+- No secrets, tokens, DB passwords, or admin password in logs/errors.
 
-Security decisions:
+Not touched:
 
-- Reject missing/invalid token through existing auth.
-- Hide cross-owner resources with safe not-found behavior.
-- Sanitize original filename before persistence.
-- Never use client-supplied filename as storage path.
-- Never accept client-supplied storage path.
-- Treat request `Content-Type` as advisory; verify image/video category by decoded file content or trusted signature/decoder result.
-- Stream or spool upload bytes with configured byte limits instead of loading unbounded files into memory.
-- Write to a temporary path first, then move/commit to final generated path only after validation passes.
-- Clean up partial files/directories on validation failure, write failure, or database commit failure.
-- Never execute uploaded files.
-- Never return absolute filesystem path.
-- Avoid logging file bytes, tokens, passwords, secrets, or unsafe paths.
+- Upload validation.
+- Ownership for user media/jobs.
+- Downloads.
+- CORS behavior, except existing auth-protected API behavior continues.
 
-Soft-delete visibility decision:
+## Test strategy
 
-- Phase 7 `GET /api/media` and `GET /api/media/{media_id}` hide soft-deleted media for both regular users and admins.
-- Deleted rows remain in PostgreSQL for referential integrity and possible future admin audit/storage cleanup.
-- Do not add `include_deleted` or admin audit routes in this phase.
+Relevant automated checks:
 
-## Test Strategy
+- `python -m ruff check .` from `backend/`.
+- `python -m pytest tests/test_models_api.py` from `backend/`.
+- `python -m pytest tests/test_data_model.py tests/test_security_utils.py tests/test_auth.py` from `backend/`.
 
-Relevant checks only:
+Required test cases:
 
-- Backend media API tests:
-  - valid image upload creates `media_files` row
-  - valid video upload creates `media_files` row
-  - image metadata invariant: `frame_count = 1`, `fps = null`, `duration_seconds = null`
-  - valid video metadata fields filled when feasible
-  - unsupported extension rejected
-  - invalid MIME rejected
-  - oversized image rejected
-  - oversized video rejected
-  - unsafe filename/path traversal rejected or sanitized safely
-  - missing token rejected
-  - inactive user rejected through auth dependency
-  - regular user lists own media only
-  - regular user cannot read/delete another user's media
-  - admin can view broader media metadata
-  - delete sets `deleted_at`
-  - soft-deleted media hidden from normal lists/detail
-  - stored paths are generated and relative
-  - API response does not include absolute storage path
-  - API response does not include `stored_path` or shared-storage layout
-- Backend targeted commands:
-  - `cd backend; python -m pytest tests/test_media_api.py tests/test_media_validation.py`
-  - `cd backend; python -m pytest tests/test_auth.py tests/test_security_utils.py`
-  - `cd backend; python -m ruff check .`
+- Authenticated users can list models.
+- Authenticated users can fetch one model.
+- Guests receive 401 for model endpoints.
+- Inactive authenticated users receive 401 or 403 for at least `GET /api/models`.
+- Inactive admin users receive 401 or 403 for at least one model mutation when fixture setup is practical.
+- Regular users receive 403 for registration and activation.
+- Admin can register model with existing relative path under model storage.
+- Admin can activate exactly one model.
+- Activating second model deactivates first.
+- `YOLO26` and documented fallback `YOLO11` metadata are accepted.
+- `YOLO11` responses preserve `model_family = YOLO11` and supplied fallback documentation metadata.
+- Invalid model family rejected.
+- Absolute path rejected.
+- Traversal path rejected.
+- Path outside model storage rejected.
+- Missing weights file rejected.
+- Canonical `models/.../weights.pt` path form succeeds when the file exists under `MODELS_ROOT`.
+- Responses never include absolute filesystem paths.
 
-Accepted-format coverage:
+Skipped as out of scope:
 
-- Validation tests must cover accepted extensions `.jpg`, `.jpeg`, `.png`, `.webp`, `.mp4`, `.avi`, `.mov`, and `.mkv` where fixtures/tooling support them.
-- If a required video container fixture cannot be generated reliably in this phase, document the exact limitation before marking the gate complete.
-- Tests must include mismatched extension/header/content cases; client-supplied MIME alone is not sufficient.
+- Frontend build/tests.
+- CV worker tests.
+- Docker Compose smoke.
+- Experiment import tests.
+- Job/model selection worker priority tests beyond ensuring active model API state.
 
-Docker smoke only if backend dependency/runtime changes require it:
+## Ambiguities or conflicts
 
-- `docker compose config`
-- backend container startup smoke if dependency changes affect image build.
-
-## Ambiguities Or Conflicts
-
-No confirmed doc conflict.
-
-Ambiguities:
-
-- User input left `<PHASE NUMBER AND TITLE>` and `<LOW | MEDIUM | HIGH>` placeholders unfilled.
-- Docs do not specify exact media response fields beyond database metadata and no unsafe paths.
+- WARNING: CONFLICT
+  - `docs/index.md` and `README.md` current-state sections are stale relative to actual backend implementation and `backend/index.md`.
+  - Contract uses `docs/phase.md` for phase selection and actual backend files for implementation-state facts.
+- Resolved planning-review item: Phase 8 canonical `weights_path` form is `models/.../weights.pt`, relative to `STORAGE_ROOT`, with a service check that the resolved file is inside `MODELS_ROOT`.
+- Ambiguity: exact response schema is not specified in API docs. Implementation should mirror documented `model_versions` metadata and existing Pydantic style.

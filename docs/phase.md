@@ -1,48 +1,43 @@
-## Phase 7 - Media upload API and metadata extraction
+## Phase 8 - Model registry backend API
 
-**Direction:** Backend  
-**Goal:** Implement media upload, validation, storage, metadata extraction, listing, detail, and soft deletion.
+**Direction:** Backend / Admin  
+**Goal:** Implement model registry records, active model management, and model path validation.
 
 ### Scope
 
 - Implement endpoints:
-  - `POST /api/media`;
-  - `GET /api/media`;
-  - `GET /api/media/{media_id}`;
-  - `DELETE /api/media/{media_id}`.
-- Validate extension, MIME type, file category, size, and filename safety before storage.
-- Accept required image and video formats only.
-- Generate internal storage paths using user ID and media ID.
-- Store original filename only as sanitized display metadata.
-- Extract media metadata where feasible:
-  - width;
-  - height;
-  - frame count;
-  - FPS;
-  - duration.
-- Ensure image records use `frame_count = 1`, `fps = null`, and `duration_seconds = null`.
-- Enforce user ownership and admin visibility rules.
-- Implement soft deletion through `deleted_at` only.
-- Add pagination/filtering where useful.
-- Add tests for accepted/rejected uploads and ownership.
+  - `GET /api/models`;
+  - `GET /api/models/{model_id}`;
+  - `POST /api/models`;
+  - `PATCH /api/models/{model_id}/activate`.
+- Allow all authenticated users to view model versions.
+- Restrict model registration and activation to admins.
+- Register existing relative weights paths under model storage.
+- Validate model family: `YOLO26` or documented fallback `YOLO11`.
+- Validate `weights_path` as relative and inside model storage.
+- Store dataset, split, metrics, variant, and active state metadata.
+- Ensure only one model version is active at a time.
+- Do not implement large `.pt` upload through the web UI unless explicitly approved later.
+- Add tests for role access, active-model uniqueness, and relative paths.
 
 ### Relevant docs
 
 - `docs/API.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/DATA_MODEL.md`
-- `docs/ARCHITECTURE.md`
+- `docs/CV_PIPELINE.md`
+- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Valid images upload and create `media_files` records.
-- Valid videos upload and create `media_files` records.
-- Unsupported extensions, invalid MIME types, oversized files, unsafe filenames, and path traversal attempts are rejected.
-- Users see only own media; admins can view broader media metadata.
-- Stored paths are generated and relative.
-- Soft-deleted media is hidden from normal user lists.
+- Authenticated users can list models.
+- Regular users cannot register or activate models.
+- Admin can register a model version using an existing relative path.
+- Admin can activate exactly one model version.
+- YOLO11 fallback metadata is represented accurately when used.
+- Absolute or traversal paths are rejected.
 
 ### Commit
 
-`feat(backend-media): add validated media upload and metadata API`
+`feat(backend-models): add model registry and active model management`

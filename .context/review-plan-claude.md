@@ -2,9 +2,9 @@
 
 ## Summary
 
-Phase 7 plan matches docs in main shape: backend-only media API, auth-required endpoints, upload validation, generated relative paths, metadata extraction, ownership/admin visibility, soft deletion, and targeted backend/security tests.
+Phase 8 plan matches main product docs: backend-only model registry API, authenticated reads, admin-only registration/activation, no weight upload, no training launch, no frontend/CV-worker scope creep.
 
-Implementation should adjust several Phase 7 details before coding: response schema must not expose storage internals, MIME validation must not trust only client-supplied headers, upload write path needs bounded/partial-file cleanup behavior, and validation tests should cover every documented accepted format where feasible.
+No blocking issue found. Important changes needed before implementation: tighten inactive-user tests, resolve `weights_path` relative-root ambiguity, and make YOLO11 fallback handling prove actual documented fallback metadata rather than plain enum acceptance.
 
 ## Blocking issues
 
@@ -12,41 +12,36 @@ None.
 
 ## Important issues
 
-1. Response schema may expose shared-storage internals.
-   - Evidence: `.context/plan.md` step 3 says "Define schemas from existing `MediaFile` fields only." Existing `media_files` fields include `stored_path` per `docs/DATA_MODEL.md`.
-   - Risk: exposing `uploads/{user_id}/{media_id}/...` gives frontend/API clients internal shared-storage layout. `AGENTS.md` says frontend must stay away from shared storage internals. `docs/ARCHITECTURE.md` says API responses should expose download URLs or logical references, not internal filesystem paths.
-   - Required change: plan/schema step should explicitly exclude `stored_path` from normal media responses, or replace it with safe logical resource identifiers only. Do not return absolute paths; avoid returning upload storage layout unless docs explicitly require it.
+1. Inactive-user access is not tested for new model endpoints.
+   - Evidence: `docs/AUTH_SECURITY.md` says inactive users must not use protected API routes. `docs/API.md` says model endpoints are protected. `.context/plan.md` step 9 covers guests and regular-user admin rejection, but not inactive authenticated accounts.
+   - Risk: route could use valid-token auth without active-user enforcement and still pass Phase 8 API tests.
+   - Required change: add at least one inactive-user test for `GET /api/models`, and preferably one admin mutation path too if inactive admin fixtures exist.
 
-2. MIME validation trust boundary is underspecified.
-   - Evidence: `docs/AUTH_SECURITY.md` requires extension and MIME/type validation. `.context/plan.md` step 4 says validate MIME, but does not say whether implementation checks file content/signature/decoder result or only `UploadFile.content_type`.
-   - Risk: client-controlled `Content-Type` can bypass validation if trusted alone. This weakens upload validation and path safety surface.
-   - Required change: plan should require MIME/category verification from decoded file content or trusted signature detection, with header MIME treated as advisory. Tests should include mismatched extension/header/content cases.
+2. `weights_path` accepted/storage form remains ambiguous.
+   - Evidence: `docs/DATA_MODEL.md` says `model_versions.weights_path` is relative and first implementation registers paths under `STORAGE_ROOT/models`; it also allows interpretation under `STORAGE_ROOT` or documented sub-root such as `MODELS_ROOT`. `.context/design.md` and `.context/research.md` both identify ambiguity. `.context/plan.md` step 5 says resolve under configured model storage, but does not state whether API/db value is `models/yolo26s/weights.pt` or `yolo26s/weights.pt`.
+   - Risk: implementation may double-prefix `models/`, accept a path valid under wrong root, or produce DB values inconsistent with later worker model loading.
+   - Required change: before coding, choose one canonical wire/db form for Phase 8 and add a positive test with that exact form plus negative tests for absolute/traversal/outside-root paths.
 
-3. Oversized upload handling and partial-file cleanup need explicit step.
-   - Evidence: `docs/AUTH_SECURITY.md` requires oversized files rejected before accepted storage. `.context/plan.md` step 7 writes upload bytes under `STORAGE_ROOT`, but does not define bounded streaming, temp/quarantine write, early size cutoff, or cleanup for partial files when size exceeds limit.
-   - Risk: large videos can create memory pressure or leave partial accepted-looking files in shared storage.
-   - Required change: plan should require streaming/bounded read with byte limit enforcement, final-path commit only after validation, and cleanup of partial files/directories on validation or write failure.
-
-4. Test plan is not explicit enough for all documented accepted upload formats.
-   - Evidence: `docs/TESTING_QA.md` says verify accepted `.jpg`, `.jpeg`, `.png`, `.webp`, `.mp4`, `.avi`, `.mov`, `.mkv`. `.context/plan.md` steps 4 and 6 mention accepted/rejected image/video cases and tiny fixtures, but not all required extensions.
-   - Risk: implementation may pass narrow tests while rejecting documented formats, especially `.webp`, `.avi`, `.mov`, or `.mkv`.
-   - Required change: add explicit validation coverage for all accepted extensions, or document any fixture/tooling limitation as blocker before marking phase complete.
+3. YOLO11 fallback test is too weak as written.
+   - Evidence: `docs/CV_PIPELINE.md` and `docs/TRAINING_EXPERIMENTS.md` say YOLO11 is fallback only after YOLO26 unavailability is reported/documented, and actual family must be recorded in model metadata. `.context/plan.md` step 9 only says `YOLO11 accepted as metadata`.
+   - Risk: implementation may allow undocumented YOLO11 registrations as normal primary models, weakening product policy.
+   - Required change: test should verify YOLO11 is represented accurately in `model_family` and accompanying metadata. If API cannot enforce fallback documentation yet, record that as an explicit limitation in implementation status, not as silent normal behavior.
 
 ## Optional improvements
 
-1. Clarify soft-deleted admin detail/list behavior.
-   - Evidence: `docs/DATA_MODEL.md` says soft-deleted media may remain visible to admins for audit/history. `.context/plan.md` step 9 says detail loads non-deleted media by ID.
-   - Improvement: decide whether Phase 7 admin access includes deleted media metadata or whether that waits for admin/global audit routes. Current docs make this optional, not blocking.
+1. Add a small list-response shape test for pagination/filter parameters.
+   - Evidence: `docs/API.md` recommends pagination for growing list endpoints and model filters for active status, family, and variant. `.context/plan.md` makes filters conditional and does not mention pagination tests.
+   - Why optional: model registry size is likely small in MVP, and docs use "recommended" rather than mandatory language.
 
-2. Add pagination contract before route implementation.
-   - Evidence: `docs/API.md` recommends pagination for growing lists and filters for media type/date/owner-for-admin. `.context/plan.md` says bounded pagination/filtering "where implemented."
-   - Improvement: specify minimal query parameters and response shape now to avoid ad hoc endpoint shape.
+2. Add a response-body assertion that no field contains configured absolute storage/model root.
+   - Evidence: `docs/API.md`, `docs/AUTH_SECURITY.md`, and `docs/DATA_MODEL.md` forbid absolute filesystem path exposure.
+   - Plan already says no absolute paths in response body; explicit assertion would make this harder to regress.
 
 ## Questions for resolution
 
-1. Should normal `GET /api/media` and `GET /api/media/{media_id}` omit `stored_path` entirely, returning only media ID, filename, type, size, dimensions, timestamps, and owner-visible metadata?
+1. Should Phase 8 store `weights_path` relative to `STORAGE_ROOT` as `models/<model>/weights.pt`, or relative to `MODELS_ROOT` as `<model>/weights.pt`?
 
-2. For video MIME validation, which dependency/tool is approved for content validation and metadata extraction in backend: OpenCV headless, `python-magic`/file signatures, or decoder-based validation through chosen metadata library?
+2. For YOLO11 registration, should backend require a specific metadata field or model-card evidence documenting fallback, or only store/report `model_family = YOLO11` accurately for now?
 
 ## Files consulted
 
@@ -59,8 +54,8 @@ None.
 - `.context/design.md`
 - `.context/plan.md`
 - `docs/API.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/DATA_MODEL.md`
-- `docs/ARCHITECTURE.md`
+- `docs/CV_PIPELINE.md`
+- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
-- `git status --short` output

@@ -1,12 +1,10 @@
-# Phase 7 OpenAI/Codex Code Review
+# Phase 8 OpenAI/Codex Code Review
 
-## Verdict: APPROVED_WITH_CHANGES
+## Verdict: APPROVED
 
 ## Summary
 
-Phase 7 backend media API mostly matches docs: protected `/api/media` endpoints exist, ownership/admin visibility works, API responses omit `stored_path`, uploads use generated relative storage paths, image metadata invariants hold, soft deletion hides media, and targeted/full backend gates pass.
-
-One important validation defect remains: video content is only checked as "decodable video", not as content matching claimed extension/MIME. This misses planning contract for mismatched video extension/header/content rejection.
+Phase 8 backend model registry API matches docs and accepted plan: authenticated users can list/view models, admin-only registration and activation are enforced, `weights_path` is validated as canonical `models/...` relative storage path under `MODELS_ROOT`, active-model uniqueness is preserved, and no model upload/training/frontend/worker scope leaked in.
 
 ## Critical issues
 
@@ -14,13 +12,7 @@ None.
 
 ## Important issues
 
-1. Video extension/MIME/content mismatch accepted.
-   - Evidence: `backend/app/services/media.py:169-185` validates video MIME from client-provided `UploadFile.content_type` against extension allow-list only.
-   - Evidence: `backend/app/services/media.py:293-323` uses `cv2.VideoCapture` only to prove file is decodable video; no video container/format check equivalent to image check at `backend/app/services/media.py:262-273`.
-   - Evidence: `backend/tests/test_media_validation.py:160-171` covers mismatched content only for image, not video.
-   - Evidence: ad hoc probe uploaded AVI/MJPG bytes as `wrong.mp4` with `video/mp4`; API returned `status=201`.
-   - Docs/contract: `docs/AUTH_SECURITY.md` requires extension, MIME/type, size, and file category validation before storage. `.context/plan.md` requires rejecting mismatched extension/header/content combinations and treating client `Content-Type` as advisory.
-   - Impact: backend can persist misleading media metadata (`mime_type = video/mp4`, `original_filename = wrong.mp4`) for non-MP4 content, weakening upload validation and future worker assumptions.
+None.
 
 ## Optional issues
 
@@ -28,27 +20,28 @@ None.
 
 ## Quality gate assessment
 
-- `rtk git status --short`: inspected; changed surface includes Phase 7 backend media files/tests plus context/docs updates.
-- `rtk git diff --stat`: inspected.
-- `rtk git diff`: inspected; untracked media files/tests were read directly because diff did not include their content.
-- `python -m pytest tests/test_media_api.py tests/test_media_validation.py` from `backend/`: PASS, 20 passed.
-- `python -m pytest tests/test_auth.py tests/test_security_utils.py` from `backend/`: PASS, 50 passed.
-- `python -m pytest` from `backend/`: PASS, 93 passed.
-- `python -m ruff check .` from `backend/`: PASS.
-- `docker compose config`: PASS, with existing unset-environment warnings when no env file supplied.
-- Ad hoc video mismatch probe: FAIL for expected behavior; returned `201` for AVI bytes submitted as `.mp4`/`video/mp4`.
+- `rtk git status --short` - PASS for review visibility; changed Phase 8 files and existing context artifacts visible. `.context/review-code-resolution.md` content was not read.
+- `rtk git diff --stat -- . ':(exclude).context/review-code-resolution.md' ':(exclude).context/review-code-claude.md'` - PASS for tracked diff overview without forbidden review content.
+- `rtk git diff -- . ':(exclude).context/review-code-resolution.md' ':(exclude).context/review-code-claude.md'` - PASS for tracked diff review without forbidden review content.
+- `cd backend; python -m ruff check .` - PASS.
+- `cd backend; python -m pytest tests/test_models_api.py` - PASS, 15 passed.
+- `cd backend; python -m pytest tests/test_data_model.py tests/test_security_utils.py tests/test_auth.py` - PASS, 57 passed.
 
 ## Security/privacy assessment
 
-Applicable. Ownership checks, active-user auth, relative stored paths, and response path hiding look correct in reviewed Phase 7 code. Remaining risk is upload validation trust boundary for videos: client-declared MIME plus generic decoder success is insufficient to reject mismatched video extension/content.
+Applicable. No defect found.
+
+- `backend/app/api/models.py` uses active-user dependency for list/detail and admin dependency for create/activate.
+- `backend/app/services/models.py` rejects absolute paths, traversal paths, non-`models/` paths, paths outside configured model storage, and missing weight files before registration or activation.
+- Responses expose stored relative `weights_path` only; tests assert host temp path is not leaked.
+- No training launch, model weight upload, secrets, tokens, password hashes, absolute host/container paths, or CV-out-of-scope fields found in Phase 8 API changes.
 
 ## Positive findings
 
-- Media response schema omits `stored_path` and absolute filesystem paths.
-- Regular users list/read/delete only own non-deleted media; admins can see all non-deleted media metadata.
-- Soft deletion uses `deleted_at` and does not remove physical files.
-- Image validation checks decoded image format against extension.
-- Tests cover accepted image formats, accepted video extensions, oversized uploads, soft deletion, cross-owner denial, and no media row after oversized rejection.
+- Route registration in `backend/app/api/router.py` adds documented `/api/models` endpoints without changing unrelated API groups.
+- Service layer keeps route handlers thin and concentrates model registry rules in `backend/app/services/models.py`.
+- Tests cover guest rejection, inactive user/admin rejection, regular-user mutation rejection, admin create/activate, one-active-model invariant, YOLO26/YOLO11 metadata, unsafe paths, outside-model-storage path, and missing file rejection.
+- `backend/index.md` was updated for new backend model registry files and commands.
 
 ## Files consulted
 
@@ -58,26 +51,26 @@ Applicable. Ownership checks, active-user auth, relative stored paths, and respo
 - `docs/ROADMAP.md`
 - `docs/phase.md`
 - `docs/API.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/DATA_MODEL.md`
-- `docs/ARCHITECTURE.md`
+- `docs/AUTH_SECURITY.md`
+- `docs/CV_PIPELINE.md`
+- `docs/TRAINING_EXPERIMENTS.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
-- `rtk git status --short`
-- `rtk git diff --stat`
-- `rtk git diff`
 - `backend/app/api/router.py`
-- `backend/app/api/media.py`
-- `backend/app/schemas/media.py`
-- `backend/app/services/media.py`
-- `backend/app/core/storage_paths.py`
+- `backend/app/api/models.py`
+- `backend/app/schemas/models.py`
+- `backend/app/services/models.py`
 - `backend/app/db/models.py`
-- `backend/pyproject.toml`
+- `backend/app/core/storage_paths.py`
+- `backend/app/core/authorization.py`
+- `backend/app/core/config.py`
+- `backend/tests/test_models_api.py`
+- `backend/tests/test_data_model.py`
+- `backend/tests/test_security_utils.py`
+- `backend/tests/test_auth.py`
 - `backend/index.md`
-- `backend/tests/conftest.py`
-- `backend/tests/test_media_api.py`
-- `backend/tests/test_media_validation.py`
