@@ -1,133 +1,147 @@
-# Phase 9 Implementation Plan
+# Phase 10 Implementation Plan
 
 ## Scope
 
-Phase only: Phase 9 - Job creation API and model selection resolution.
+Phase only: Phase 10 - Jobs, results, detections, tracks, and safe downloads API.
 
 Do not implement:
 
-- job list/detail/delete/cancel endpoints;
-- result summary, detections, tracks, downloads, CSV, or JSON endpoints;
-- CV worker queue polling or media processing;
-- frontend upload/job UI;
-- experiment/admin APIs;
-- model upload or training launch;
-- new database fields unless a verified schema mismatch blocks Phase 9.
+- CV worker queue polling, media processing, export generation, or stale recovery;
+- frontend job/result pages;
+- experiments/admin APIs;
+- model registry changes;
+- storage cleanup;
+- training launch or training utilities;
+- new database fields unless a verified schema mismatch blocks Phase 10;
+- product doc changes.
 
 ## Ordered atomic plan
 
-1. [@role/developer-backend] Re-read Phase 9 contract before coding.
-   - Verify `docs/phase.md` still says Phase 9.
-   - Verify relevant docs remain `docs/API.md`, `docs/CV_PIPELINE.md`, `docs/DATA_MODEL.md`, `docs/AUTH_SECURITY.md`, and `docs/TESTING_QA.md`.
+1. [@role/developer-backend] Re-read Phase 10 contract before coding.
+   - Verify `docs/phase.md` still says Phase 10.
+   - Verify relevant docs remain `docs/API.md`, `docs/DATA_MODEL.md`, `docs/AUTH_SECURITY.md`, `docs/CV_PIPELINE.md`, and `docs/TESTING_QA.md`.
    - Verifiable: no source change in this step.
 
-2. [@role/developer-backend] Inspect current backend patterns.
-   - Read existing media/model API, schema, service, auth dependency, settings, and tests.
-   - Confirm no jobs API files already exist.
-   - Verifiable: identify exact dependencies and response model style before editing.
+2. [@role/developer-backend] Inspect current job/media/model patterns.
+   - Read current jobs router/service/schemas, media list/detail/delete service, models list service, storage path helpers, auth dependency, and jobs tests.
+   - Verifiable: exact helper reuse and schema style identified before edits.
 
-3. [@role/tester] Add Phase 9 failing tests first.
-   - Create `backend/tests/test_jobs_api.py`.
-   - Test auth, active-account, ownership, soft deletion, defaults, media-type-aware tracker validation, invalid params, no-row-on-failure, response path safety, explicit inactive-model policy, and model priority.
-   - Use existing SQLite/TestClient fixture style from media/model tests.
-   - Verifiable: `python -m pytest tests/test_jobs_api.py` fails because endpoint/modules do not exist yet.
+3. [@role/tester] Add focused failing Phase 10 tests first.
+   - Extend `backend/tests/test_jobs_api.py` or add `backend/tests/test_job_results_api.py`.
+   - Cover job list/detail/delete, summary, detections, tracks, result metadata, downloads, ownership, admin visibility, inactive-user rejection, missing files, no-detection behavior, and path secrecy.
+   - Include at least one inactive-user test for a representative result route and one inactive-user test for a download route.
+   - Verifiable: targeted tests fail because Phase 10 endpoints/service behavior do not exist yet.
 
-4. [@role/developer-backend] Add `ACTIVE_MODEL_ID` setting.
-   - Modify `backend/app/core/config.py`.
-   - Add optional setting mapped to `ACTIVE_MODEL_ID`.
-   - Keep `__repr__` safe; do not treat model id as secret.
-   - Update `backend/tests/test_settings.py` for empty/unset and configured value behavior.
-   - Verifiable: settings tests cover new documented env field.
+4. [@role/developer-backend] Add response/list schemas.
+   - Add paginated jobs list response.
+   - Add detail/summary/result metadata schemas using documented fields only.
+   - Add detection response with derived `center_x`, `center_y`, `bbox_width`, and `bbox_height`.
+   - Add track response with documented track summary fields.
+   - Do not expose raw stored relative paths or absolute paths in public JSON.
+   - Verifiable: schema tests/API assertions show safe fields only.
 
-5. [@role/developer-backend] Add job schemas.
-   - Create `backend/app/schemas/jobs.py`.
-   - Define create request with documented user-facing fields only:
-     - media id;
-     - optional model version id;
-     - optional confidence threshold;
-     - optional IoU threshold;
-     - optional tracker type for video media only.
-   - Do not expose client `frame_stride`.
-   - Define response schema from existing `ProcessingJob` fields safe for API output; do not include result/export path fields in Phase 9 create response.
-   - Verifiable: validation rejects out-of-range thresholds, unknown tracker values, and image requests that supply `tracker_type` through API tests.
+5. [@role/developer-backend] Add authorized job lookup helper.
+   - Load job with related media/model where useful.
+   - Enforce active user plus owner/admin access.
+   - Return safe 404 for missing/cross-owner inaccessible jobs.
+   - Decide and encode soft-deleted job detail behavior conservatively.
+   - Verifiable: cross-owner job detail/result/download tests return safe not-found and no data.
 
-6. [@role/developer-backend] Add job service media validation.
-   - Create `backend/app/services/jobs.py`.
-   - Load media by id where `deleted_at IS NULL`.
-   - Enforce current user owns media; admin creation still requires admin-owned media.
-   - Use safe not-found behavior for missing, deleted, or cross-owner media.
-   - Verifiable: own-media succeeds; cross-owner/deleted/missing media fails and creates no job row.
+6. [@role/developer-backend] Implement `GET /api/jobs` service logic.
+   - Support `limit` and `offset`.
+   - Support documented filters where practical: status, media type, date, model version, owner for admins.
+   - Hide `deleted_at` jobs from normal user lists.
+   - Restrict regular users to own jobs regardless of filters.
+   - Verifiable: list tests prove user scope, admin scope, filters, pagination, and soft-delete hiding.
 
-7. [@role/developer-backend] Add processing parameter resolution.
-   - Apply defaults from docs:
-     - confidence `0.25`;
-     - IoU `0.45`;
-     - image size `640`;
-     - tracker `bytetrack`;
-     - frame stride `1`.
-   - Store resolved values in `input_params_json`.
-   - Ensure user input cannot set `frame_stride`.
-   - Reject invalid threshold or tracker values before creating job.
-   - Reject any client-supplied `tracker_type` for image media; tracker selection is user-facing for video only.
-   - Allow video media to omit `tracker_type` and receive default `bytetrack`.
-   - Verifiable: success test inspects stored JSON; invalid/media-type-mismatch tests show no job row.
+7. [@role/developer-backend] Implement `GET /api/jobs/{job_id}` service logic.
+   - Return job status, progress, heartbeat, timestamps, input params, summary, safe result/download references, and media/model references where useful.
+   - Do not expose result/export storage paths.
+   - Verifiable: detail tests inspect fields and confirm no absolute paths, raw path fields, or raw storage field names such as `result_media_path`, `csv_path`, and `json_path`.
 
-8. [@role/developer-backend] Add model-selection resolution.
-   - If explicit `model_version_id` present, require existing registered model and use it, including inactive registered models by intended Phase 9 API policy.
-   - Else use active `ModelVersion.is_active = true` row when present.
-   - Else use `settings.active_model_id` only when no active DB model exists.
-   - Require fallback id to reference an existing model before job creation.
-   - Do not let fallback override explicit model or active DB model.
-   - Verifiable: model-priority tests cover explicit active, explicit inactive, active default, fallback, and override cases.
+8. [@role/developer-backend] Implement `DELETE /api/jobs/{job_id}` behavior.
+   - Apply doc-consistent soft-delete/cancellation behavior.
+   - Do not physically delete files.
+   - Do not require hard interruption of processing jobs.
+   - Verifiable: delete tests prove ownership, idempotent/safe outcome as designed, list hiding, and no file removal.
 
-9. [@role/developer-db] Create queued `ProcessingJob` row.
-   - Set `user_id`, `media_file_id`, resolved `model_version_id`, `status = queued`, `progress_percent = 0`, and documented `input_params_json`.
-   - Leave result/export paths, lock fields, heartbeat, start/completed timestamps, summary, and error null.
-   - Commit only after all validation and model resolution passes.
-   - Verifiable: database row matches expected defaults; validation failures leave row count unchanged.
+9. [@role/developer-backend] Implement summary endpoint.
+   - Return `processing_jobs.summary_json` with job status context as needed.
+   - Treat missing summary on non-completed/failed jobs as safe empty/null metadata, not server error.
+   - Keep no-detection summary valid with null confidence values.
+   - Verifiable: summary tests cover completed no-detection and missing summary cases.
 
-10. [@role/developer-backend] Add jobs API route.
-    - Create `backend/app/api/jobs.py`.
-    - Implement `POST /api/jobs`.
-    - Use `get_current_active_user`, DB session dependency, and settings dependency.
-    - Return safe job response.
-    - Verifiable: route exists exactly at `/api/jobs`.
+10. [@role/developer-backend] Implement detections endpoint.
+    - Query `detections` by authorized `job_id`.
+    - Support pagination if result size can grow.
+    - Optionally support documented detection filters: frame index, confidence range, track ID.
+    - Compute derived center/size values from bbox corners.
+    - Verifiable: detection tests prove job scoping, derived values, pagination/filtering, and empty no-detection response.
 
-11. [@role/developer-backend] Register jobs router.
-    - Modify `backend/app/api/router.py`.
-    - Include jobs router under existing `/api` prefix.
-    - Verifiable: TestClient can post to `/api/jobs`.
+11. [@role/developer-backend] Implement tracks endpoint.
+    - Query `tracks` by authorized `job_id`.
+    - Return documented track summary fields.
+    - Return empty list for image/no-track/no-detection jobs.
+    - Verifiable: track tests prove job scoping, data shape, and empty list behavior.
 
-12. [@role/tester] Run targeted Phase 9 test gate.
+12. [@role/developer-backend] Implement result metadata endpoint.
+    - Return result availability and safe download URLs/references for annotated media, CSV, and JSON.
+    - Define `available` as file-present availability: the path is recorded, passes job-specific association, resolves under `STORAGE_ROOT`, and exists as a file.
+    - Include job/media/model/summary references needed by frontend without storage internals.
+    - Do not expose missing-file internal paths when checking availability.
+    - Verifiable: result metadata tests confirm safe references, file-present availability semantics, no raw storage field names, and no path leakage.
+
+13. [@role/developer-auth-security] Implement download file resolution helper.
+    - Re-check job ownership/admin access.
+    - Select only one of the job-owned path fields: `result_media_path`, `csv_path`, or `json_path`.
+    - Validate relative path and safe-join under `STORAGE_ROOT`.
+    - Require selected result/export path to live under `results/{job_id}/` for the requested job.
+    - Verify file exists and is a file.
+    - Use sanitized download filename.
+    - Return safe missing-file errors with no internal path.
+    - Verifiable: download tests cover success, missing file, cross-owner, path traversal/absolute path rejection, wrong-job result directory rejection, inactive-user rejection, and no path leakage.
+
+14. [@role/developer-backend] Add download routes.
+    - Add:
+      - `GET /api/jobs/{job_id}/download/media`
+      - `GET /api/jobs/{job_id}/download/csv`
+      - `GET /api/jobs/{job_id}/download/json`
+    - Set appropriate media types for image/video/csv/json where practical.
+    - Verifiable: TestClient downloads fixture files from authorized jobs.
+
+15. [@role/tester] Verify no-detection completed-job behavior.
+    - Seed completed job with `summary_json.total_detections = 0`, null confidence values, empty detections/tracks, and CSV/JSON fixture paths.
+    - Assert summary/result/detections/tracks/downloads behave as successful result.
+    - Verifiable: no-detection tests pass without failed-job or error semantics.
+
+16. [@role/tester] Run targeted Phase 10 gate.
     - Command from `backend/`: `python -m pytest tests/test_jobs_api.py`
+    - If separate file added: `python -m pytest tests/test_job_results_api.py`
     - Expected: PASS after implementation.
-    - If FAIL, record exact failing case and fix within Phase 9 scope.
 
-13. [@role/tester] Run related regression gates.
-    - Command from `backend/`: `python -m pytest tests/test_media_api.py tests/test_models_api.py tests/test_auth.py tests/test_settings.py`
+17. [@role/tester] Run related security/regression gates.
+    - Command from `backend/`: `python -m pytest tests/test_media_api.py tests/test_auth.py tests/test_security_utils.py`
     - Expected: PASS.
-    - Reason: Phase 9 depends on media ownership, model registry, auth, and settings.
+    - Reason: Phase 10 depends on ownership, auth, and path safety.
 
-14. [@role/tester] Run lint gate.
+18. [@role/tester] Run lint gate.
     - Command from `backend/`: `python -m ruff check .`
     - Expected: PASS.
 
-15. [@role/code-reviewer] Review Phase 9 diff against docs.
-    - Check endpoint path and access behavior.
-    - Check no cross-owner media job creation.
-    - Check no jobs for soft-deleted media.
-    - Check model priority order.
-    - Check `ACTIVE_MODEL_ID` fallback cannot override explicit or active DB model.
-    - Check client `tracker_type` is allowed for video jobs only and rejected for image jobs.
-    - Check explicit inactive registered model selection is covered as intended API policy.
-    - Check no media processing in API request.
-    - Check `frame_stride` remains internal.
-    - Check no absolute paths, result/export path fields, secrets, tokens, or password hashes in responses.
-    - Check no later-phase endpoints or worker/frontend behavior leaked in.
+19. [@role/code-reviewer] Review Phase 10 diff against docs.
+    - Check endpoint list matches `docs/phase.md` and `docs/API.md`.
+    - Check ownership/admin access on every route.
+    - Check soft-deleted jobs hidden from normal lists.
+    - Check no absolute paths or raw storage paths in JSON responses.
+    - Check downloads verify job association and path safety.
+    - Check association rejects paths outside `results/{job_id}/`.
+    - Check inactive users cannot access representative result/download routes.
+    - Check no-detection results are not treated as failures.
+    - Check detections/tracks stay CV-only and image-space.
+    - Check no worker/frontend/later-phase functionality leaked in.
     - Verifiable: review notes no blocking doc mismatch, or blocker cites exact file/doc rule.
 
-16. [@role/docs-maintainer] Update index only if implementation changes file inventory.
-    - Update `backend/index.md` if new jobs files/tests are added.
-    - Do not modify product docs.
-    - Do not modify `docs/index.md`, `README.md`, or `docs/phase.md` unless user explicitly requests.
-    - Verifiable: docs changes are limited to backend index if needed.
+20. [@role/docs-maintainer] Update backend index only if implementation changes file inventory.
+    - Update `backend/index.md` if new result/service/schema/test files are added.
+    - Do not modify product docs under `docs/`.
+    - Verifiable: docs change, if any, is limited to backend-local index.

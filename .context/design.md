@@ -1,215 +1,216 @@
-# Phase 9 Design
+# Phase 10 Design
 
 ## Phase goal
 
-Implement Phase 9 only: backend job creation API and model-selection resolution.
+Implement Phase 10 only: backend job history, job details, result metadata, detections, tracks, summary, and safe download endpoints.
 
 Required result:
 
-- authenticated user can create a queued processing job for own, non-deleted media;
-- request parameters are validated before any job row is created;
-- backend resolves intended model using documented priority;
-- job is stored with `status = queued`, default queue fields, owner fields, and internal processing parameters;
-- no media processing runs inside API request.
+- authenticated users can list/view own jobs and results;
+- admins can view all jobs/results through the same documented permissions or admin-visible filters;
+- every result and download route enforces ownership or admin access;
+- job lists hide soft-deleted jobs from normal user lists;
+- downloads serve only files referenced by the requested job, under that job's documented result directory, and never expose absolute paths;
+- no-detection completed jobs remain successful with empty detection/track data and downloadable CSV/JSON when files exist.
 
 ## Intended behavior from docs
 
 Confirmed:
 
-- Endpoint in scope: `POST /api/jobs`.
-- Protected route: guests receive 401.
-- Users and admins can create jobs only for media owned by the authenticated account.
-- Admin job creation is still scoped to admin-owned media; no delegated processing.
-- Media must exist, must not be soft-deleted, and must belong to requester.
-- Long image/video processing must not run in request.
-- Created job status is `queued`.
-- `processing_jobs.input_params_json` contains at least:
-  - `confidence_threshold`
-  - `iou_threshold`
-  - `image_size`
-  - `tracker_type`
-  - `frame_stride`
-- Defaults from CV docs:
-  - confidence threshold `0.25`
-  - IoU threshold `0.45`
-  - image size `640`
-  - tracker `ByteTrack` as the documented internal default
-  - frame stride `1`
-- `frame_stride` is internal and must not be accepted as standard user-facing API input.
-- `tracker_type` is user-facing for video jobs only.
-- Image jobs reject any client-supplied `tracker_type`; they still do not run tracking and later image detections must have `track_id = null`.
-- Model selection priority:
-  1. explicit `model_version_id`;
-  2. active `model_versions` row;
-  3. `ACTIVE_MODEL_ID` only when no active DB model exists.
-- `ACTIVE_MODEL_ID` must not override explicit job model or active DB model.
-- Store resolved `model_version_id` on job when possible.
-- Invalid model, threshold, IoU, or tracker values must be rejected without creating a job.
-- Output boundary remains CV-only; Phase 9 does not create detections, tracks, exports, or result files.
+- Endpoints in scope:
+  - `GET /api/jobs`
+  - `GET /api/jobs/{job_id}`
+  - `DELETE /api/jobs/{job_id}`
+  - `GET /api/jobs/{job_id}/summary`
+  - `GET /api/jobs/{job_id}/detections`
+  - `GET /api/jobs/{job_id}/tracks`
+  - `GET /api/jobs/{job_id}/result`
+  - `GET /api/jobs/{job_id}/download/media`
+  - `GET /api/jobs/{job_id}/download/csv`
+  - `GET /api/jobs/{job_id}/download/json`
+- All endpoints are protected by JWT and active-account checks.
+- Regular users can access only own jobs, results, detections, tracks, and downloads.
+- Admins can access all jobs/results where admin permissions allow it.
+- Job list supports pagination and filters.
+- Soft-deleted jobs are hidden from normal user lists.
+- Job detail returns status, progress, heartbeat, timestamps, summary, and safe result/download references.
+- Result endpoints must not expose unsafe absolute filesystem paths.
+- Downloads require ownership/admin access and must verify file association with requested job.
+- Missing result files return clear errors without internal paths.
+- No-detection completed jobs are successful results, not errors.
+- CSV export contains one row per detection; no-detection CSV has headers only.
+- JSON export contains job, media, model, parameters, summary, detections, and tracks.
+- API/export outputs stay inside CV-only boundary.
 
 Assumptions:
 
-- `POST /api/jobs` response mirrors documented job metadata needed by later status/detail views and existing backend style: job id, owner/media/model ids, status, input params, progress, and timestamps. Phase 9 create response should not include result/export path fields.
-- Explicit `model_version_id` may reference any existing registered model, active or inactive, because docs use `is_active` for default selection only. This is the intended Phase 9 API policy and must be covered by tests.
-- If no explicit model and no active model exist, `ACTIVE_MODEL_ID` must reference an existing registered model or job creation fails with safe error.
-- `confidence_threshold` and `iou_threshold` are accepted as numbers from 0 to 1.
-- For video media, `tracker_type` defaults to `bytetrack`; unknown or unsupported values are rejected.
-- Phase 9 does not expose or accept `frame_stride` from clients.
+- Existing `POST /api/jobs` response can remain compatible; Phase 10 may extend job schemas for list/detail/result responses if needed.
+- Result metadata response can expose booleans and safe download endpoint URLs/references, not stored relative paths.
+- Result metadata `available` means the job path is recorded, passes the job-specific association rule, resolves safely under `STORAGE_ROOT`, and exists as a file on disk.
+- Download association requires the selected path to come from the authorized job row and live under `results/{job_id}/` for the requested job, matching `docs/ARCHITECTURE.md` artifact layout.
+- Download filenames should use sanitized media/job/model context and safe extensions; exact filename text is not specified by docs.
+- Detections response should include derived values `center_x`, `center_y`, `bbox_width`, and `bbox_height` calculated from stored bbox corners.
+- Admin owner filter on `GET /api/jobs` is allowed because docs list owner filtering for admins; regular users cannot broaden visibility with owner filters.
+- DELETE behavior should be conservative: queued jobs can be cancelled and soft-deleted; completed/failed/cancelled jobs can be soft-deleted; processing jobs are soft-deleted or marked for hidden visibility without requiring worker interruption. Exact implementation should stay within docs and tests.
 
 ## Architecture decisions
 
-- Add a small jobs router and register it under existing `/api` router.
-- Keep route handler thin: parse schema, depend on active user and DB session, call service, return schema.
-- Put ownership, parameter validation that depends on DB/media, and model resolution in `app.services.jobs`.
-- Use existing `MediaFile`, `ModelVersion`, and `ProcessingJob` ORM models.
-- Reuse active-user auth dependency; do not add new roles.
-- Reuse safe not-found behavior for missing/cross-owner/deleted media.
-- Add optional `active_model_id` to settings because `.env.example` and docs define `ACTIVE_MODEL_ID`.
-- Do not add migrations; schema already supports Phase 9 fields.
-- Do not add worker behavior, queue claiming, progress updates beyond initial defaults, results, downloads, listing, cancellation, frontend, or docs product changes.
+- Keep route handlers thin in `backend/app/api/jobs.py`.
+- Put job visibility, filtering, result shaping, soft deletion/cancellation, and download lookup in service/domain helpers.
+- Use existing ORM models; no new database fields planned.
+- Use `ensure_owner_or_admin` or equivalent safe not-found behavior for every job-derived resource.
+- Query detections and tracks by `job_id` only after authorized job lookup.
+- Compute derived bbox values in API/service response shaping, not database.
+- Build result/download metadata from job row fields and existing API endpoint routes; do not expose `result_media_path`, `csv_path`, or `json_path` directly.
+- Assert response bodies do not contain raw storage field names such as `result_media_path`, `csv_path`, or `json_path`.
+- Use `safe_join_storage_path(settings.storage_root, relative_path)` before file serving.
+- Before serving, require the selected relative path to match the requested job's result namespace: `results/{job_id}/...`.
+- Use `safe_download_filename` for `Content-Disposition` filenames.
+- Use FastAPI file response support for downloads after association and existence checks pass.
+- Do not implement worker export generation, CV processing, frontend pages, experiments, admin dashboard, or storage cleanup.
 
 ## Backend impact
 
 Touched:
 
-- New jobs API module.
-- New jobs schemas.
-- New jobs service.
-- API router registration.
-- Settings field for `ACTIVE_MODEL_ID`.
-- Focused backend tests.
-- Backend index only if file inventory changes during implementation.
+- Jobs API module for list/detail/delete/result/download routes.
+- Jobs service module or a new result service module.
+- Jobs/result schemas.
+- Jobs API tests and possibly dedicated result/download tests.
+- Backend index if file inventory changes.
 
 Not touched:
 
-- Media upload behavior.
-- Model registry behavior except reading existing model rows.
-- CV worker.
-- Results/downloads APIs.
-- Experiments/admin APIs.
+- Auth implementation.
+- Media upload validation.
+- Model registry mutation behavior.
+- CV worker queue claiming or export generation.
 - Frontend.
-- Database migration, unless implementation discovers verified schema mismatch.
+- Product docs.
+- Database migration unless a verified schema mismatch blocks implementation.
 
 ## API impact
 
-Implemented endpoint:
+Implemented endpoints:
 
-- `POST /api/jobs`
+- `GET /api/jobs`
+- `GET /api/jobs/{job_id}`
+- `DELETE /api/jobs/{job_id}`
+- `GET /api/jobs/{job_id}/summary`
+- `GET /api/jobs/{job_id}/detections`
+- `GET /api/jobs/{job_id}/tracks`
+- `GET /api/jobs/{job_id}/result`
+- `GET /api/jobs/{job_id}/download/media`
+- `GET /api/jobs/{job_id}/download/csv`
+- `GET /api/jobs/{job_id}/download/json`
 
 Access:
 
 - Guest: 401.
-- Active user/admin: may create job for own non-deleted media only.
-- Cross-owner or missing/deleted media: safe 404-style behavior.
+- Inactive user: 401.
+- Regular user: own jobs only.
+- Admin: all jobs/results allowed by documented permissions.
+- Cross-owner/missing/hidden resource: safe not-found behavior.
 
-Request:
+List filters:
 
-- Required media reference.
-- Optional `model_version_id`.
-- Optional user-facing processing parameters:
-  - `confidence_threshold`
-  - `iou_threshold`
-  - `tracker_type` for video media only
-- No standard client field for `frame_stride`.
-- Internal `image_size = 640` unless existing configuration is introduced for it.
+- Pagination: `limit`, `offset`, same backend style as media/models.
+- Phase filters from docs when practical: status, media type, date, model version, owner for admins.
+- Invalid filter values reject with clear 422/400 behavior.
 
-Response:
+Responses:
 
-- Safe job resource with queued status, no unsafe absolute paths, and no result/export path fields in Phase 9 create response.
-- Must not expose password hashes, tokens, secrets, stored media absolute path, model resolved absolute path, or filesystem internals.
+- Job detail includes job ids, status, progress, heartbeat/lock-safe timestamps, input params, summary, error message, created/updated/start/completion timestamps, media/model references where useful.
+- Result metadata includes safe file-present availability and download references for annotated media, CSV, and JSON.
+- Detection rows include stored fields plus derived center/size values.
+- Track rows include documented track summary fields.
+- No response includes absolute filesystem paths, password hashes, tokens, secrets, or forbidden CV outputs.
 
 ## Database impact
 
-- Use existing `processing_jobs` table.
-- No schema field planned.
-- On successful create:
-  - `user_id = current_user.id`
-  - `media_file_id = validated media.id`
-  - `model_version_id = resolved model id when available`
-  - `status = queued`
-  - `progress_percent = 0`
-  - `retry_count = 0`
-  - `input_params_json` includes documented defaults and validated values, including internal `frame_stride = 1`
-  - result/export paths, lock fields, heartbeat, start/completion, and error fields remain null
-- Roll back and create no row on validation failure.
+- Use existing tables only:
+  - `processing_jobs`
+  - `media_files`
+  - `detections`
+  - `tracks`
+  - `model_versions`
+- Normal user list filters `processing_jobs.deleted_at IS NULL`.
+- Soft-delete/cancel sets documented status/deletion fields without physical file removal.
+- Download association uses paths already stored on the authorized `processing_jobs` row plus the documented `results/{job_id}/` path namespace.
+- No media/result/export binaries stored in PostgreSQL.
 
 ## Frontend impact
 
 - No frontend source changes in this phase.
-- Future frontend upload page can call `POST /api/jobs` after this backend endpoint exists.
-- `frame_stride` must remain hidden from standard UI; Phase 9 reinforces by not accepting it as user input.
+- Future frontend job pages can consume this backend API.
+- API response text remains developer/API English; future visible UI Ukrainian is frontend responsibility.
 
 ## Security/privacy impact
 
 Touched:
 
-- JWT required.
-- Inactive users rejected through existing active-user dependency.
-- Ownership enforced before job creation.
-- Cross-owner media hidden behind safe not-found behavior.
-- Soft-deleted media cannot create jobs.
-- Invalid requests do not create queued work.
-- No absolute storage paths exposed.
+- Protected result/detail/download access.
+- Ownership/admin checks for every job-derived endpoint.
+- Safe missing/cross-owner responses.
+- Path traversal prevention during download resolution.
+- No absolute storage paths in JSON.
 - No secrets/tokens/password data in responses or logs.
+- File serving only after job association and existence verification.
 
-Not touched:
+Security invariant:
 
-- Upload validation internals.
-- Downloads/path serving.
-- Worker logs.
-- CORS behavior.
+- Result/download endpoints must re-check authorization even if job id was obtained elsewhere.
 
 ## Test strategy
 
 Relevant automated checks:
 
-- From `backend/`: `python -m ruff check .`
 - From `backend/`: `python -m pytest tests/test_jobs_api.py`
-- From `backend/`: `python -m pytest tests/test_media_api.py tests/test_models_api.py tests/test_auth.py tests/test_settings.py`
+- From `backend/`: `python -m pytest tests/test_media_api.py tests/test_auth.py tests/test_security_utils.py`
+- From `backend/`: `python -m ruff check .`
 
-Required Phase 9 test cases:
+Required Phase 10 test cases:
 
-- Guest cannot create job.
-- Inactive user token cannot create job.
-- User can create queued job for own non-deleted media with defaults.
-- Admin can create queued job for admin-owned media.
-- User cannot create job for another user's media.
-- User cannot create job for soft-deleted media.
-- Missing media id is rejected safely.
-- Explicit valid `model_version_id` wins over active DB model.
-- Active DB model is used when explicit model is omitted.
-- `ACTIVE_MODEL_ID` fallback is used only when no active DB model exists.
-- `ACTIVE_MODEL_ID` does not override explicit model.
-- `ACTIVE_MODEL_ID` does not override active DB model.
-- Missing/invalid explicit model is rejected.
-- No active DB model plus unset/invalid fallback is rejected.
-- Invalid confidence threshold is rejected.
-- Invalid IoU threshold is rejected.
-- Invalid tracker type is rejected.
-- Client-supplied `tracker_type` for image media is rejected, including the default value, because tracker selection is user-facing for video only.
-- Video media can omit `tracker_type` and receive the documented default `bytetrack`.
-- Client-supplied `frame_stride` is ignored or rejected; no user input can change stored internal `frame_stride = 1`.
-- Explicit selection of an inactive registered model version succeeds by intended API policy.
-- Successful job stores `status = queued`, `progress_percent = 0`, `retry_count = 0`, and documented `input_params_json`.
-- Validation failures create no `processing_jobs` row.
-- Response body contains no absolute paths, path-like result/export fields, password hashes, tokens, or secrets.
+- Guest cannot list, view, delete, fetch result data, or download.
+- Inactive user cannot access protected job/result/download routes.
+- Inactive-user tests must cover at least one representative result route and one download route.
+- Regular user lists only own non-deleted jobs.
+- Admin can list/view all jobs; owner filter applies only to admin.
+- Status/media/model/date filters work without bypassing ownership.
+- Regular user cannot view another user's job detail.
+- Regular user cannot fetch another user's summary, detections, tracks, result metadata, or downloads.
+- `GET /api/jobs/{job_id}` returns status, progress, heartbeat, timestamps, summary, and safe references.
+- `DELETE /api/jobs/{job_id}` hides job from normal list; queued job cancellation/soft-delete behavior matches chosen doc-consistent rule.
+- Soft-deleted jobs are hidden from normal lists and blocked or hidden from regular detail access according to chosen safe behavior.
+- Detections endpoint returns job detections only and includes derived center/size fields.
+- Tracks endpoint returns job tracks only; image/no-track jobs return empty list.
+- Summary endpoint handles null confidence values for no-detection completed jobs without error.
+- Result metadata includes safe download URLs/references and no raw stored paths.
+- Result metadata `available` values reflect file existence, not only DB path presence.
+- Result/detail JSON does not contain raw storage field names: `result_media_path`, `csv_path`, or `json_path`.
+- Download media/csv/json succeeds only when corresponding job path exists and file belongs to job.
+- Download media/csv/json rejects a path recorded on the job row when it does not live under `results/{job_id}/`.
+- Missing download file returns clear 404 or equivalent safe error without internal path.
+- Completed no-detection job with CSV/JSON paths returns empty detections/tracks and allows CSV/JSON download.
+- API responses and JSON body checks do not include absolute paths, `STORAGE_ROOT`, tokens, password hashes, or forbidden CV-only boundary fields.
 
 Skipped as out of scope:
 
-- Job list/detail/delete endpoints.
-- Worker queue claim tests.
-- CV processing tests.
-- Results/download/export tests.
-- Frontend tests/build.
-- Docker Compose smoke unless backend startup wiring changes.
+- Worker processing/export creation tests.
+- CV inference tests.
+- Frontend tests/build/manual browser flow.
+- Docker Compose smoke unless backend runtime wiring changes.
+- Admin storage cleanup tests.
 
 ## Ambiguities or conflicts
 
 - WARNING: CONFLICT
-  - `docs/index.md` and `README.md` current-state text lag actual backend implementation.
-  - Phase selection comes from `docs/phase.md`; implementation-state facts come from actual backend source and `backend/index.md`.
-- Ambiguity: exact request/response schema is not fully specified in API docs. Use documented parameter names and existing backend schema style only.
-- Resolved from review: image requests with client-supplied `tracker_type` are rejected; tracker selection is user-facing for video only.
-- Resolved from review: explicit selection of inactive registered model versions is intended Phase 9 API policy.
-- Ambiguity: BoT-SORT support is optional. Do not add worker/runtime claims in Phase 9.
-- Ambiguity: exact threshold bounds are not stated. Use 0-1 as conservative CV threshold validation.
+  - `docs/index.md` current implementation state says backend remains placeholder-only.
+  - Actual backend contains implemented app, tests, auth, media, models, and jobs creation.
+  - This contract follows `docs/phase.md` plus actual repo state for implementation planning.
+- Ambiguity: exact response schema is not fully specified. Use documented fields only and existing backend schema style.
+- Ambiguity: exact DELETE behavior for processing jobs is not fully specified. Use conservative soft-delete/cancel behavior and test it.
+- Resolved planning-review question: result metadata availability means file can be safely downloaded now, so file existence is checked without exposing paths.
+- Resolved planning-review question: download association requires the selected job path to live under `results/{job_id}/` for the requested job.
+- Ambiguity: result metadata format is not fully specified. Use safe availability/download references, not stored paths.
+- Ambiguity: exact download filenames are not specified. Use sanitized filenames only.

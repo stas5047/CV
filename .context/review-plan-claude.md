@@ -2,9 +2,11 @@
 
 ## Summary
 
-Phase 9 plan matches core docs: backend-only `POST /api/jobs`, authenticated job creation for own non-deleted media, queued status, no synchronous media processing, model priority resolution, `ACTIVE_MODEL_ID` fallback limits, internal `frame_stride = 1`, and focused backend tests.
+Phase 10 planning contract matches docs in main shape: backend-only jobs/results/download API, ownership/admin checks, safe downloads, soft deletion, no-detection success behavior, CV-only outputs, and focused backend/security tests.
 
-No blocking issue found. One important correction needed before implementation: make tracker validation media-type-aware and test it.
+No blocking issue found. Two important changes should be made before implementation: prove inactive users cannot use the new result/download routes, and tighten download association beyond trusting a stored job path alone.
+
+Risk level placeholder was not filled in the prompt. Treated as HIGH because this phase exposes protected result data and file downloads.
 
 ## Blocking issues
 
@@ -12,24 +14,30 @@ None.
 
 ## Important issues
 
-1. Tracker validation is not media-type-specific in plan.
-   - Evidence: `docs/API.md:279` says `tracker_type` is user-configurable for video. `docs/CV_PIPELINE.md:154` says tracker type is user-facing for video. `docs/CV_PIPELINE.md:233-235` defines ByteTrack/BoT-SORT for video jobs. `docs/AUTH_SECURITY.md:291` requires tracker type be allowed for the media type. `.context/plan.md` steps 5 and 7 validate unknown tracker values and store a tracker default, but do not define image-job behavior when a client sends `tracker_type`.
-   - Risk: image jobs may accept and persist video-only tracker choices, creating confusing worker input and drifting from documented parameter boundaries.
-   - Required change: before implementation, define Phase 9 behavior for image requests with client-supplied `tracker_type` and add tests. Conservative options: reject `tracker_type` for image media, or accept only default/ignore client value while still storing internal default. Whichever behavior is chosen must ensure user input cannot make image jobs behave as tracked video jobs.
+1. Phase 10 tests do not explicitly prove inactive users are rejected on the new job/result/download routes.
+   - Evidence: `docs/AUTH_SECURITY.md` Account Activity says inactive users must not upload, create jobs, view results, download exports, or access authenticated endpoints. Ownership checks list summaries, detections, tracks, and downloads. `.context/design.md` includes inactive-user route tests, but `.context/plan.md` step 3 omits inactive-user cases for Phase 10 endpoints and step 17 only runs existing auth/security regression tests.
+   - Risk: a new route could accidentally depend on token validity only, bypass active-account enforcement for result metadata or file downloads.
+   - Required change: add at least one focused Phase 10 inactive-user test covering a representative result route and a download route, or explicitly apply the same active-user dependency across every route and assert it through parametrized tests.
+
+2. Download association rule is underspecified for stored paths that point outside the requested job's own result area.
+   - Evidence: `docs/API.md` Download and File Serving Rules require the API to ensure the requested file belongs to the requested job/resource. `docs/AUTH_SECURITY.md` Path Traversal Prevention requires serving files only after verifying ownership and resource association. `.context/design.md` says association means the path is read from the authorized `processing_jobs` row. `.context/plan.md` step 13 validates relative path and safe-joins under `STORAGE_ROOT`, but does not require a job-specific result namespace/prefix check or another association proof.
+   - Risk: if a worker bug or bad seed/test row stores `results/other-job/export.csv` on this job row, an authorized user could download a file not produced for that job. Safe-join prevents traversal, but not cross-job file association drift.
+   - Required change: define and test a concrete association rule for Phase 10 downloads, such as requiring result paths to live under a generated job-specific directory containing the `job_id`, or another documented predicate that rejects a path associated with another job.
 
 ## Optional improvements
 
-1. Add one response-shape assertion that job creation response contains no filesystem path-looking fields.
-   - Evidence: `docs/API.md:30-31` and `docs/API.md:54` forbid unsafe absolute paths and require only relative/logical file references or download URLs. Phase 9 should not return result paths yet, so this is low-cost regression coverage.
+1. Make `GET /api/jobs/{job_id}/result` availability semantics explicit.
+   - Evidence: `.context/plan.md` step 12 says metadata may not require files to exist. That is acceptable if fields mean "DB path present", but unclear if fields mean "download is currently available".
+   - Low-risk improvement: name fields so clients can distinguish path-recorded vs file-present, or check file existence for availability without exposing paths.
 
-2. Make inactive-model policy explicit in implementation notes or tests.
-   - Evidence: `docs/TESTING_QA.md:194` says inactive model selection is allowed only if intended by API policy. `.context/design.md` assumes explicit `model_version_id` may reference inactive registered models because `is_active` controls default selection. This is reasonable, but should be visible in tests so future reviewers know it is intentional.
+2. Add one assertion that result/detail JSON never contains raw storage field names.
+   - Evidence: `docs/API.md` forbids unsafe absolute paths and asks for download URLs or logical references instead of internal paths. Plan already covers path secrecy; checking raw names like `result_media_path`, `csv_path`, and `json_path` would make regression obvious.
 
 ## Questions for resolution
 
-1. For image media, should `POST /api/jobs` reject client-supplied `tracker_type`, or ignore it and store internal default `bytetrack` without treating it as user-controlled behavior?
+1. What exact download association rule should implementation enforce: job-specific result directory/prefix, `job_id` embedded in generated path, or another predicate?
 
-2. Is explicit selection of inactive registered model versions intended API policy for Phase 9? Current plan assumes yes.
+2. Should result metadata `available` mean the DB path exists on the job row, or the file exists on disk and can be downloaded now?
 
 ## Files consulted
 
@@ -42,7 +50,7 @@ None.
 - `.context/design.md`
 - `.context/plan.md`
 - `docs/API.md`
-- `docs/CV_PIPELINE.md`
 - `docs/DATA_MODEL.md`
 - `docs/AUTH_SECURITY.md`
+- `docs/CV_PIPELINE.md`
 - `docs/TESTING_QA.md`

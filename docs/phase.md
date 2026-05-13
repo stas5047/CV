@@ -1,45 +1,48 @@
-## Phase 9 - Job creation API and model selection resolution
+## Phase 10 - Jobs, results, detections, tracks, and safe downloads API
 
 **Direction:** Backend  
-**Goal:** Implement queued processing job creation with validated parameters and resolved model selection.
+**Goal:** Implement job history, job details, result metadata, detections, tracks, summary, and download endpoints.
 
 ### Scope
 
-- Implement `POST /api/jobs`.
-- Validate that the media file exists, is not soft-deleted, and belongs to the requesting user.
-- Validate processing parameters:
-  - `model_version_id` when provided;
-  - confidence threshold;
-  - IoU threshold;
-  - tracker type;
-  - internal image size if configured;
-  - internal `frame_stride = 1`.
-- Resolve model selection priority:
-  1. explicit job-specific model version;
-  2. active model from `model_versions`;
-  3. environment fallback only when no active database model exists.
-- Store the resolved `model_version_id` on the job when possible.
-- Create job with `status = queued`, input parameters, progress defaults, and ownership fields.
-- Ensure long media processing does not happen inside the API request.
-- Add tests for own media, another user's media, invalid params, missing active model, and model priority.
+- Implement endpoints:
+  - `GET /api/jobs`;
+  - `GET /api/jobs/{job_id}`;
+  - `DELETE /api/jobs/{job_id}`;
+  - `GET /api/jobs/{job_id}/summary`;
+  - `GET /api/jobs/{job_id}/detections`;
+  - `GET /api/jobs/{job_id}/tracks`;
+  - `GET /api/jobs/{job_id}/result`;
+  - `GET /api/jobs/{job_id}/download/media`;
+  - `GET /api/jobs/{job_id}/download/csv`;
+  - `GET /api/jobs/{job_id}/download/json`.
+- Enforce ownership or admin access on every job/result/download route.
+- Support pagination and filters for job lists.
+- Hide soft-deleted jobs from normal user lists.
+- Return status, progress, heartbeat, timestamps, summary, and safe download URLs/references.
+- Serve downloads only after verifying that the file belongs to the requested job.
+- Return clear missing-file errors without exposing internal paths.
+- Treat no-detection completed jobs as successful results.
+- Add tests for ownership, downloads, missing result files, and soft deletion/cancellation behavior.
 
 ### Relevant docs
 
 - `docs/API.md`
-- `docs/CV_PIPELINE.md`
 - `docs/DATA_MODEL.md`
 - `docs/AUTH_SECURITY.md`
+- `docs/CV_PIPELINE.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Users can create jobs for own uploaded media.
-- Users cannot create jobs for another user's media.
-- Invalid model, threshold, IoU, or tracker values are rejected.
-- Created job status is `queued`.
-- `frame_stride` is present internally but not exposed as a standard user-facing parameter.
-- Model selection priority tests pass.
+- Users list and view only own jobs.
+- Admin can view all jobs through allowed permissions/routes.
+- Result endpoints enforce ownership.
+- Downloads enforce ownership and resource association.
+- Absolute filesystem paths are not exposed.
+- Completed no-detection jobs can still provide CSV/JSON downloads when files exist.
+- Backend tests pass.
 
 ### Commit
 
-`feat(backend-jobs): add queued job creation and model resolution`
+`feat(backend-results): add jobs results detections tracks and downloads API`

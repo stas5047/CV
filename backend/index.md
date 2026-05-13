@@ -4,7 +4,7 @@
 
 The `backend/` folder contains the AeroVision FastAPI backend application.
 
-According to `../docs/`, this backend exposes the `/api` REST API. Current implementation contains the FastAPI foundation, typed environment settings, safe logging baseline, explicit CORS configuration, database connectivity skeleton, public health endpoints, SQLAlchemy ORM models for the documented schema, Alembic configuration, the initial database migration, local/demo startup migration switches, idempotent admin seed/setup, storage bootstrap, JWT authentication, public registration, login, current-user endpoints, reusable admin/ownership authorization helpers, storage path/filename safety utilities, the authenticated media upload/list/detail/soft-delete API, the authenticated/admin model registry API, and queued job creation with model selection resolution. Later phases add job list/detail/cancel APIs, results/downloads, experiments/admin APIs, worker queue behavior, and safe downloads.
+According to `../docs/`, this backend exposes the `/api` REST API. Current implementation contains the FastAPI foundation, typed environment settings, safe logging baseline, explicit CORS configuration, database connectivity skeleton, public health endpoints, SQLAlchemy ORM models for the documented schema, Alembic configuration, the initial database migration, local/demo startup migration switches, idempotent admin seed/setup, storage bootstrap, JWT authentication, public registration, login, current-user endpoints, reusable admin/ownership authorization helpers, storage path/filename safety utilities, the authenticated media upload/list/detail/soft-delete API, the authenticated/admin model registry API, queued job creation with model selection resolution, and job history/detail/result/detection/track/download APIs. Later phases add experiments/admin APIs, worker queue behavior, and CV processing/export generation.
 
 ## Current Files
 
@@ -14,12 +14,12 @@ According to `../docs/`, this backend exposes the `/api` REST API. Current imple
 | `alembic.ini` | Alembic configuration for backend database migrations. |
 | `pyproject.toml` | Backend Python dependencies, dev dependencies, pytest configuration, and Ruff configuration. |
 | `startup.sh` | Container startup script that optionally runs migrations and setup before Uvicorn. |
-| `app/` | FastAPI app package with API router, health/auth/media/model/job endpoints, settings, CORS, logging, password hashing and JWT helpers, authorization helpers, storage path/filename safety utilities, media upload, model registry, and job creation services, database connectivity, ORM models, schemas, and setup command. |
+| `app/` | FastAPI app package with API router, health/auth/media/model/job endpoints, settings, CORS, logging, password hashing and JWT helpers, authorization helpers, storage path/filename safety utilities, media upload, model registry, job creation, job results/download services, database connectivity, ORM models, schemas, and setup command. |
 | `migrations/` | Alembic migration environment and initial schema migration. |
-| `tests/` | Backend tests for settings, health endpoints, logging redaction, Phase 3 data-model constraints, Phase 4 setup behavior, Phase 5 auth behavior, Phase 6 security utilities, Phase 7 media upload/validation behavior, Phase 8 model registry behavior, and Phase 9 job creation/model selection behavior. |
+| `tests/` | Backend tests for settings, health endpoints, logging redaction, Phase 3 data-model constraints, Phase 4 setup behavior, Phase 5 auth behavior, Phase 6 security utilities, Phase 7 media upload/validation behavior, Phase 8 model registry behavior, Phase 9 job creation/model selection behavior, and Phase 10 job result/download behavior. |
 | `index.md` | Backend folder summary, current contents, and backend-local commands. |
 
-No job list/detail/cancel, result/download, experiment, or admin product APIs or worker queue logic exist yet in this checkout.
+No experiment/admin product APIs, worker queue logic, CV processing, or export generation exist yet in this checkout.
 
 ## Commands
 

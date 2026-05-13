@@ -1,27 +1,25 @@
-# Phase 9 Status - Job Creation API and Model Selection Resolution
+# Phase 10 Status - Jobs, results, detections, tracks, and safe downloads API
 
 ## Implementation
 
-- Phase implemented: `Phase 9 - Job creation API and model selection resolution`.
-- Scope kept to backend `POST /api/jobs`, active-user authentication, own-media validation, soft-deleted media rejection, processing parameter defaults/validation, model selection priority, queued job persistence, tests, and backend index update.
-- Later phases not implemented: job list/detail/cancel endpoints, result/download APIs, CV worker queue polling/claiming, media processing, detections/tracks/exports, frontend upload/job UI, experiments/admin APIs.
+- Phase implemented: `Phase 10 - Jobs, results, detections, tracks, and safe downloads API`.
+- Scope kept to backend job list/detail/delete, summary, detection list, track list, result metadata, and safe download endpoints.
+- Later phases not implemented: CV worker queue polling/claiming, media processing/export generation, frontend job/result pages, experiments/admin APIs, storage cleanup, or training utilities.
 
 ## Files Changed By Codex
 
-- `backend/app/api/router.py`
 - `backend/app/api/jobs.py`
-- `backend/app/core/config.py`
 - `backend/app/schemas/jobs.py`
 - `backend/app/services/jobs.py`
+- `backend/app/services/results.py`
 - `backend/tests/test_jobs_api.py`
-- `backend/tests/test_settings.py`
 - `backend/index.md`
 - `.context/status.md`
 
 ## Quality Gates
 
-- `cd backend; python -m pytest tests/test_jobs_api.py` - PASS, 19 passed.
-- `cd backend; python -m pytest tests/test_media_api.py tests/test_models_api.py tests/test_auth.py tests/test_settings.py` - PASS, 48 passed.
+- `cd backend; python -m pytest tests/test_jobs_api.py` - PASS, 25 passed.
+- `cd backend; python -m pytest tests/test_media_api.py tests/test_auth.py tests/test_security_utils.py` - PASS, 60 passed.
 - `cd backend; python -m ruff check .` - PASS.
 
 ## Code Review Resolution
@@ -31,21 +29,21 @@
 - `.context/review-code-claude.md` is absent or empty; no issues to resolve.
 - No accepted source fixes were required after code review.
 - Final verification reran after resolution update and passed:
-  - `cd backend; python -m pytest tests/test_jobs_api.py` - PASS, 19 passed.
-  - `cd backend; python -m pytest tests/test_media_api.py tests/test_models_api.py tests/test_auth.py tests/test_settings.py` - PASS, 48 passed.
+  - `cd backend; python -m pytest tests/test_jobs_api.py` - PASS, 25 passed.
+  - `cd backend; python -m pytest tests/test_media_api.py tests/test_auth.py tests/test_security_utils.py` - PASS, 60 passed.
   - `cd backend; python -m ruff check .` - PASS.
 
 ## Security And Privacy
 
-- `POST /api/jobs` requires active JWT user.
-- Job creation is limited to media owned by the authenticated user, including admins.
-- Missing, cross-owner, and soft-deleted media return safe not-found behavior.
-- Invalid parameters and unavailable model resolution create no queued job.
-- Response excludes result/export path fields and exposes no absolute storage paths, passwords, password hashes, tokens, or secrets.
+- All new job/result/download routes require active JWT user through `get_current_active_user`.
+- Regular users can access only own non-deleted jobs; admins can access all visible jobs.
+- Cross-owner and soft-deleted job access returns safe not-found behavior.
+- Download resolution re-checks ownership/admin access, validates storage paths, requires `results/{job_id}/` association, checks file existence, and returns safe 404 errors without internal paths.
+- JSON responses expose download URLs/availability only; no `result_media_path`, `csv_path`, `json_path`, absolute storage paths, tokens, password hashes, or secrets are exposed.
+- No-detection completed jobs return empty detections/tracks and allow CSV/JSON downloads when files exist.
 
 ## Notes
 
-- Existing stale-doc conflict remains as recorded in `.context/research.md`: `docs/index.md` and `README.md` current-state text lag actual backend implementation. Phase selection came from `docs/phase.md`.
-- No schema/migration change was needed; existing `processing_jobs`, `media_files`, and `model_versions` tables support Phase 9.
-- Explicit inactive registered model selection is allowed by the Phase 9 contract; active model is only default selection.
+- Existing stale-doc conflict remains as recorded in `.context/research.md`: `docs/index.md` current-state text lags actual backend implementation.
+- No database schema or migration change was needed; existing Phase 3 tables support Phase 10.
 - No real mistake logged.
