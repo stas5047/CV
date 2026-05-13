@@ -1,43 +1,36 @@
-## Phase 3 - Database schema and initial Alembic migration
+## Phase 4 - Backend startup migrations, idempotent seed/setup, and storage bootstrap
 
-**Direction:** Backend / Database  
-**Goal:** Implement the concrete PostgreSQL schema and initial migration.
+**Direction:** Backend / DevOps  
+**Goal:** Make local/demo backend startup prepare the database and minimal demo setup automatically.
 
 ### Scope
 
-- Add SQLAlchemy models for:
-  - `users`;
-  - `media_files`;
-  - `processing_jobs`;
-  - `detections`;
-  - `tracks`;
-  - `model_versions`;
-  - `experiment_runs`;
-  - `experiment_metrics`.
-- Use UUID primary keys where appropriate.
-- Add required enums/checks for roles, media types, job statuses, and experiment types.
-- Add required foreign keys, relationships, indexes, unique constraints, and soft-deletion fields.
-- Enforce only one active model version at a time where feasible with PostgreSQL constraints/indexes.
-- Enforce relative-path storage at service validation level, and add database checks where practical.
-- Add Alembic configuration and generate initial migration.
-- Add database smoke tests for constraints and relationships.
-- Document limitations where cross-table rules cannot be expressed cleanly in the database.
+- Add backend startup script that can run `alembic upgrade head` before starting the API in local/demo mode.
+- Add an idempotent seed/setup command.
+- Seed the initial admin account from `ADMIN_EMAIL` and `ADMIN_PASSWORD`.
+- Hash the seeded admin password before storage.
+- Ensure public registration never creates admin accounts.
+- Create or verify required storage directories under `STORAGE_ROOT`.
+- Optionally seed documented placeholder model/experiment metadata only when corresponding relative artifacts exist.
+- Add environment switches such as `RUN_MIGRATIONS_ON_START` and `RUN_SEED_ON_START` if useful.
+- Document demo credentials policy and local-only warning.
+- Ensure seed can run repeatedly without duplicating records.
 
 ### Relevant docs
 
-- `docs/DATA_MODEL.md`
 - `docs/ARCHITECTURE.md`
-- `docs/API.md`
+- `docs/AUTH_SECURITY.md`
+- `docs/DATA_MODEL.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Alembic migration applies successfully to a fresh PostgreSQL database.
-- Alembic migration can be run inside the backend container.
-- Representative invalid rows are rejected by database constraints or covered by service validation TODO/tests.
-- Required indexes exist.
-- Backend test suite still passes.
+- Clean database startup applies migrations automatically in local/demo mode.
+- Seed command creates exactly one admin account for the configured email.
+- Re-running seed does not duplicate users or model/experiment placeholder records.
+- Storage folders are created or verified.
+- Seeded admin can authenticate once auth is implemented, or the seed output is testable at database level in this phase.
 
 ### Commit
 
-`feat(backend-db): add SQLAlchemy models and initial Alembic migration`
+`chore(backend-seed): add migrations seed setup and storage bootstrap`

@@ -11,13 +11,15 @@ class Settings(BaseSettings):
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=60, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     admin_email: str = Field(alias="ADMIN_EMAIL")
-    admin_password: str = Field(alias="ADMIN_PASSWORD")
+    admin_password: str = Field(min_length=8, alias="ADMIN_PASSWORD")
     allow_public_registration: bool = Field(default=True, alias="ALLOW_PUBLIC_REGISTRATION")
     storage_root: str = Field(default="/app/storage", alias="STORAGE_ROOT")
     models_root: str = Field(default="/app/storage/models", alias="MODELS_ROOT")
     backend_cors_origins: Annotated[list[str], NoDecode] = Field(alias="BACKEND_CORS_ORIGINS")
     max_image_size_mb: int = Field(default=20, alias="MAX_IMAGE_SIZE_MB")
     max_video_size_mb: int = Field(default=500, alias="MAX_VIDEO_SIZE_MB")
+    run_migrations_on_start: bool = Field(default=True, alias="RUN_MIGRATIONS_ON_START")
+    run_seed_on_start: bool = Field(default=True, alias="RUN_SEED_ON_START")
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -55,7 +57,9 @@ class Settings(BaseSettings):
             f"models_root={self.models_root!r}, "
             f"backend_cors_origins={self.backend_cors_origins!r}, "
             f"max_image_size_mb={self.max_image_size_mb!r}, "
-            f"max_video_size_mb={self.max_video_size_mb!r}"
+            f"max_video_size_mb={self.max_video_size_mb!r}, "
+            f"run_migrations_on_start={self.run_migrations_on_start!r}, "
+            f"run_seed_on_start={self.run_seed_on_start!r}"
             ")"
         )
 

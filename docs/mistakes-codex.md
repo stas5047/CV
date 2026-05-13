@@ -1,5 +1,12 @@
 # Codex Mistake Log
 
+## 2026-05-13 - Phase 4 Docker smoke ran dependent migration and seed in parallel
+
+- Mistake: Ran `docker compose ... alembic upgrade head` and `docker compose ... python -m app.setup` in parallel even though seed depends on migrated tables.
+- Impact: Seed smoke briefly failed with `relation "users" does not exist`.
+- Fix: Reran seed only after migration completed; seed then passed.
+- Prevention: Do not parallelize dependent quality gates. Run migration before seed/setup.
+
 ## 2026-05-13 - Phase 3 database constraints missed SQL NULL and terminal traversal cases
 
 - Mistake: Initial image-media check used `frame_count = 1` without `frame_count IS NOT NULL`, so SQL `CHECK` accepted `UNKNOWN` and allowed image rows with `frame_count = NULL`.

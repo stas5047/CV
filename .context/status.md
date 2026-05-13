@@ -1,37 +1,31 @@
-# Phase 3 Status - Database schema and initial Alembic migration
+# Phase 4 Implementation Status
 
-## Current state
+## Completed
 
-- Phase 3 implementation complete and code review final fixes applied.
-- SQLAlchemy metadata now defines all required Phase 3 tables:
-  - `users`
-  - `media_files`
-  - `processing_jobs`
-  - `detections`
-  - `tracks`
-  - `model_versions`
-  - `experiment_runs`
-  - `experiment_metrics`
-- Alembic configuration and initial migration are present under `backend/`.
-- Backend Docker image now copies Alembic config and migration files so container migrations can run.
-- Backend index updated for current files and commands.
-- Code review fixes tightened image-media NULL handling and terminal `..` path traversal checks in ORM, migration, and tests.
+- Added `RUN_MIGRATIONS_ON_START` and `RUN_SEED_ON_START` backend settings.
+- Added bcrypt password hash/verify helper for seeded admin.
+- Added idempotent setup command at `python -m app.setup`.
+- Setup command creates documented storage folders under `STORAGE_ROOT`.
+- Setup command creates configured admin if absent, refreshes existing admin password hash, and fails safely if `ADMIN_EMAIL` belongs to a non-admin user.
+- Added backend container startup script that optionally runs Alembic migrations and setup before Uvicorn.
+- Wired startup switches through `.env.example` and `docker-compose.yml`.
+- Updated README and `backend/index.md`.
+- Final code-review fix enforced 8-character minimum for `ADMIN_PASSWORD`.
+- Final code-review fix aligned startup script enabled-value parsing with common boolean true forms.
 
 ## Quality gates run
 
-| Command | Result |
-|---|---|
-| `python -m pytest tests\test_data_model.py` from `backend/` | PASS |
-| `python -m ruff check .` from `backend/` | PASS |
-| `python -m pytest` from `backend/` | PASS |
-| `docker compose --env-file .env.example config` from repo root | PASS |
-| `docker compose --env-file .env.example build backend` from repo root | PASS |
-| `docker compose --env-file .env.example run --rm -e DATABASE_URL=postgresql+psycopg://aerovision:change-me-postgres-password@postgres:5432/aerovision_phase3_check backend alembic upgrade head` from repo root | PASS |
+- `python -m pytest tests/test_settings.py tests/test_setup.py -q` from `backend/`: PASS.
+- `python -m ruff check app/core/config.py app/core/passwords.py app/setup.py tests/test_settings.py tests/test_setup.py` from `backend/`: PASS.
+- `python -m ruff check .` from `backend/`: PASS.
+- `python -m pytest` from `backend/`: PASS, 22 tests.
+- `docker compose --env-file .env.example config` from repo root: PASS.
+- `docker compose --env-file .env.example run --rm --build backend alembic upgrade head` from repo root: PASS.
+- `docker compose --env-file .env.example run --rm backend python -m app.setup` from repo root: PASS after migration; rerun also PASS.
+- `docker compose --env-file .env.example up -d --build backend` plus `GET /api/health` and `GET /api/health/db`: PASS.
+- `docker run --rm --entrypoint /bin/sh aerovision-backend -n /app/startup.sh` from repo root: PASS.
 
 ## Notes
 
-- Phase 3 stayed scoped to schema, migration plumbing, focused tests, backend Docker migration availability, and backend index update.
-- No auth endpoints, seed/setup command, upload API, job API, worker queue loop, frontend UI, or training behavior implemented.
-- No source/doc contract conflict found.
-- Migration-in-container check database `aerovision_phase3_check` had to be created before the final migration command could run.
-- Real mistake logged in `docs/mistakes-codex.md`: initial SQL check allowed image `frame_count = NULL` and terminal path traversal segments.
+- One seed smoke failed before rerun because migration and seed were mistakenly launched in parallel. Logged in `docs/mistakes-codex.md`; rerun after migration passed.
+- No auth endpoints, upload APIs, frontend UI, worker queue logic, model registry APIs, or experiment APIs were added.

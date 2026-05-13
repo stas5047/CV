@@ -15,6 +15,31 @@ def test_settings_load_required_environment(required_env: None) -> None:
     assert settings.allow_public_registration is True
     assert settings.max_image_size_mb == 20
     assert settings.max_video_size_mb == 500
+    assert settings.run_migrations_on_start is True
+    assert settings.run_seed_on_start is True
+
+
+def test_settings_parse_startup_switches(
+    required_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RUN_MIGRATIONS_ON_START", "false")
+    monkeypatch.setenv("RUN_SEED_ON_START", "false")
+
+    settings = Settings()
+
+    assert settings.run_migrations_on_start is False
+    assert settings.run_seed_on_start is False
+
+
+def test_settings_reject_short_admin_password(
+    required_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ADMIN_PASSWORD", "short")
+
+    with pytest.raises(ValidationError):
+        Settings()
 
 
 def test_settings_reject_wildcard_cors_origin(

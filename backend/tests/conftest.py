@@ -34,6 +34,8 @@ def required_env(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setenv("MAX_IMAGE_SIZE_MB", "20")
     monkeypatch.setenv("MAX_VIDEO_SIZE_MB", "500")
+    monkeypatch.setenv("RUN_MIGRATIONS_ON_START", "true")
+    monkeypatch.setenv("RUN_SEED_ON_START", "true")
 
 
 @pytest.fixture
