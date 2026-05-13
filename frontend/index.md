@@ -10,9 +10,10 @@ According to `../docs/`, this frontend will provide a Ukrainian-language dashboa
 
 | Path | Purpose |
 |---|---|
+| `Dockerfile` | Phase 1 buildable placeholder container; no React/Vite application or UI yet. |
 | `index.md` | Frontend folder summary, current contents, and frontend-local commands. |
 
-No frontend scaffold, dependency manifest, Vite app, Dockerfile, source files, or tests exist yet in this checkout.
+No frontend scaffold, dependency manifest, Vite app, source files, or tests exist yet in this checkout.
 
 ## Commands
 
@@ -23,6 +24,6 @@ No frontend scaffold, dependency manifest, Vite app, Dockerfile, source files, o
 | Frontend lint/type checks | not available yet |
 | Frontend tests | not available yet |
 | Frontend build | not available yet |
-| Frontend Docker build | not available yet |
+| Frontend Docker build | available through root `docker compose --env-file .env.example build frontend` |
 
 Update this section when frontend files and scripts are added.

@@ -14,6 +14,7 @@ This file is a navigation map for agents and maintainers. Update it whenever doc
 |---|---|
 | [AGENTS.md](../AGENTS.md) | Shared implementation, verification, review-resolution, workflow, source-of-truth, command, and quality-gate rules for agents. |
 | [CLAUDE.md](../CLAUDE.md) | Claude-specific independent review, architecture-validation, and diagnosis rules. |
+| [README.md](../README.md) | Current local setup notes, Phase 1 scaffold limitations, Compose validation commands, and storage bootstrap command. |
 | [backend/index.md](../backend/index.md) | Backend folder summary, current contents, and backend-local commands. |
 | [frontend/index.md](../frontend/index.md) | Frontend folder summary, current contents, and frontend-local commands. |
 | [cv/index.md](../cv/index.md) | CV worker folder summary, current contents, and CV-worker-local commands. |
@@ -73,7 +74,11 @@ This file is a navigation map for agents and maintainers. Update it whenever doc
 
 ## Current Implementation State
 
-The repository currently contains the project documentation set and empty component folders with index files. The `backend/`, `frontend/`, `cv/`, and `training/` folders do not yet contain implementation scaffolds, dependency manifests, Dockerfiles, local scripts, or runnable commands.
+The repository currently contains the project documentation set, Phase 1 Docker Compose scaffold, safe environment example, README setup notes, storage bootstrap helper, and component folders with index files.
+
+The `backend/`, `frontend/`, and `cv/` folders contain buildable placeholder Dockerfiles only. They do not yet contain product application scaffolds, dependency manifests, source packages, migrations, tests, API routes, UI, worker queue logic, or CV processing.
+
+The `training/` folder still contains only `index.md` and no training utilities.
 
 Component index files should stay narrow: general folder description, files currently present in that folder, and commands that are run from that folder. If no commands exist yet, the component index should say that commands are not available yet.
 

@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT_HOST:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ALLOW_PUBLIC_REGISTRATION: ${ALLOW_PUBLIC_REGISTRATION}
+      STORAGE_ROOT: ${STORAGE_ROOT}
+      MODELS_ROOT: ${MODELS_ROOT}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS}
+      MAX_IMAGE_SIZE_MB: ${MAX_IMAGE_SIZE_MB}
+      MAX_VIDEO_SIZE_MB: ${MAX_VIDEO_SIZE_MB}
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  cv-worker:
+    build:
+      context: ./cv
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      STORAGE_ROOT: ${STORAGE_ROOT}
+      MODELS_ROOT: ${MODELS_ROOT}
+      CV_DEVICE: ${CV_DEVICE}
+      ACTIVE_MODEL_ID: ${ACTIVE_MODEL_ID}
+      WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS}
+      WORKER_HEARTBEAT_FRAMES: ${WORKER_HEARTBEAT_FRAMES}
+      WORKER_HEARTBEAT_SECONDS: ${WORKER_HEARTBEAT_SECONDS}
+      WORKER_STALE_JOB_MINUTES: ${WORKER_STALE_JOB_MINUTES}
+      WORKER_MAX_RETRIES: ${WORKER_MAX_RETRIES}
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:${BACKEND_PORT:-8000}/api
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+

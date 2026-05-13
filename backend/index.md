@@ -10,9 +10,10 @@ According to `../docs/`, this backend will expose the `/api` REST API, enforce J
 
 | Path | Purpose |
 |---|---|
+| `Dockerfile` | Phase 1 buildable placeholder container; no FastAPI application or product routes yet. |
 | `index.md` | Backend folder summary, current contents, and backend-local commands. |
 
-No backend scaffold, dependency manifest, Dockerfile, application package, migrations, or tests exist yet in this checkout.
+No backend scaffold, dependency manifest, application package, migrations, or tests exist yet in this checkout.
 
 ## Commands
 
@@ -22,7 +23,7 @@ No backend scaffold, dependency manifest, Dockerfile, application package, migra
 | Backend application start | not available yet |
 | Backend lint/type checks | not available yet |
 | Backend tests | not available yet |
-| Backend Docker build | not available yet |
+| Backend Docker build | available through root `docker compose --env-file .env.example build backend` |
 | Database migration and seed | not available yet |
 
 Update this section when backend files and scripts are added.

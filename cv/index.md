@@ -10,9 +10,10 @@ According to `../docs/`, this worker will poll PostgreSQL for queued processing 
 
 | Path | Purpose |
 |---|---|
+| `Dockerfile` | Phase 1 buildable placeholder container; no worker queue or CV processing logic yet. |
 | `index.md` | CV worker folder summary, current contents, and CV-worker-local commands. |
 
-No CV worker scaffold, dependency manifest, Dockerfile, application package, model-loading code, processing code, or tests exist yet in this checkout.
+No CV worker scaffold, dependency manifest, application package, model-loading code, processing code, or tests exist yet in this checkout.
 
 ## Commands
 
@@ -22,6 +23,6 @@ No CV worker scaffold, dependency manifest, Dockerfile, application package, mod
 | CV worker start | not available yet |
 | CV worker lint/type checks | not available yet |
 | CV worker tests | not available yet |
-| CV worker Docker build | not available yet |
+| CV worker Docker build | available through root `docker compose --env-file .env.example build cv-worker` |
 
 Update this section when CV worker files and scripts are added.

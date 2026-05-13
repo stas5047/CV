@@ -1,0 +1,12 @@
+services:
+  cv-worker:
+    environment:
+      CV_DEVICE: cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
