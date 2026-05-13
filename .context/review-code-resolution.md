@@ -1,18 +1,14 @@
-# Phase 6 Code Review Resolution
+# Phase 7 Code Review Resolution
 
 ## Verdict: FIXED
 
-OpenAI/Codex code review verdict: `APPROVED`.
-Claude code review file exists but is empty in this checkout.
-
-No review item requires a source-code fix. No item needs a user decision.
+OpenAI/Codex code review has one important item. Claude code review file exists but is empty. No product-doc conflict found. No item needs user decision.
 
 ## Resolution table
 
-| ID | Source | Priority | Review item | Resolution | Action |
+| ID | Source | Priority | Review item | Resolution | Reason |
 |---|---|---|---|---|---|
-| OAI-0 | `.context/review-code-openai.md` | none | No critical, important, or optional issues found. | accepted | No source change required; run final verification. |
-| CL-0 | `.context/review-code-claude.md` | none | File exists but contains no review items. | accepted | No source change required. |
+| OAI-I1 | `.context/review-code-openai.md` | important | Video extension/MIME/content mismatch accepted; AVI bytes uploaded as `.mp4` with `video/mp4` returned `201`. | accepted | `docs/AUTH_SECURITY.md` and `.context/plan.md` require extension, MIME/type, size, category, and mismatched header/content rejection before accepted storage. |
 
 ## Accepted critical fixes
 
@@ -20,7 +16,8 @@ None.
 
 ## Accepted important fixes
 
-None.
+- Reject video uploads whose container header does not match the declared extension/category before persisting media metadata.
+- Add regression coverage for mismatched video extension/MIME/content.
 
 ## Accepted optional fixes
 
@@ -40,12 +37,17 @@ None.
 
 ## Fixes applied
 
-No source fixes applied because both available code review inputs had no actionable findings.
+- Added video container/header validation in `backend/app/services/media.py`.
+- `.avi` uploads must have RIFF/AVI header.
+- `.mkv` uploads must have EBML/Matroska header.
+- `.mp4` and `.mov` uploads must have ISO BMFF `ftyp`; `.mov` requires QuickTime brand and `.mp4` rejects QuickTime brand.
+- Added regression test for AVI bytes submitted as `.mp4` with `video/mp4` in `backend/tests/test_media_validation.py`.
 
 ## Final verification
 
-- `python -m ruff check .` from `backend/`: PASS.
-- `python -m pytest tests/test_auth.py tests/test_settings.py tests/test_logging.py tests/test_security_utils.py -q` from `backend/`: PASS, 58 passed.
-- `python -m pytest -q` from `backend/`: PASS, 73 passed.
-- Security/privacy review: applicable to Phase 6 security helpers; no password, password hash, JWT secret, token, database password, or unsafe absolute storage path exposure found in helper-facing responses or new tests.
-- Source fixes applied during code-review resolution: none; reviews had no actionable findings.
+- `cd backend; python -m pytest tests/test_media_api.py tests/test_media_validation.py`: PASS, 21 passed.
+- `cd backend; python -m pytest tests/test_auth.py tests/test_security_utils.py`: PASS, 50 passed.
+- `cd backend; python -m ruff check .`: PASS.
+- `cd backend; python -m pytest`: PASS, 94 passed.
+- `docker compose config`: PASS, with existing unset environment variable warnings when no env file is supplied.
+- Security/privacy: applicable. Accepted fix tightens video upload trust boundary; no response now exposes `stored_path`, absolute storage paths, storage root, tokens, passwords, password hashes, or secrets.

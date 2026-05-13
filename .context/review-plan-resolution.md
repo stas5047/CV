@@ -1,44 +1,59 @@
-# Verdict: READY_FOR_IMPLEMENTATION
+# Phase 7 Planning Review Resolution
 
-Claude planning review resolved. No item conflicts with product docs. Accepted items applied only to Phase 6 planning contract files. No source code changes.
+## Verdict: READY_FOR_IMPLEMENTATION
 
-## Resolution table
+Claude planning review resolved. Accepted items applied to `.context/research.md`, `.context/design.md`, and `.context/plan.md`. No source code changed.
 
-| ID | Claude item | Resolution | Rationale | Contract update |
-|---|---|---|---|---|
-| I1 | Indirect ownership path not explicit enough. | accepted | `AUTH_SECURITY.md` requires ownership through direct resource ownership and media/job-owned resources for summaries, detections, tracks, and downloads. | `.context/design.md`, `.context/plan.md` now require direct and indirect ownership helper/test coverage. |
-| I2 | CORS validation has review step but weak explicit test step. | accepted | Phase 6 scope includes CORS validation and `TESTING_QA.md` requires explicit CORS security tests. | `.context/plan.md` now requires verify-or-add CORS tests for explicit origins, wildcard rejection, and empty-origin rejection. |
-| I3 | Secure error response pattern not verified. | accepted | `AUTH_SECURITY.md` and `API.md` require no stack traces, secrets, tokens, passwords, database passwords, or unsafe absolute paths in API responses. | `.context/design.md`, `.context/plan.md` now require helper-path error-response verification. |
-| I4 | Validation commands may miss new tests depending on file placement. | accepted | Security helper tests may land in new files; targeted gates must not skip them. | `.context/plan.md` now requires explicit new test file inclusion plus full backend pytest because shared security/core helpers are touched. |
-| O1 | State ownership denial policy once. | accepted | Docs require ownership enforcement and safe errors; choosing same not-found style response for missing/cross-owner user resources avoids existence leaks without changing product behavior. | `.context/design.md`, `.context/plan.md` now define denial policy. |
-| O2 | Include Windows reserved filename cases in filename tests. | accepted | Phase 6 includes filename/download-name helpers; Windows-hostile names matter on current Windows checkout and do not conflict with docs. | `.context/design.md`, `.context/plan.md` now include `CON`, `NUL`, trailing dot/space cases. |
-| Q1 | Should ownership helper return 404 for cross-owner user resources while admin-role failures return 403? | duplicate | Covered by accepted O1. | Same as O1. |
-| Q2 | Should Phase 6 add one central error handler now, or only prove current FastAPI/error configuration? | duplicate | Covered by accepted I3. Contract chooses verification first; central handler only if current behavior exposes unsafe details. | Same as I3. |
+## Resolution Table
 
-## Accepted changes applied
+| ID | Claude item | Resolution | Reason |
+|---|---|---|---|
+| I1 | Response schema may expose shared-storage internals through `stored_path`. | accepted | Docs require download/logical references instead of internal storage paths. |
+| I2 | MIME validation trust boundary underspecified. | accepted | `AUTH_SECURITY.md` requires MIME/type validation; client header alone is weak. |
+| I3 | Oversized upload and partial-file cleanup need explicit handling. | accepted | Docs require rejecting oversized files before accepted storage. |
+| I4 | Accepted-format test coverage not explicit enough. | accepted | `TESTING_QA.md` lists all accepted image/video extensions. |
+| O1 | Clarify soft-deleted admin list/detail behavior. | accepted | Clarification stays scoped to Phase 7 and does not conflict with optional admin audit language. |
+| O2 | Add pagination contract before route implementation. | accepted | `docs/API.md` recommends pagination for growing list endpoints. |
+| Q1 | Should normal media responses omit `stored_path`? | accepted | Yes. Omit `stored_path`; return safe metadata/logical IDs only. |
+| Q2 | Which backend validation/metadata tool is approved? | accepted | Use decoder-backed validation: Pillow for images and `opencv-python-headless` for videos, with uploaded `Content-Type` advisory only. |
 
-- Ownership contract tightened for direct owner IDs plus indirect ownership through media/job records.
-- Ownership denial policy added: missing and cross-owner user resources should use same safe not-found style response where practical; admin-role failures stay forbidden.
-- CORS test obligation made explicit.
-- Error-response safety verification added for Phase 6 helper paths.
-- Filename/download-name tests expanded for Windows reserved/hostile names.
-- Validation gates updated to include any new test files and full backend pytest for shared security/core helper changes.
+## Accepted Changes Applied
 
-## Rejected items
+- `.context/research.md`
+  - Resolved metadata dependency choice.
+  - Added decoder-backed MIME/category validation rule.
+  - Added safe response rule: no `stored_path`.
+  - Added Phase 7 soft-delete visibility rule.
+- `.context/design.md`
+  - Added response constraints excluding `stored_path` and shared-storage layout.
+  - Added minimal pagination shape.
+  - Added bounded upload/temp-write/cleanup security decisions.
+  - Added soft-delete visibility decision.
+  - Added accepted-format and MIME mismatch test coverage.
+- `.context/plan.md`
+  - Added `python-multipart`, Pillow, and `opencv-python-headless` dependency intent.
+  - Tightened response schema to safe metadata only.
+  - Added decoder-backed MIME/category validation.
+  - Added streaming/spooling, temp path, final commit, and cleanup requirements.
+  - Added explicit pagination/filtering contract.
+  - Added no `include_deleted`/admin audit behavior for Phase 7.
+  - Added tests for accepted formats, MIME mismatches, oversized streams, and partial cleanup.
+
+## Rejected Items
 
 None.
 
-## Duplicate items
-
-- Q1 duplicates accepted O1 ownership denial policy.
-- Q2 duplicates accepted I3 secure error-response verification.
-
-## Items needing user decision
+## Duplicate Items
 
 None.
 
-## Final contract status
+## Items Needing User Decision
 
-- Final implementation contract is Phase 6 only: authorization dependencies, ownership helpers, CORS validation, path safety, filename/download-name helpers, logging/error safety checks, and relevant backend tests.
-- No product API, frontend, CV worker, Docker, database schema/migration, training, or later media/job/result/model/experiment behavior is authorized by this resolution.
-- Ready for implementation after re-reading Phase 6 docs at implementation start.
+None.
+
+## Final Contract Status
+
+- Phase scope: backend Phase 7 media upload API only.
+- Product docs conflict: none found.
+- Implementation may proceed from updated `.context/plan.md`.
+- Later phases remain untouched.

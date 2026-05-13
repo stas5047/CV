@@ -1,12 +1,12 @@
-# Phase 6 OpenAI/Codex Code Review
+# Phase 7 OpenAI/Codex Code Review
 
-## Verdict: APPROVED
+## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Phase 6 implementation matches documented scope: backend-only authorization and safety primitives. It adds admin-role dependency, owner-or-admin helper, direct and indirect ownership owner-id helpers, storage relative-path validation, safe storage-root join, upload/download filename sanitization, and focused tests.
+Phase 7 backend media API mostly matches docs: protected `/api/media` endpoints exist, ownership/admin visibility works, API responses omit `stored_path`, uploads use generated relative storage paths, image metadata invariants hold, soft deletion hides media, and targeted/full backend gates pass.
 
-No correctness, product-doc mismatch, architecture regression, missing relevant test, or security/privacy defect found in changed Phase 6 code.
+One important validation defect remains: video content is only checked as "decodable video", not as content matching claimed extension/MIME. This misses planning contract for mismatched video extension/header/content rejection.
 
 ## Critical issues
 
@@ -14,7 +14,13 @@ None.
 
 ## Important issues
 
-None.
+1. Video extension/MIME/content mismatch accepted.
+   - Evidence: `backend/app/services/media.py:169-185` validates video MIME from client-provided `UploadFile.content_type` against extension allow-list only.
+   - Evidence: `backend/app/services/media.py:293-323` uses `cv2.VideoCapture` only to prove file is decodable video; no video container/format check equivalent to image check at `backend/app/services/media.py:262-273`.
+   - Evidence: `backend/tests/test_media_validation.py:160-171` covers mismatched content only for image, not video.
+   - Evidence: ad hoc probe uploaded AVI/MJPG bytes as `wrong.mp4` with `video/mp4`; API returned `status=201`.
+   - Docs/contract: `docs/AUTH_SECURITY.md` requires extension, MIME/type, size, and file category validation before storage. `.context/plan.md` requires rejecting mismatched extension/header/content combinations and treating client `Content-Type` as advisory.
+   - Impact: backend can persist misleading media metadata (`mime_type = video/mp4`, `original_filename = wrong.mp4`) for non-MP4 content, weakening upload validation and future worker assumptions.
 
 ## Optional issues
 
@@ -22,27 +28,27 @@ None.
 
 ## Quality gate assessment
 
-- `rtk git status --short`: inspected. Changed surface includes Phase 6 context/docs updates, `backend/index.md`, `backend/tests/test_settings.py`, and untracked Phase 6 helper/test files.
+- `rtk git status --short`: inspected; changed surface includes Phase 7 backend media files/tests plus context/docs updates.
 - `rtk git diff --stat`: inspected.
-- `rtk git diff`: inspected. Untracked helper/test files were read directly because normal diff output did not include their content.
+- `rtk git diff`: inspected; untracked media files/tests were read directly because diff did not include their content.
+- `python -m pytest tests/test_media_api.py tests/test_media_validation.py` from `backend/`: PASS, 20 passed.
+- `python -m pytest tests/test_auth.py tests/test_security_utils.py` from `backend/`: PASS, 50 passed.
+- `python -m pytest` from `backend/`: PASS, 93 passed.
 - `python -m ruff check .` from `backend/`: PASS.
-- `python -m pytest -q` from `backend/`: PASS, 73 passed.
-- Test coverage present for admin dependency, safe admin error response, owner/admin access, missing and cross-owner denial equivalence, indirect media/job ownership, unsafe storage paths, safe join, filename sanitization, safe download filenames, wildcard CORS rejection, and empty CORS rejection.
+- `docker compose config`: PASS, with existing unset-environment warnings when no env file supplied.
+- Ad hoc video mismatch probe: FAIL for expected behavior; returned `201` for AVI bytes submitted as `.mp4`/`video/mp4`.
 
 ## Security/privacy assessment
 
-- Admin dependency uses active-user dependency path and returns safe 403 for non-admin users.
-- Ownership helper returns same safe 404 detail for missing and cross-owner user resources, reducing resource-existence leakage.
-- Path utilities reject empty paths, null bytes, absolute Unix paths, Windows drive paths, UNC paths, duplicate separators, and `..` traversal before joining under `STORAGE_ROOT`.
-- Filename helpers strip path components and neutralize hostile Windows names used in tests.
-- No secrets, tokens, password hashes, raw database credentials, or unsafe absolute storage paths added to API-facing helper responses.
+Applicable. Ownership checks, active-user auth, relative stored paths, and response path hiding look correct in reviewed Phase 7 code. Remaining risk is upload validation trust boundary for videos: client-declared MIME plus generic decoder success is insufficient to reject mismatched video extension/content.
 
 ## Positive findings
 
-- Implementation stayed within Phase 6; no product APIs, migrations, frontend work, CV worker work, or queue behavior added.
-- Helper modules are narrow and reusable for later media, jobs, results, downloads, model, experiment, and admin endpoints.
-- Tests cover both direct ownership and indirect ownership through media/job-shaped resources, matching planning-review resolution.
-- Full backend test suite and ruff pass after changes.
+- Media response schema omits `stored_path` and absolute filesystem paths.
+- Regular users list/read/delete only own non-deleted media; admins can see all non-deleted media metadata.
+- Soft deletion uses `deleted_at` and does not remove physical files.
+- Image validation checks decoded image format against extension.
+- Tests cover accepted image formats, accepted video extensions, oversized uploads, soft deletion, cross-owner denial, and no media row after oversized rejection.
 
 ## Files consulted
 
@@ -51,8 +57,9 @@ None.
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/API.md`
+- `docs/AUTH_SECURITY.md`
+- `docs/DATA_MODEL.md`
 - `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
@@ -60,14 +67,17 @@ None.
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
-- `backend/app/core/authorization.py`
+- `rtk git status --short`
+- `rtk git diff --stat`
+- `rtk git diff`
+- `backend/app/api/router.py`
+- `backend/app/api/media.py`
+- `backend/app/schemas/media.py`
+- `backend/app/services/media.py`
 - `backend/app/core/storage_paths.py`
-- `backend/app/core/auth.py`
-- `backend/app/core/config.py`
 - `backend/app/db/models.py`
-- `backend/tests/test_security_utils.py`
-- `backend/tests/test_settings.py`
-- `backend/tests/conftest.py`
 - `backend/pyproject.toml`
 - `backend/index.md`
-- Command output: `rtk git status --short`, `rtk git diff --stat`, `rtk git diff`, `python -m ruff check .`, `python -m pytest -q`
+- `backend/tests/conftest.py`
+- `backend/tests/test_media_api.py`
+- `backend/tests/test_media_validation.py`

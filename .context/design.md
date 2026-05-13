@@ -1,136 +1,233 @@
-# Phase Design
+# Phase 7 Design - Media Upload API and Metadata Extraction
 
-## Phase goal
+## Phase Goal
 
-Add reusable backend security primitives for protected product APIs before media, jobs, results, models, experiments, and admin APIs are implemented.
+Build backend media API for authenticated image/video upload, validation, storage, metadata persistence, media listing/detail, and soft deletion, exactly as Phase 7 documents require.
 
-## Intended behavior from docs
+## Intended Behavior From Docs
 
-Confirmed:
+Confirmed behavior:
 
-- Protected routes require valid JWT authentication.
-- Inactive users must be rejected on protected routes.
-- Admin-only routes must enforce `role = admin`.
-- Regular users may access user-owned resources only when resource belongs to them or to a media/job record owned by them.
-- Admins may access global resources through admin-authorized routes and permissions.
-- Backend must prevent path traversal.
-- Database-facing file references must be relative to `STORAGE_ROOT`.
-- API responses and downloads must not expose unsafe absolute host/container paths.
-- Safe download endpoints must verify ownership or admin access before serving files.
-- Uploaded filenames must be sanitized and must not control internal storage paths.
-- CORS must use configured explicit origins; wildcard is not allowed in non-local configuration.
-- Logs must not include passwords, password hashes, tokens, JWT secrets, database passwords, or sensitive environment values.
-- API responses must not expose stack traces.
+- `POST /api/media` uploads and registers image or video media.
+- `GET /api/media` lists media visible to current user.
+- `GET /api/media/{media_id}` returns media metadata.
+- `DELETE /api/media/{media_id}` soft-deletes media metadata.
+- Guests cannot access media endpoints.
+- Regular users can access only own media.
+- Admins can access all media metadata.
+- Admin uploads are scoped to admin account.
+- Deletion uses `deleted_at` only.
+- Physical file deletion is not part of Phase 7.
+- Soft-deleted media is hidden from normal user lists.
+- Upload validation must happen before accepted storage and job creation:
+  - extension
+  - MIME type
+  - file size
+  - file category: image or video
+  - filename safety
+- Accepted image extensions:
+  - `.jpg`
+  - `.jpeg`
+  - `.png`
+  - `.webp`
+- Accepted video extensions:
+  - `.mp4`
+  - `.avi`
+  - `.mov`
+  - `.mkv`
+- Upload limits come from:
+  - `MAX_IMAGE_SIZE_MB`
+  - `MAX_VIDEO_SIZE_MB`
+- Internal storage paths must be generated, relative, and under `STORAGE_ROOT`.
+- Raw user filenames must not control filesystem paths.
+- Original filename may be stored only after sanitization.
+- Recommended upload path pattern:
+  - `uploads/{user_id}/{media_id}/original.{ext}`
+- PostgreSQL stores metadata only, never binary media.
+- Metadata to extract when feasible:
+  - width
+  - height
+  - frame count
+  - FPS
+  - duration
+- Image records must store:
+  - `frame_count = 1`
+  - `fps = null`
+  - `duration_seconds = null`
+- API responses must not expose unsafe absolute filesystem paths.
+- No long media processing belongs in upload request.
 
-Assumptions:
+## Architecture Decisions
 
-- Phase 6 creates reusable primitives and tests only; it does not implement media upload, job creation, results downloads, admin APIs, or frontend behavior.
-- Existing `/api/auth/me` remains enough to prove missing/invalid token rejection.
-- Security utilities should avoid storing or returning absolute paths.
+Confirmed architecture:
 
-## Architecture decisions
+- Backend owns public media API, auth, validation, upload storage, and `media_files` records.
+- Shared storage stores upload bytes.
+- Database stores relative `stored_path` and metadata only.
+- CV worker remains out of Phase 7.
+- Frontend remains out of Phase 7.
 
-- Backend remains authorization authority.
-- No frontend, CV worker, Docker service, database schema, or product endpoint work belongs in this phase.
-- Role and ownership checks should live in backend dependency/service helper layer, not frontend.
-- Path safety should be centralized so later upload/download code cannot repeat ad hoc path logic.
-- Storage helpers should resolve paths under `STORAGE_ROOT` only at runtime and return safe filesystem paths internally while keeping database/API references relative.
-- Logging helpers should redact sensitive values and sensitive key names before emission.
-- Error handling should preserve FastAPI-compatible errors without exposing stack traces or secrets.
+Implementation design:
 
-## Backend impact
+- Add one media API router under `/api/media`.
+- Keep route handlers thin.
+- Put upload validation, storage path generation, file writing, and metadata extraction in backend service/helper code.
+- Reuse existing auth dependency `get_current_active_user`.
+- Reuse existing `ensure_owner_or_admin` and `owner_id_from_media`.
+- Reuse existing `sanitize_upload_filename`, `validate_relative_storage_path`, and `safe_join_storage_path`.
+- Generate `media_id` before writing file so path can include `{media_id}`.
+- Write file only after extension/category/size checks pass.
+- Store generated relative path, never returned as absolute host/container path.
+- Use database transaction so persisted record matches accepted upload. If file write succeeds but DB commit fails, remove the newly written upload file as cleanup best effort.
+- Do not delete physical file on `DELETE /api/media`; only set `deleted_at`.
+- Exclude deleted media from regular list/detail behavior. Admin visibility may include broader metadata, but this phase should not add separate admin-only routes absent from Phase 7.
 
-- Add or extend reusable auth/security dependencies for:
-  - active-user requirement.
-  - admin-role requirement.
-  - ownership-or-admin checks for existing model instances, direct owner IDs, and indirect ownership through media/job records.
-- Add or extend path safety helpers for:
-  - relative path validation.
-  - traversal rejection.
-  - safe join under configured storage root.
-  - safe download filename generation.
-  - upload filename sanitization.
-- Add tests proving helpers reject unsafe inputs and preserve safe inputs.
-- Do not add public product API routes.
+## Backend Impact
 
-## Frontend impact
+Touched:
 
-- None in this phase.
+- API router include media router.
+- New schemas for media responses and paginated/list responses.
+- New media service/helpers for validation, storage, and metadata.
+- Tests for media endpoints and validation.
+- Dependency manifest may need upload/metadata dependencies.
 
-## DB impact
+Not touched:
 
-- No schema or migration changes planned.
-- Existing relative-path database checks remain useful defense-in-depth, but Phase 6 must add service-level validation too.
+- Auth token format.
+- Job creation.
+- Result/download routes.
+- Worker processing.
+- Frontend UI.
 
-## API impact
+## API Impact
 
-- No new product endpoints planned.
-- Existing protected auth behavior may be tested.
-- Future endpoints will consume new dependencies/utilities.
+Phase 7 endpoints only:
 
-## Security/privacy impact
+- `POST /api/media`
+- `GET /api/media`
+- `GET /api/media/{media_id}`
+- `DELETE /api/media/{media_id}`
 
-- Positive impact: reusable enforcement for role checks, ownership checks, active accounts, safe paths, safe filenames, CORS origin validation, safe errors, and secret-safe logs.
-- Risk: weak helper semantics could later permit cross-owner resource access or path traversal. Tests must cover deny cases explicitly.
-- Sensitive data must not appear in test logs, API error details, or helper outputs.
+Response design constraints:
 
-## Accepted review clarifications
+- Return media metadata for create/read/list.
+- Include safe identifiers and metadata.
+- Omit `stored_path` from normal create/read/list responses.
+- Do not expose shared-storage layout such as `uploads/{user_id}/{media_id}/...` unless a later doc explicitly requires it.
+- Do not expose absolute file paths.
+- Do not expose password hashes, tokens, secrets, stack traces, or storage root.
+- Use clear HTTP errors for unauthorized, forbidden/hidden ownership, unsupported file type, invalid MIME, oversized file, unsafe filename, missing resource.
+- Use minimal bounded pagination for list responses:
+  - `limit` with a conservative maximum;
+  - `offset`;
+  - optional `media_type`;
+  - admin-only owner filter only if implemented with backend role enforcement.
 
-- Ownership helper contract must support direct ownership and indirect ownership needed by later summaries, detections, tracks, and downloads:
-  - direct owner ID checks for resources that carry `owner_id`/`user_id`;
-  - predicate/callback or explicit owner lookup for resources owned through `media_files.user_id`;
-  - predicate/callback or explicit owner lookup for resources owned through `processing_jobs.media_file.user_id`;
-  - admin override only after authenticated active admin is known.
-- Ownership denial policy for user-owned resources:
-  - missing resources and cross-owner resources should return the same safe not-found style response where practical, to avoid leaking existence;
-  - admin-role failures remain forbidden responses.
-- CORS must have explicit test or existing-test verification for:
-  - configured explicit origins accepted;
-  - wildcard origin rejected;
-  - empty origin configuration rejected when settings require configured origins.
-- Error-response safety must be verified for Phase 6 helper paths:
-  - safe `HTTPException` detail only;
-  - no traceback exposure;
-  - no secret, token, password, password hash, database password, or unsafe absolute storage path exposure.
-- Filename/download-name tests should include Windows-hostile names in addition to path separator and traversal inputs:
-  - reserved device names such as `CON` and `NUL`;
-  - trailing dots/spaces;
-  - empty or all-unsafe names.
+## DB Impact
 
-## Test strategy
+Existing `media_files` table already has required Phase 7 fields:
 
-- Backend unit tests for admin dependency:
-  - admin accepted.
-  - regular user rejected with 403.
-  - inactive user rejected through existing active-user dependency.
-- Backend unit tests for ownership helper:
-  - owner accepted.
-  - admin accepted.
-  - other user rejected with 404 or 403 according to existing helper contract.
-  - missing resource rejected without leaking ownership.
-- Backend unit tests for path safety:
-  - safe relative paths accepted.
-  - absolute Unix paths rejected.
-  - Windows drive paths rejected.
-  - UNC paths rejected.
-  - `..` traversal rejected in slash and backslash forms.
-  - safe join result stays under `STORAGE_ROOT`.
-  - unsafe download names are sanitized.
-- Backend tests for CORS/settings:
-  - explicit origins accepted.
-  - wildcard rejected.
-  - empty origins rejected.
-- Backend logging/error tests:
-  - passwords, tokens, JWT secret, database URL/password values are redacted.
-  - unsafe absolute storage paths are not returned by helper-facing API responses.
-- Relevant gates only:
+- `id`
+- `user_id`
+- `original_filename`
+- `stored_path`
+- `media_type`
+- `mime_type`
+- `file_size_bytes`
+- `width`
+- `height`
+- `frame_count`
+- `fps`
+- `duration_seconds`
+- `deleted_at`
+- `created_at`
+
+Expected DB changes:
+
+- No schema change expected.
+- If implementation discovers missing constraint/index versus docs, stop and report before modifying migration/schema.
+
+## Security/Privacy Impact
+
+Touched:
+
+- Authenticated upload endpoint.
+- Ownership rules for list/detail/delete.
+- Admin broader metadata visibility.
+- File validation before storage.
+- Filename sanitization.
+- Path traversal prevention.
+- Relative path rule.
+- Size limits.
+- MIME/extension/category checks.
+
+Security decisions:
+
+- Reject missing/invalid token through existing auth.
+- Hide cross-owner resources with safe not-found behavior.
+- Sanitize original filename before persistence.
+- Never use client-supplied filename as storage path.
+- Never accept client-supplied storage path.
+- Treat request `Content-Type` as advisory; verify image/video category by decoded file content or trusted signature/decoder result.
+- Stream or spool upload bytes with configured byte limits instead of loading unbounded files into memory.
+- Write to a temporary path first, then move/commit to final generated path only after validation passes.
+- Clean up partial files/directories on validation failure, write failure, or database commit failure.
+- Never execute uploaded files.
+- Never return absolute filesystem path.
+- Avoid logging file bytes, tokens, passwords, secrets, or unsafe paths.
+
+Soft-delete visibility decision:
+
+- Phase 7 `GET /api/media` and `GET /api/media/{media_id}` hide soft-deleted media for both regular users and admins.
+- Deleted rows remain in PostgreSQL for referential integrity and possible future admin audit/storage cleanup.
+- Do not add `include_deleted` or admin audit routes in this phase.
+
+## Test Strategy
+
+Relevant checks only:
+
+- Backend media API tests:
+  - valid image upload creates `media_files` row
+  - valid video upload creates `media_files` row
+  - image metadata invariant: `frame_count = 1`, `fps = null`, `duration_seconds = null`
+  - valid video metadata fields filled when feasible
+  - unsupported extension rejected
+  - invalid MIME rejected
+  - oversized image rejected
+  - oversized video rejected
+  - unsafe filename/path traversal rejected or sanitized safely
+  - missing token rejected
+  - inactive user rejected through auth dependency
+  - regular user lists own media only
+  - regular user cannot read/delete another user's media
+  - admin can view broader media metadata
+  - delete sets `deleted_at`
+  - soft-deleted media hidden from normal lists/detail
+  - stored paths are generated and relative
+  - API response does not include absolute storage path
+  - API response does not include `stored_path` or shared-storage layout
+- Backend targeted commands:
+  - `cd backend; python -m pytest tests/test_media_api.py tests/test_media_validation.py`
+  - `cd backend; python -m pytest tests/test_auth.py tests/test_security_utils.py`
   - `cd backend; python -m ruff check .`
-  - `cd backend; python -m pytest tests/test_auth.py tests/test_settings.py tests/test_logging.py`
-  - `cd backend; python -m pytest` if shared auth/core helpers changed broadly.
 
-## Ambiguities or conflicts
+Accepted-format coverage:
 
-- No `WARNING: CONFLICT`.
-- Ambiguity: docs do not prescribe internal module names or exact helper function signatures.
-- Resolved ambiguity: user-owned missing/cross-owner denial should use the same safe not-found style response where practical; admin-role failures should use forbidden.
-- Resolved ambiguity: Phase 6 should not add a central error envelope unless implementation discovers current FastAPI configuration exposes stack traces or secrets. Prove current helper errors are safe first.
+- Validation tests must cover accepted extensions `.jpg`, `.jpeg`, `.png`, `.webp`, `.mp4`, `.avi`, `.mov`, and `.mkv` where fixtures/tooling support them.
+- If a required video container fixture cannot be generated reliably in this phase, document the exact limitation before marking the gate complete.
+- Tests must include mismatched extension/header/content cases; client-supplied MIME alone is not sufficient.
+
+Docker smoke only if backend dependency/runtime changes require it:
+
+- `docker compose config`
+- backend container startup smoke if dependency changes affect image build.
+
+## Ambiguities Or Conflicts
+
+No confirmed doc conflict.
+
+Ambiguities:
+
+- User input left `<PHASE NUMBER AND TITLE>` and `<LOW | MEDIUM | HIGH>` placeholders unfilled.
+- Docs do not specify exact media response fields beyond database metadata and no unsafe paths.

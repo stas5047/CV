@@ -1,120 +1,138 @@
-# Phase 6 Implementation Plan
+# Phase 7 Implementation Plan - Media Upload API and Metadata Extraction
 
-Scope: Authorization, ownership, CORS, path safety, and security utilities only. No source changes in this planning phase. Implementation must not add product APIs, frontend work, CV worker work, database migrations, or later-phase media/job/result behavior.
+## Scope
 
-1. [@role/developer-auth-security] Re-read `docs/AUTH_SECURITY.md`, `docs/API.md`, `docs/ARCHITECTURE.md`, and `docs/TESTING_QA.md`.
-   - Verify Phase 6 scope before edits.
-   - Stop with `WARNING: CONFLICT` if docs disagree with current code.
+Only Phase 7 work:
 
-2. [@role/developer-backend] Inspect existing backend auth, dependency, CORS, logging, config, model, and test files.
-   - Verify current `/api/auth/me` still enforces valid token and active account.
-   - Identify smallest existing module boundaries for helpers.
+- Backend media upload/list/detail/delete API.
+- Upload validation.
+- Generated relative upload storage paths.
+- Metadata extraction.
+- Ownership/admin visibility.
+- Soft deletion.
+- Relevant backend tests.
 
-3. [@role/tester] Add failing Phase 6 tests for admin role enforcement.
-   - Regular user must be rejected by admin-only dependency.
-   - Admin user must be accepted.
-   - Missing/invalid token must remain rejected through protected-route dependency.
-   - Inactive user must remain rejected.
+No frontend, worker, job creation, result downloads, model APIs, experiment APIs, or product docs.
 
-4. [@role/developer-auth-security] Implement reusable admin-only dependency.
-   - Reuse existing current-active-user dependency.
-   - Enforce exactly documented roles: `user` and `admin`.
-   - Return safe HTTP error without passwords, hashes, tokens, or stack traces.
+## Ordered Atomic Plan
 
-5. [@role/tester] Run targeted auth/security tests for admin dependency.
-   - Command: `cd backend; python -m pytest tests/test_auth.py -q`
-   - Expected: admin dependency tests pass; existing auth tests still pass.
+1. `@role/developer-backend` Confirm current backend dependency set.
+   - Verify whether upload handling and metadata extraction dependencies exist in `backend/pyproject.toml`.
+   - Verifiable: dependency gap list is explicit before edits.
 
-6. [@role/tester] Add failing ownership-helper tests.
-   - Owner accepted.
-   - Admin accepted.
-   - Other active user rejected.
-   - Missing resource rejected safely.
-   - Indirect ownership through a media owner is accepted for the owner and admin.
-   - Indirect ownership through a job/media owner is accepted for the owner and admin.
-   - Cross-owner indirect resources are rejected with the same safe not-found style response as missing resources where practical.
-   - Test must not require new product endpoints.
+2. `@role/developer-backend` Add only dependencies needed for Phase 7 upload handling and metadata extraction.
+   - Add `python-multipart` for FastAPI file uploads.
+   - Add Pillow for image content validation and metadata if not already available.
+   - Add `opencv-python-headless` for video content validation and metadata if not already available.
+   - Verifiable: backend dependency file contains needed packages and no unrelated packages.
 
-7. [@role/developer-auth-security] Implement reusable ownership helper.
-   - Support owner-id based resources from current SQLAlchemy models.
-   - Support predicate/callback or explicit lookup patterns for indirect ownership through media and job records.
-   - Support admin override.
-   - Avoid leaking cross-owner resource existence in response detail.
-   - Use forbidden response for admin-only role failures; use safe not-found style denial for user-owned missing/cross-owner resources where practical.
-   - Keep helper generic enough for later media, job, result, and download services without adding those services now.
+3. `@role/developer-backend` Add media response schemas.
+   - Define schemas from safe `MediaFile` metadata fields only.
+   - Exclude `stored_path` from normal API responses.
+   - Do not expose shared-storage layout, absolute paths, storage root, or raw file references.
+   - Exclude password, tokens, secrets, and absolute paths.
+   - Verifiable: schema fields match `docs/DATA_MODEL.md` media metadata and API safety rules.
 
-8. [@role/tester] Run targeted ownership tests.
-   - Command: `cd backend; python -m pytest tests/test_auth.py -q`
-   - Expected: ownership helper tests pass; existing auth tests still pass.
+4. `@role/developer-auth-security` Add upload validation helpers.
+   - Validate extension, MIME, size, media category, and sanitized filename.
+   - Treat uploaded `Content-Type` as advisory only.
+   - Verify image/video category from decoded content or trusted signature/decoder result.
+   - Reject mismatched extension/header/content combinations.
+   - Use `MAX_IMAGE_SIZE_MB` and `MAX_VIDEO_SIZE_MB`.
+   - Reject unsupported extensions, invalid MIME/category mismatch, oversized files, and unsafe inputs.
+   - Verifiable: unit tests cover accepted/rejected image/video cases.
 
-9. [@role/tester] Add failing path safety tests.
-   - Safe relative path accepted.
-   - Empty path rejected where database-facing path is required.
-   - Absolute Unix path rejected.
-   - Windows drive path rejected.
-   - UNC path rejected.
-   - `../`, `..\\`, nested slash traversal, and nested backslash traversal rejected.
-   - Safe join result stays inside configured `STORAGE_ROOT`.
+5. `@role/developer-auth-security` Add generated path helper for uploaded media.
+   - Generate `uploads/{user_id}/{media_id}/original.{ext}`.
+   - Validate generated path through existing relative-path helper.
+   - Join only through existing safe storage helper.
+   - Verifiable: tests prove generated path is relative and cannot escape `STORAGE_ROOT`.
 
-10. [@role/developer-auth-security] Implement path safety utilities.
-    - Validate database-facing paths are relative to `STORAGE_ROOT`.
-    - Prevent traversal before joining paths.
-    - Safely join relative path under configured storage root.
-    - Do not return absolute paths in API-facing structures.
+6. `@role/developer-backend` Add metadata extraction helper.
+   - Extract image width/height and set image invariants.
+   - Extract video width/height/frame count/FPS/duration where feasible.
+   - Do not run CV inference or long processing.
+   - Verifiable: tests assert image and video metadata behavior using tiny fixture files.
 
-11. [@role/tester] Add failing filename safety tests.
-   - Normal filenames preserve safe display value.
-   - Path components are stripped.
-   - Traversal names are neutralized.
-   - Empty/unsafe names produce safe fallback display name.
-   - Download filename helper emits safe name without path separators.
-   - Windows reserved or hostile names such as `CON`, `NUL`, trailing dots, and trailing spaces are neutralized.
+7. `@role/developer-backend` Add media service create flow.
+   - Authenticate current active user.
+   - Validate upload before accepted storage.
+   - Generate `media_id` and relative path.
+   - Stream or spool upload bytes with configured byte limit enforcement.
+   - Write to a temporary path first.
+   - Move/commit to final generated path only after validation succeeds.
+   - Clean up partial files/directories on validation failure or write failure.
+   - Create `MediaFile` row with sanitized original filename and metadata.
+   - On DB commit failure, clean up newly written file best effort.
+   - Verifiable: valid upload creates exactly one file and one row with matching relative path.
 
-12. [@role/developer-auth-security] Implement filename and download-name helpers.
-    - Sanitize original filename for display metadata.
-    - Ensure raw user filename never controls internal storage path.
-    - Ensure suggested download names cannot traverse paths.
+8. `@role/developer-backend` Add media list query.
+   - Regular user: own non-deleted media only.
+   - Admin: broader visible media metadata per docs.
+   - Add explicit bounded pagination with `limit` and `offset`.
+   - Add `media_type` filter.
+   - Add owner filtering only for admins if implemented in this phase.
+   - Verifiable: tests show regular user cannot see another user's media; admin can.
 
-13. [@role/tester] Run targeted path/filename tests.
-    - Command: `cd backend; python -m pytest tests/test_auth.py tests/test_settings.py -q`
-    - Expected: path, filename, CORS/settings, and auth tests pass.
+9. `@role/developer-backend` Add media detail query.
+   - Load non-deleted media by ID.
+   - Enforce owner-or-admin access.
+   - Hide soft-deleted media for both users and admins in Phase 7 media detail.
+   - Return safe metadata response.
+   - Verifiable: own media returns 200; cross-owner access returns safe not-found/forbidden behavior without leaks.
 
-14. [@role/tester] Verify or add explicit CORS validation tests.
-    - Explicit configured origins are accepted.
-    - Wildcard origin is rejected.
-    - Empty origin configuration is rejected when settings require configured origins.
-    - If these tests live outside `tests/test_settings.py`, include their exact file path in targeted gate commands.
+10. `@role/developer-backend` Add media soft-delete flow.
+    - Enforce owner-or-admin access.
+    - Set `deleted_at`.
+    - Do not delete physical upload file.
+    - Do not alter existing job records.
+    - Do not add `include_deleted` or admin audit behavior in this phase.
+    - Verifiable: delete response succeeds; row has `deleted_at`; list/detail hides deleted media for normal access.
 
-15. [@role/developer-auth-security] Review CORS validation against docs.
-    - Keep configured explicit origins required.
-    - Keep wildcard rejection unless implementation introduces a documented local-only exception.
-    - Do not use broad wildcard CORS for non-local configuration.
+11. `@role/developer-backend` Add media API router.
+    - Implement `POST /api/media`.
+    - Implement `GET /api/media`.
+    - Implement `GET /api/media/{media_id}`.
+    - Implement `DELETE /api/media/{media_id}`.
+    - Include router under existing `/api` router.
+    - Verifiable: routes exist under exact documented paths.
 
-16. [@role/tester] Verify secure error response behavior for Phase 6 helper paths.
-    - Add a narrow test route only inside tests if needed; do not add product API surface.
-    - Assert helper-raised HTTP errors expose safe detail only.
-    - Assert responses do not expose tracebacks, secrets, tokens, passwords, password hashes, database passwords, or unsafe absolute storage paths.
+12. `@role/developer-auth-security` Add API safety assertions.
+    - Verify responses do not include absolute host/container paths.
+    - Verify responses do not include `stored_path` or internal shared-storage layout.
+    - Verify errors do not expose stack traces, secrets, raw tokens, or storage root.
+    - Verifiable: tests inspect representative response bodies.
 
-17. [@role/developer-auth-security] Review logging and error safety.
-    - Ensure new helpers do not log passwords, hashes, tokens, JWT secrets, database passwords, or sensitive environment values.
-    - Ensure new HTTP errors use safe details.
-    - Preserve current API response style; do not invent new public error envelope unless needed for stack-trace prevention.
+13. `@role/tester` Add documented format and MIME trust-boundary tests.
+    - Cover accepted image extensions `.jpg`, `.jpeg`, `.png`, `.webp`.
+    - Cover accepted video extensions `.mp4`, `.avi`, `.mov`, `.mkv` where fixtures/tooling support them.
+    - Cover mismatched extension/header/content cases.
+    - Cover oversized stream cleanup and partial-file cleanup.
+    - If a required container fixture cannot be generated reliably, document exact limitation before marking the gate complete.
+    - Verifiable: validation tests prove documented formats and rejection paths.
 
-18. [@role/tester] Run relevant backend gates.
+14. `@role/tester` Run targeted backend tests for Phase 7.
+    - Command: `cd backend; python -m pytest tests/test_media_api.py tests/test_media_validation.py`
+    - Expected: `PASS`.
+
+15. `@role/tester` Run auth/security regression tests.
+    - Command: `cd backend; python -m pytest tests/test_auth.py tests/test_security_utils.py`
+    - Expected: `PASS`.
+
+16. `@role/tester` Run backend lint.
     - Command: `cd backend; python -m ruff check .`
-    - Expected: PASS.
-    - Command: `cd backend; python -m pytest tests/test_auth.py tests/test_settings.py tests/test_logging.py -q`
-    - Expected: PASS.
-    - Include any new test files explicitly if they are not in the listed files.
-    - Because shared security/core helpers are touched, run `cd backend; python -m pytest -q`.
+    - Expected: `PASS`.
 
-19. [@role/code-reviewer] Phase 6 scope review.
-    - Confirm no frontend/CV worker/source-of-truth docs changed.
-    - Confirm no media/job/result/model/experiment/admin product API added.
-    - Confirm no migration/schema change was introduced.
-    - Confirm CV-only boundary unaffected.
-    - Confirm security utilities match consulted docs.
+17. `@role/tester` Run Docker config check if dependency or Compose runtime behavior changed.
+    - Command: `docker compose config`
+    - Expected: `PASS`.
+    - If not run because no Compose change and no image smoke requested, report as skipped with reason.
 
-20. [@role/docs-maintainer] Documentation/index decision.
-    - Do not update product docs unless implementation changes documented commands, env variables, folder structure, or file paths.
-    - If no such change, record docs update skipped in final implementation report.
+18. `@role/code-reviewer` Review Phase 7 diff against docs.
+    - Check endpoint paths, ownership, admin visibility, upload validation, path safety, relative paths, soft deletion, no source scope creep, and no frontend/worker/job work.
+    - Verifiable: review notes have no unresolved Phase 7 blockers.
+
+19. `@role/docs-maintainer` Decide docs/index updates.
+    - Product docs should not change for this phase contract.
+    - Update backend component index only if implementation changes backend-local commands or file inventory policy requires it.
+    - Verifiable: docs updates are either absent with reason or limited to implementation notes/index, not product behavior.

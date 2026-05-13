@@ -1,91 +1,151 @@
-# Phase Research
+# Phase 7 Research - Media Upload API and Metadata Extraction
 
-## Current phase
+## Current Phase
 
-- Phase: Phase 6 - Authorization, ownership, CORS, path safety, and security utilities.
-- Direction: Backend / Security.
-- Risk: user supplied placeholder only; assumed HIGH because phase touches authorization, ownership, CORS, path traversal, logging safety, and protected-route behavior.
+Confirmed from `docs/phase.md`:
 
-## Docs consulted
+- Phase: `Phase 7 - Media upload API and metadata extraction`
+- Direction: Backend
+- Goal: Implement media upload, validation, storage, metadata extraction, listing, detail, and soft deletion.
+- Risk level: not specified by user input. Assumption: `MEDIUM`, because phase touches authenticated uploads, ownership, storage paths, database records, and file validation.
+
+## Docs Consulted
+
+Required first-read docs:
 
 - `AGENTS.md`
 - `CLAUDE.md`
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- `docs/AUTH_SECURITY.md`
+
+Phase relevant docs from `docs/phase.md`:
+
 - `docs/API.md`
+- `docs/AUTH_SECURITY.md`
+- `docs/DATA_MODEL.md`
 - `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`
 
-No other product docs were consulted for product requirements.
+Existing `.context/` artifacts:
 
-## Confirmed repository facts
+- `.context/status.md` exists but is empty.
+- `.context/research.md` exists but was empty before this update.
+- `.context/design.md` exists but was empty before this update.
+- `.context/plan.md` exists but was empty before this update.
+- `.context/review-plan-resolution.md` exists but is empty.
 
-- `docs/phase.md` and `docs/ROADMAP.md` both identify Phase 6 as current target.
-- Phase 6 relevant docs are exactly `AUTH_SECURITY.md`, `API.md`, `ARCHITECTURE.md`, and `TESTING_QA.md`.
-- Git checkout exists. `git status --short` shows modified `.context/*` files and `docs/phase.md` before this contract write.
-- Repository contains `backend/`, `frontend/`, `cv/`, `training/`, `docs/`, root Compose/env/README files, and backend scaffold.
-- Backend has FastAPI app under `backend/app/`.
-- Backend routes are mounted under `/api` through `backend/app/api/router.py`.
-- Existing backend auth endpoints live in `backend/app/api/auth.py`.
-- Existing auth primitives live in `backend/app/core/auth.py`.
-- Existing CORS setup lives in `backend/app/core/cors.py` and settings validation in `backend/app/core/config.py`.
-- Existing logging redaction lives in `backend/app/core/logging.py`.
-- Existing SQLAlchemy models include `users`, `media_files`, `processing_jobs`, `detections`, `tracks`, `model_versions`, `experiment_runs`, and `experiment_metrics`.
-- Existing DB models already include relative path check constraints for stored media/result/model/report paths.
-- Backend tests already cover settings, logging redaction, health, data model constraints, setup/seed, and Phase 5 auth.
-- `frontend/` and `cv/` still contain placeholder Dockerfile/index files only.
-- `.context/research.md`, `.context/design.md`, `.context/plan.md`, `.context/status.md`, and review-resolution files were empty when read.
+No doc conflict found in consulted files.
 
-## Existing implementation state
+## Confirmed Repository Facts
 
-- Implemented:
-  - FastAPI app factory.
-  - `/api/health` and `/api/health/db`.
-  - typed settings with required auth/storage/CORS variables.
-  - explicit CORS origin parsing and wildcard rejection.
-  - secret-aware settings repr and logging redaction filter.
-  - SQLAlchemy data model and initial migration.
-  - storage bootstrap and seeded admin setup.
-  - bcrypt password hashing.
-  - JWT creation/validation.
-  - public registration, login, and `/api/auth/me`.
-  - active-user enforcement for `/api/auth/me`.
-- Not yet confirmed/implemented for Phase 6:
-  - reusable admin-only dependency.
-  - reusable ownership-check helper for user-owned resources.
-  - reusable path safety utilities for safe join under `STORAGE_ROOT`, relative path validation, path traversal prevention, and safe download names.
-  - upload filename sanitization helper.
-  - Phase 6-specific tests for admin dependency, ownership helper, path traversal utilities, absolute-path rejection at service boundary, CORS validation, and no-secret logs beyond existing baseline.
-  - explicit secure error response pattern beyond current FastAPI defaults and existing auth errors.
+- Git checkout exists.
+- `git status --short` showed existing modified files before this work:
+  - `.context/design.md`
+  - `.context/plan.md`
+  - `.context/research.md`
+  - `.context/review-code-openai.md`
+  - `.context/review-code-resolution.md`
+  - `.context/review-plan-claude.md`
+  - `.context/review-plan-resolution.md`
+  - `.context/status.md`
+  - `docs/phase.md`
+- Required backend project exists under `backend/`.
+- Backend already has FastAPI app, `/api` router, auth routes, settings, logging, database session, SQLAlchemy models, Alembic migration, setup/seed/storage bootstrap, security/path helpers, and tests.
+- Existing routes included by `backend/app/api/router.py`:
+  - auth router
+  - health router
+- No media API route file exists yet.
+- No media schemas exist yet.
+- No media upload tests exist yet.
+- `backend/pyproject.toml` dependencies currently do not include `python-multipart`, Pillow, or OpenCV.
+- `backend/app/core/config.py` already exposes:
+  - `storage_root`
+  - `max_image_size_mb`
+  - `max_video_size_mb`
+- `backend/app/core/storage_paths.py` already exposes:
+  - `validate_relative_storage_path`
+  - `safe_join_storage_path`
+  - `sanitize_upload_filename`
+  - `safe_download_filename`
+- `backend/app/core/authorization.py` already exposes admin and ownership helpers.
+- `backend/app/db/models.py` already defines `MediaFile` with documented fields and image metadata check.
+- `backend/app/setup.py` already creates required storage folders, including `uploads`.
 
-## Unknowns and assumptions
+## Existing Implementation State
 
-- Unknown: exact desired internal filenames for new utility modules. Docs specify behavior, not module names.
-- Assumption: implementation may add narrow backend helper modules under existing `backend/app/core/` or `backend/app/api/` structure if existing files would become mixed-responsibility.
-- Unknown: whether current backend test suite passes now; planning mode did not run gates.
-- Assumption: Phase 6 should not add product endpoints. Existing `/api/auth/me` can verify protected-route behavior.
-- Assumption: admin-only dependency can be tested directly or through an app-local test route without adding public product API surface.
-- Assumption: ownership helper should operate on existing model ownership fields and be reusable for later media/job/result APIs.
-- Unknown: exact production-vs-local environment flag for CORS. Current docs require explicit configured origins and forbid wildcard in non-local configs; current implementation rejects wildcard everywhere, which is stricter and doc-consistent.
+Confirmed implemented before Phase 7:
 
-## Files likely relevant for implementation
+- Health API under `/api/health` and `/api/health/db`.
+- Auth API for register, login, and current user.
+- JWT auth and inactive-user enforcement.
+- Admin dependency and ownership helper primitives.
+- Relative path validation and safe storage join helpers.
+- Filename sanitization helper.
+- Database schema for `media_files`.
+- Soft deletion column `media_files.deleted_at`.
+- Backend tests for auth, settings, logging, setup, data model, and security utilities.
 
-- `backend/app/core/auth.py`
+Confirmed not implemented yet:
+
+- `POST /api/media`
+- `GET /api/media`
+- `GET /api/media/{media_id}`
+- `DELETE /api/media/{media_id}`
+- Upload extension/MIME/size/category validation wired to API.
+- Generated upload storage path creation through API.
+- Media metadata extraction in backend upload flow.
+- Media ownership/admin visibility in API.
+- Soft-delete API behavior.
+- Media pagination/filtering in API.
+
+## Unknowns And Assumptions
+
+Confirmed unknowns:
+
+- Exact paginated response shape is not fully specified in docs.
+- Exact error response strings are not specified beyond safe/clear errors.
+- Exact behavior when metadata extraction fails but file type/size is valid is not specified.
+
+Assumptions for implementation contract:
+
+- Use existing backend patterns: route modules under `backend/app/api/`, schemas under `backend/app/schemas/`, tests under `backend/tests/`.
+- Use FastAPI `UploadFile`, which requires `python-multipart`.
+- Use decoder-backed validation for content/category checks: Pillow for image validation/metadata and `opencv-python-headless` for video validation/metadata, unless implementation discovers a platform blocker before source changes.
+- Treat uploaded `Content-Type` as advisory only; accepted uploads must pass extension/category checks and decoded content validation.
+- Use generated relative paths matching documented pattern: `uploads/{user_id}/{media_id}/original.{ext}`.
+- Use sanitized original filename only for display metadata.
+- Treat metadata fields as nullable where docs allow unknown values, except image invariant requires `frame_count = 1`, `fps = null`, `duration_seconds = null`.
+- If metadata extraction fails for an otherwise valid upload, reject with safe validation error unless implementation can still satisfy required image invariants and file category rules.
+- Pagination should be minimal but explicit and bounded, with access control enforced before response.
+- Media responses must omit `stored_path` and expose only safe metadata/logical identifiers.
+- Phase 7 media list/detail should hide soft-deleted media for both users and admins; deleted rows remain in the database for referential integrity and possible later admin audit/storage cleanup.
+
+## Files Likely Relevant For Implementation
+
+Existing files likely touched:
+
+- `backend/pyproject.toml`
+- `backend/app/api/router.py`
 - `backend/app/api/deps.py`
-- `backend/app/core/cors.py`
 - `backend/app/core/config.py`
-- `backend/app/core/logging.py`
-- `backend/app/main.py`
+- `backend/app/core/storage_paths.py`
+- `backend/app/core/authorization.py`
 - `backend/app/db/models.py`
 - `backend/tests/conftest.py`
-- `backend/tests/test_auth.py`
-- `backend/tests/test_settings.py`
-- `backend/tests/test_logging.py`
-- New narrow backend security/path/ownership tests may be needed under `backend/tests/`.
-- New narrow backend helper modules may be needed under existing backend package boundaries if current files would mix responsibilities.
 
-## Conflicts
+Likely new backend files, following existing project patterns:
 
-- No `WARNING: CONFLICT` found between consulted phase docs, `docs/phase.md`, and current implementation facts.
+- `backend/app/api/media.py`
+- `backend/app/schemas/media.py`
+- `backend/app/services/media.py`
+- `backend/tests/test_media_api.py`
+- `backend/tests/test_media_validation.py`
+
+Files not in Phase 7 scope:
+
+- Frontend files.
+- CV worker files.
+- Job creation/result/download routes.
+- Product docs.
+- Migration/schema files, unless implementation discovers current `media_files` schema cannot support documented Phase 7 behavior.

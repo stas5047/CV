@@ -2,9 +2,9 @@
 
 ## Summary
 
-Phase 6 plan matches current phase scope: backend/security primitives only, no product API, no frontend, no CV worker, no schema migration. Consulted docs support planned admin dependency, ownership helper, path safety helpers, filename/download-name helpers, CORS review, logging/error safety review, and targeted backend gates.
+Phase 7 plan matches docs in main shape: backend-only media API, auth-required endpoints, upload validation, generated relative paths, metadata extraction, ownership/admin visibility, soft deletion, and targeted backend/security tests.
 
-Plan needs small tightening before implementation: ownership helper must cover indirect ownership through media/job records, CORS and error-response checks need explicit test or existing-test verification, and validation commands must run any new security test files.
+Implementation should adjust several Phase 7 details before coding: response schema must not expose storage internals, MIME validation must not trust only client-supplied headers, upload write path needs bounded/partial-file cleanup behavior, and validation tests should cover every documented accepted format where feasible.
 
 ## Blocking issues
 
@@ -12,43 +12,41 @@ None.
 
 ## Important issues
 
-1. Indirect ownership path not explicit enough.
-   - Evidence: `docs/AUTH_SECURITY.md` says regular users may access resource when resource belongs to user or belongs to job/media record owned by user. Same section lists detections, tracks, summaries, and downloads under mandatory ownership checks. `docs/API.md` results endpoints require user access limited to own jobs.
-   - Plan evidence: `.context/plan.md` steps 6-7 test and implement owner-id based helper, with owner/admin/other/missing cases. It says generic enough for later media/job/result/download services, but no test or contract covers resources owned indirectly through `media_file` or `processing_job`.
-   - Risk: later detections/tracks/download checks may use direct `owner_id` logic where no direct owner field exists, causing weak or duplicated ownership enforcement.
-   - Needed change: add helper/test coverage for ownership via resource owner id, job owner/media owner lookup, or a documented predicate-based helper used by later services.
+1. Response schema may expose shared-storage internals.
+   - Evidence: `.context/plan.md` step 3 says "Define schemas from existing `MediaFile` fields only." Existing `media_files` fields include `stored_path` per `docs/DATA_MODEL.md`.
+   - Risk: exposing `uploads/{user_id}/{media_id}/...` gives frontend/API clients internal shared-storage layout. `AGENTS.md` says frontend must stay away from shared storage internals. `docs/ARCHITECTURE.md` says API responses should expose download URLs or logical references, not internal filesystem paths.
+   - Required change: plan/schema step should explicitly exclude `stored_path` from normal media responses, or replace it with safe logical resource identifiers only. Do not return absolute paths; avoid returning upload storage layout unless docs explicitly require it.
 
-2. CORS validation has review step but weak explicit test step.
-   - Evidence: Phase 6 scope in `docs/phase.md` includes CORS validation using explicit configured origins. `docs/AUTH_SECURITY.md` requires configured origins and forbids wildcard in non-local configs. `docs/TESTING_QA.md` security tests include explicit CORS verification.
-   - Plan evidence: `.context/plan.md` step 14 reviews CORS behavior; step 13 mentions `tests/test_settings.py`, but no step says add or verify CORS tests if current coverage is absent.
-   - Risk: implementation can pass plan while CORS remains under-tested.
-   - Needed change: add explicit "verify existing CORS tests or add tests for explicit origins, empty origins, wildcard rejection" step.
+2. MIME validation trust boundary is underspecified.
+   - Evidence: `docs/AUTH_SECURITY.md` requires extension and MIME/type validation. `.context/plan.md` step 4 says validate MIME, but does not say whether implementation checks file content/signature/decoder result or only `UploadFile.content_type`.
+   - Risk: client-controlled `Content-Type` can bypass validation if trusted alone. This weakens upload validation and path safety surface.
+   - Required change: plan should require MIME/category verification from decoded file content or trusted signature detection, with header MIME treated as advisory. Tests should include mismatched extension/header/content cases.
 
-3. Secure error response pattern not verified.
-   - Evidence: `docs/AUTH_SECURITY.md` says API responses must not expose stack traces. `docs/API.md` says errors must be clear and never expose secrets or unsafe absolute paths.
-   - Plan evidence: `.context/plan.md` step 15 reviews logging/error safety and preserves current API style, but no test or concrete check verifies stack traces stay out of responses in configured runtime.
-   - Risk: new dependencies/helpers can be safe, but app-level error exposure remains unverified.
-   - Needed change: add narrow test or inspection for safe HTTPException details and no traceback/internal path exposure in error responses relevant to new helpers.
+3. Oversized upload handling and partial-file cleanup need explicit step.
+   - Evidence: `docs/AUTH_SECURITY.md` requires oversized files rejected before accepted storage. `.context/plan.md` step 7 writes upload bytes under `STORAGE_ROOT`, but does not define bounded streaming, temp/quarantine write, early size cutoff, or cleanup for partial files when size exceeds limit.
+   - Risk: large videos can create memory pressure or leave partial accepted-looking files in shared storage.
+   - Required change: plan should require streaming/bounded read with byte limit enforcement, final-path commit only after validation, and cleanup of partial files/directories on validation or write failure.
 
-4. Validation commands may miss new tests depending on file placement.
-   - Evidence: `.context/plan.md` adds new admin, ownership, path, and filename tests, but targeted commands name only `tests/test_auth.py`, `tests/test_settings.py`, and `tests/test_logging.py`.
-   - Risk: if implementation puts path/security tests in new files such as `tests/test_path_safety.py`, targeted phase commands may skip them until optional full suite.
-   - Needed change: validation must include exact new test file paths, or always run `cd backend; python -m pytest -q` after adding shared security helpers.
+4. Test plan is not explicit enough for all documented accepted upload formats.
+   - Evidence: `docs/TESTING_QA.md` says verify accepted `.jpg`, `.jpeg`, `.png`, `.webp`, `.mp4`, `.avi`, `.mov`, `.mkv`. `.context/plan.md` steps 4 and 6 mention accepted/rejected image/video cases and tiny fixtures, but not all required extensions.
+   - Risk: implementation may pass narrow tests while rejecting documented formats, especially `.webp`, `.avi`, `.mov`, or `.mkv`.
+   - Required change: add explicit validation coverage for all accepted extensions, or document any fixture/tooling limitation as blocker before marking phase complete.
 
 ## Optional improvements
 
-1. State ownership denial policy once.
-   - Evidence: `.context/design.md` notes 403 vs 404 ambiguity. Plan says avoid leaking cross-owner existence.
-   - Improvement: implementation plan can choose 404 for missing/cross-owner user resources or centralize this in helper docstring/test names. Admin-only role failures can stay 403.
+1. Clarify soft-deleted admin detail/list behavior.
+   - Evidence: `docs/DATA_MODEL.md` says soft-deleted media may remain visible to admins for audit/history. `.context/plan.md` step 9 says detail loads non-deleted media by ID.
+   - Improvement: decide whether Phase 7 admin access includes deleted media metadata or whether that waits for admin/global audit routes. Current docs make this optional, not blocking.
 
-2. Include Windows reserved filename cases in filename tests.
-   - Evidence: path safety plan already includes Windows drive and UNC path rejection.
-   - Improvement: add `CON`, `NUL`, trailing dots/spaces if helper runs on Windows developer machines and produces download names.
+2. Add pagination contract before route implementation.
+   - Evidence: `docs/API.md` recommends pagination for growing lists and filters for media type/date/owner-for-admin. `.context/plan.md` says bounded pagination/filtering "where implemented."
+   - Improvement: specify minimal query parameters and response shape now to avoid ad hoc endpoint shape.
 
 ## Questions for resolution
 
-1. Should ownership helper return 404 for cross-owner user resources to avoid existence leaks, while admin-role failures return 403?
-2. Should Phase 6 add one central error handler now, or only prove current FastAPI/error configuration does not expose stack traces for new helper errors?
+1. Should normal `GET /api/media` and `GET /api/media/{media_id}` omit `stored_path` entirely, returning only media ID, filename, type, size, dimensions, timestamps, and owner-visible metadata?
+
+2. For video MIME validation, which dependency/tool is approved for content validation and metadata extraction in backend: OpenCV headless, `python-magic`/file signatures, or decoder-based validation through chosen metadata library?
 
 ## Files consulted
 
@@ -60,7 +58,9 @@ None.
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/API.md`
+- `docs/AUTH_SECURITY.md`
+- `docs/DATA_MODEL.md`
 - `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`
+- `git status --short` output

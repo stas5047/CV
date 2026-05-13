@@ -1,61 +1,45 @@
-# Phase 6 Implementation Status
+# Phase 7 Status - Media Upload API and Metadata Extraction
 
-## Current State
+## Implementation
 
-- Phase implemented: `Phase 6 - Authorization, ownership, CORS, path safety, and security utilities`.
-- Risk assumption: HIGH, because authorization, ownership, path traversal, CORS, and logging/error safety are security-sensitive.
+- Phase implemented: `Phase 7 - Media upload API and metadata extraction`.
+- Scope kept to backend media API, upload validation, generated relative storage paths, metadata extraction, ownership/admin visibility, soft deletion, tests, and backend index update.
+- Later phases not implemented: jobs, results/downloads, model APIs, experiments, admin APIs, frontend, CV worker.
 
-## Completed
+## Files Changed By Codex
 
-- Added reusable admin-role dependency.
-- Added reusable owner-or-admin helper with safe not-found style denial for missing and cross-owner user resources.
-- Added ownership helpers for direct `user_id`, media-owned resources, and job/media-owned resources.
-- Added relative storage path validation and safe storage-root join helper.
-- Added upload filename sanitization and safe download filename helper.
-- Added Phase 6 tests for admin dependency, ownership checks, path traversal rejection, filename safety, safe helper error responses, and empty CORS origin rejection.
-- Verified existing protected `/api/auth/me` behavior remains covered by auth tests.
-- No product API routes, frontend work, CV worker work, schema changes, migrations, or later-phase media/job behavior were added.
+- `backend/pyproject.toml`
+- `backend/app/api/router.py`
+- `backend/app/api/media.py`
+- `backend/app/schemas/media.py`
+- `backend/app/services/media.py`
+- `backend/tests/test_media_api.py`
+- `backend/tests/test_media_validation.py`
+- `backend/index.md`
+- `.context/status.md`
 
 ## Quality Gates
 
-- `python -m pytest tests/test_security_utils.py -q` from `backend/`: PASS, 34 passed.
-- `python -m pytest tests/test_security_utils.py tests/test_settings.py -q` from `backend/`: PASS, 40 passed.
-- `python -m ruff check .` from `backend/`: PASS.
-- `python -m pytest tests/test_auth.py tests/test_settings.py tests/test_logging.py tests/test_security_utils.py -q` from `backend/`: PASS, 58 passed.
-- `python -m pytest -q` from `backend/`: PASS, 73 passed.
-- Final review-resolution verification:
-  - `python -m ruff check .` from `backend/`: PASS.
-  - `python -m pytest tests/test_auth.py tests/test_settings.py tests/test_logging.py tests/test_security_utils.py -q` from `backend/`: PASS, 58 passed.
-  - `python -m pytest -q` from `backend/`: PASS, 73 passed.
+- `cd backend; python -m pytest tests/test_media_api.py tests/test_media_validation.py` - PASS
+- `cd backend; python -m pytest tests/test_auth.py tests/test_security_utils.py` - PASS
+- `cd backend; python -m pytest` - PASS, 94 passed.
+- `cd backend; python -m ruff check .` - PASS
+- `docker compose config` - PASS, with existing unset environment variable warnings when no env file is supplied.
 
-## Code Review Resolution
+## Security And Privacy
 
-- `.context/review-code-openai.md`: APPROVED with no critical, important, or optional issues.
-- `.context/review-code-claude.md`: file exists but is empty in this checkout.
-- `.context/review-code-resolution.md`: FIXED.
-- Source fixes applied during review resolution: none; no accepted source fixes existed.
-- Index updates after review resolution: skipped; backend index was already current for Phase 6 helper/test files.
+- Media endpoints require active JWT user.
+- Regular users see/delete only own non-deleted media.
+- Admins can list/read/delete all non-deleted media metadata.
+- Uploads validate extension, MIME, size, filename, and decoded image/video content.
+- Stored paths are generated under `uploads/{user_id}/{media_id}/original.{ext}` and validated as relative.
+- API media responses omit `stored_path`, absolute paths, storage root, tokens, passwords, and secrets.
+- Video uploads now reject mismatched container headers such as AVI bytes submitted as `.mp4` with `video/mp4`.
+- Soft delete sets `deleted_at`; physical file removal remains out of Phase 7.
 
-## Security and Privacy
+## Notes
 
-- Admin-only helper returns safe 403 responses for non-admin users.
-- Ownership helper uses identical 404 response for missing and cross-owner user resources where practical.
-- Path utilities reject absolute paths, Windows drive paths, UNC paths, traversal segments, empty paths, and null bytes.
-- Filename helpers strip path components and neutralize reserved/hostile names.
-- New helper-path response tests check no traceback, password, token, or unsafe `/app/storage` path exposure.
-- No secrets, tokens, passwords, password hashes, database passwords, or absolute storage paths were added to logs or API responses.
-
-## Index and Docs
-
-- Updated `backend/index.md` for new Phase 6 helper modules and tests.
-- Product docs and `docs/index.md` skipped; no documentation structure, root file descriptions, commands, env variables, or documented paths changed.
-- Mistake logs skipped; no real mistake or near-miss occurred.
-
-## Deviations
-
-- No deviations from `.context/design.md`, `.context/plan.md`, or `.context/review-plan-resolution.md`.
-
-## Remaining Risks
-
-- Later product endpoints must wire these helpers into media, jobs, results, downloads, models, experiments, and admin routes.
-- No Phase 6 blockers remain.
+- Installed local test dependencies with `python -m pip install python-multipart pillow opencv-python-headless` to run upload/media tests in this environment.
+- Code review resolution accepted and fixed one important OpenAI review item: video extension/MIME/content mismatch acceptance.
+- No source-of-truth conflict found.
+- No real mistake logged.

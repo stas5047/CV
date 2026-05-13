@@ -1,39 +1,48 @@
-## Phase 6 - Authorization, ownership, CORS, path safety, and security utilities
+## Phase 7 - Media upload API and metadata extraction
 
-**Direction:** Backend / Security  
-**Goal:** Add reusable authorization and safety primitives before implementing protected product APIs.
+**Direction:** Backend  
+**Goal:** Implement media upload, validation, storage, metadata extraction, listing, detail, and soft deletion.
 
 ### Scope
 
-- Add role-check dependency for admin-only endpoints.
-- Add reusable ownership-check helpers for user-owned resources.
-- Add account-active enforcement for protected routes.
-- Add safe path utilities:
-  - relative path validation;
-  - path traversal prevention;
-  - safe join under `STORAGE_ROOT`;
-  - safe download filename handling.
-- Add upload filename sanitization helper.
-- Add CORS validation using explicit configured origins.
-- Add secure error response patterns that do not expose stack traces.
-- Add logging helpers/events that omit secrets and tokens.
-- Add security tests for unauthorized, forbidden, inactive, ownership, CORS, and path traversal cases.
+- Implement endpoints:
+  - `POST /api/media`;
+  - `GET /api/media`;
+  - `GET /api/media/{media_id}`;
+  - `DELETE /api/media/{media_id}`.
+- Validate extension, MIME type, file category, size, and filename safety before storage.
+- Accept required image and video formats only.
+- Generate internal storage paths using user ID and media ID.
+- Store original filename only as sanitized display metadata.
+- Extract media metadata where feasible:
+  - width;
+  - height;
+  - frame count;
+  - FPS;
+  - duration.
+- Ensure image records use `frame_count = 1`, `fps = null`, and `duration_seconds = null`.
+- Enforce user ownership and admin visibility rules.
+- Implement soft deletion through `deleted_at` only.
+- Add pagination/filtering where useful.
+- Add tests for accepted/rejected uploads and ownership.
 
 ### Relevant docs
 
-- `docs/AUTH_SECURITY.md`
 - `docs/API.md`
+- `docs/AUTH_SECURITY.md`
+- `docs/DATA_MODEL.md`
 - `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Protected test route or existing auth route rejects missing/invalid tokens.
-- Admin-only dependency rejects regular users.
-- Path traversal attempts fail in utility tests.
-- Absolute paths are rejected for database-facing path fields.
-- Logs do not include passwords, tokens, secrets, or database passwords in tests or manual inspection.
+- Valid images upload and create `media_files` records.
+- Valid videos upload and create `media_files` records.
+- Unsupported extensions, invalid MIME types, oversized files, unsafe filenames, and path traversal attempts are rejected.
+- Users see only own media; admins can view broader media metadata.
+- Stored paths are generated and relative.
+- Soft-deleted media is hidden from normal user lists.
 
 ### Commit
 
-`feat(backend-security): add authorization ownership and path safety utilities`
+`feat(backend-media): add validated media upload and metadata API`
