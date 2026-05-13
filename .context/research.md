@@ -1,13 +1,12 @@
-# Research - Phase 12 Experiment Import Backend API
+# Research - Phase 13 Backend Contract Audit
 
-## Current phase
+## Current Phase
 
-- Confirmed: `docs/phase.md` identifies **Phase 12 - Experiment import backend API**.
-- Confirmed direction: Backend / Admin / Experiments.
-- Confirmed goal: implement imported experiment records and metrics without launching training from the app.
-- Assumption: risk level is **MEDIUM**. User prompt left risk as placeholder; phase touches admin-only API, published visibility, null metric handling, and path safety, but not runtime CV processing or frontend UI.
+- Current phase: `Phase 13 - Backend contract, pagination, OpenAPI, and security test audit`.
+- Source: `docs/phase.md`.
+- Risk input: unspecified placeholder. Assumption: `HIGH`, because phase audits auth, ownership, API contract, OpenAPI, errors, pagination, downloads, and security tests before worker/frontend depend on backend.
 
-## Docs consulted
+## Docs Consulted
 
 - `AGENTS.md`
 - `CLAUDE.md`
@@ -15,16 +14,14 @@
 - `docs/ROADMAP.md`
 - `docs/phase.md`
 - `docs/API.md`
-- `docs/DATA_MODEL.md`
-- `docs/TRAINING_EXPERIMENTS.md`
-- `docs/FRONTEND_UX.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
+- `docs/PROJECT_CONTEXT.md`
 
-## Confirmed repository facts
+## Confirmed Repository Facts
 
 - Git checkout exists.
-- `git status --short` before writing showed existing modified files:
+- `git status --short` shows modified files before this contract work:
   - `.context/design.md`
   - `.context/plan.md`
   - `.context/research.md`
@@ -34,59 +31,94 @@
   - `.context/review-plan-resolution.md`
   - `.context/status.md`
   - `docs/phase.md`
-- `.context/research.md`, `.context/design.md`, and `.context/plan.md` existed and were empty before this contract write.
-- `backend/index.md` states experiment product APIs do not exist yet.
-- `rg --files` confirms backend app, migrations, and tests exist; frontend and CV worker are still placeholder Dockerfile/index areas.
-- Existing backend commands are documented in `backend/index.md`:
-  - `python -m pip install -e ".[dev]"`
+- Existing `.context/research.md`, `.context/design.md`, `.context/plan.md` were zero bytes before writing.
+- Backend project exists with `backend/pyproject.toml`, FastAPI app, API route modules, SQLAlchemy models, Alembic migration, service modules, schemas, and tests.
+- Backend dev commands are available from `backend/index.md` and `backend/pyproject.toml`:
   - `python -m ruff check .`
   - `python -m pytest`
-  - `alembic upgrade head`
+- Backend route registration uses `api_router = APIRouter(prefix="/api")` in `backend/app/api/router.py`.
+- App factory includes API router in `backend/app/main.py`.
+- Implemented route groups found:
+  - health: `/api/health`, `/api/health/db`
+  - auth: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
+  - media: `/api/media`, `/api/media/{media_id}`
+  - jobs/results: `/api/jobs`, `/api/jobs/{job_id}`, `/api/jobs/{job_id}/summary`, `/api/jobs/{job_id}/detections`, `/api/jobs/{job_id}/tracks`, `/api/jobs/{job_id}/result`, `/api/jobs/{job_id}/download/{kind}`
+  - models: `/api/models`, `/api/models/{model_id}`, `/api/models/{model_id}/activate`
+  - experiments: `/api/experiments`, `/api/experiments/import`, `/api/experiments/{experiment_id}`
+  - admin: `/api/admin/stats`, `/api/admin/jobs`, `/api/admin/users`, `/api/admin/storage/cleanup`
+- List schemas use `items`, `total`, `limit`, `offset` in media, jobs, detections, tracks, models, experiments, admin jobs, and admin users.
+- Tests exist for auth, security utilities, media validation/API, jobs/results/downloads, models, experiments, admin API, logging, settings, setup, health, and data model.
+- No custom global error response schema or FastAPI exception handlers were found by search.
+- No explicit OpenAPI audit test was found by search.
 
-## WARNING: CONFLICT
+## Existing Implementation State
 
-- `docs/index.md` current implementation state says the repository has Phase 1 scaffold only and `backend/`, `frontend/`, and `cv/` contain buildable placeholder Dockerfiles only.
-- Repository facts and `backend/index.md` show backend implementation exists through auth, media, model, job/result/download, and admin API surfaces.
-- Phase 12 product behavior docs still align on experiment API scope. Use product docs for behavior and current repository files for existing implementation state.
+- Backend has product API surface implemented through Phase 12-like endpoints, including admin and experiments.
+- `/api` prefix appears centralized and consistent in route registration.
+- Pagination is already present on growable list endpoints, but phase must audit consistency against `API.md`.
+- Tests cover many authorization, ownership, upload validation, path safety, and download cases.
+- Existing download implementation exposes one dynamic OpenAPI path: `/api/jobs/{job_id}/download/{kind}`.
+- `API.md` documents three concrete download endpoints:
+  - `/api/jobs/{job_id}/download/media`
+  - `/api/jobs/{job_id}/download/csv`
+  - `/api/jobs/{job_id}/download/json`
+- Existing tests call concrete download URLs, but OpenAPI likely presents the dynamic `{kind}` route. This is an implementation contract issue to audit in Phase 13, not a docs conflict.
+- Error responses currently appear to rely on FastAPI default `{"detail": ...}` behavior and Pydantic validation errors.
+- Response models are present for route success responses, but route-level `responses=` metadata was not found.
+- `README.md` current-state wording appears older than backend implementation state, while `backend/index.md` is more current. Phase 13 scope includes updating README/API notes during implementation.
 
-## Existing implementation state
+## Unknowns And Assumptions
 
-- Existing SQLAlchemy models include `ExperimentRun` and `ExperimentMetric` in `backend/app/db/models.py`.
-- Existing migration includes `experiment_runs` and `experiment_metrics`.
-- Existing data-model tests cover experiment tables, allowed experiment types, null `metric_value`, and rejection of `tracking_accuracy`.
-- Existing admin stats count total and published experiment runs.
-- Existing storage cleanup protects `ExperimentRun.artifacts_path`.
-- Existing API router includes auth, health, media, models, jobs, and admin routers only. No experiments router is registered.
-- No `backend/app/api/experiments.py`, `backend/app/services/experiments.py`, `backend/app/schemas/experiments.py`, or `backend/tests/test_experiments_api.py` exists.
-- Existing security helpers provide:
-  - `get_current_active_user`
-  - `get_current_admin_user`
-  - `validate_relative_storage_path`
-  - `safe_join_storage_path`
-- Existing model API pattern uses thin route handlers, service functions, Pydantic schemas, pagination, role dependencies, and safe relative storage path validation.
+- Unknown: actual backend test status was not run in this planning phase.
+- Unknown: generated OpenAPI schema contents were not inspected by running the app.
+- Unknown: whether frontend wants a formal error envelope beyond FastAPI default `detail`; docs require clear errors suitable for Ukrainian localization but do not define a strict envelope.
+- Assumption: Phase 13 may add tests and small backend contract fixes, but must not add new product behavior beyond documented endpoints, pagination, OpenAPI usability, security coverage, and README/API notes.
+- Assumption: Dynamic download route may need explicit concrete routes or OpenAPI metadata so frontend sees documented download operations.
+- Assumption: "API notes" means existing README/backend index or existing code comments/metadata, not new product docs, unless implementation reveals current docs/commands changed.
+- Accepted planning-review fact: README/API notes audit and update is required in Phase 13 because `README.md` is already stale against implemented backend endpoint groups.
+- Accepted planning-review decision: Phase 13 will not introduce a new shared error envelope unless audit proves current behavior violates docs. Minimal accepted MVP standard is safe, predictable FastAPI-compatible `detail` responses where string and list validation details are tested as frontend-consumable and do not expose secrets, stack traces, absolute paths, or forbidden fields.
+- Accepted planning-review fact: OpenAPI tests must assert the documented concrete download paths `/api/jobs/{job_id}/download/media`, `/api/jobs/{job_id}/download/csv`, and `/api/jobs/{job_id}/download/json`.
+- Accepted planning-review fact: API response/output boundary audit should use a reusable scan fixture or helper for representative JSON responses to catch absolute paths and forbidden CV-boundary field names.
 
-## Unknowns and assumptions
+## Files Likely Relevant For Implementation
 
-- Unknown: exact experiment import request/response JSON shape is not fully specified in product docs.
-- Assumption: implementation request schemas should expose only documented `experiment_runs` fields and child `experiment_metrics` fields, with no new product concepts.
-- Unknown: whether imported artifact path must be a file or may be a directory. Docs say artifact paths from existing files under storage, while data model and cleanup allow `artifacts_path` as a protected file or directory prefix.
-- Assumption: accept safe relative `artifacts_path` under `reports/` and require the resolved path to exist as file or directory under `STORAGE_ROOT`; reject absolute, traversal, missing, or outside paths.
-- Unknown: exact pagination/filter response names for experiments. Existing backend list APIs use `items`, `total`, `limit`, and `offset`.
-- Assumption: experiments list follows existing backend pagination pattern and documented filters: experiment type and published status for admins.
-- Unknown: whether regular users should see metric rows on detail for published runs. API says users can view published experiment runs; training docs say frontend displays imported metrics. Assumption: detail for published run includes metrics.
-- Unknown: whether model version reference must point to existing row. Data model has FK; service should return safe 400/404 instead of raw DB error.
-
-## Files likely relevant for implementation
-
+- `backend/app/main.py`
 - `backend/app/api/router.py`
+- `backend/app/api/auth.py`
+- `backend/app/api/health.py`
+- `backend/app/api/media.py`
+- `backend/app/api/jobs.py`
+- `backend/app/api/models.py`
 - `backend/app/api/experiments.py`
-- `backend/app/services/experiments.py`
+- `backend/app/api/admin.py`
+- `backend/app/api/deps.py`
+- `backend/app/schemas/auth.py`
+- `backend/app/schemas/media.py`
+- `backend/app/schemas/jobs.py`
+- `backend/app/schemas/models.py`
 - `backend/app/schemas/experiments.py`
-- `backend/app/db/models.py`
-- `backend/app/core/storage_paths.py`
+- `backend/app/schemas/admin.py`
+- `backend/app/services/media.py`
+- `backend/app/services/jobs.py`
+- `backend/app/services/results.py`
+- `backend/app/services/models.py`
+- `backend/app/services/experiments.py`
+- `backend/app/services/admin.py`
+- `backend/app/core/auth.py`
 - `backend/app/core/authorization.py`
-- `backend/app/core/config.py`
+- `backend/app/core/storage_paths.py`
+- `backend/app/core/cors.py`
+- `backend/app/core/logging.py`
+- `backend/tests/test_auth.py`
+- `backend/tests/test_security_utils.py`
+- `backend/tests/test_media_api.py`
+- `backend/tests/test_media_validation.py`
+- `backend/tests/test_jobs_api.py`
+- `backend/tests/test_models_api.py`
 - `backend/tests/test_experiments_api.py`
 - `backend/tests/test_admin_api.py`
-- `backend/tests/test_data_model.py`
+- `backend/tests/test_health.py`
+- `backend/tests/test_logging.py`
+- `backend/tests/conftest.py`
+- `README.md`
 - `backend/index.md`

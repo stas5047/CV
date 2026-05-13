@@ -177,13 +177,12 @@ def get_result(
     )
 
 
-@router.get("/{job_id}/download/{kind}")
-def download_result(
+def _download_result_by_kind(
     job_id: UUID,
     kind: str,
-    session: Annotated[Session, Depends(get_db_session)],
-    settings: Annotated[Settings, Depends(get_settings)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    session: Session,
+    settings: Settings,
+    current_user: User,
 ) -> FileResponse:
     path, media_type, filename = resolve_job_download(
         session=session,
@@ -193,3 +192,51 @@ def download_result(
         kind=parse_download_kind(kind),
     )
     return FileResponse(path=path, media_type=media_type, filename=filename)
+
+
+@router.get("/{job_id}/download/media")
+def download_result_media(
+    job_id: UUID,
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> FileResponse:
+    return _download_result_by_kind(
+        job_id=job_id,
+        kind="media",
+        session=session,
+        settings=settings,
+        current_user=current_user,
+    )
+
+
+@router.get("/{job_id}/download/csv")
+def download_result_csv(
+    job_id: UUID,
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> FileResponse:
+    return _download_result_by_kind(
+        job_id=job_id,
+        kind="csv",
+        session=session,
+        settings=settings,
+        current_user=current_user,
+    )
+
+
+@router.get("/{job_id}/download/json")
+def download_result_json(
+    job_id: UUID,
+    session: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> FileResponse:
+    return _download_result_by_kind(
+        job_id=job_id,
+        kind="json",
+        session=session,
+        settings=settings,
+        current_user=current_user,
+    )

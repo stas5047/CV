@@ -1,48 +1,60 @@
-# Phase 12 Status
+# Status - Phase 13 Backend Contract Audit
 
-## Current state
+## Current Phase
 
-Implemented and final review fix applied.
+- Phase: `Phase 13 - Backend contract, pagination, OpenAPI, and security test audit`.
+- Mode: Implementation.
+- Risk assumption: HIGH, from `.context/research.md`.
 
-## Scope completed
+## Completed
 
-- Added protected experiment routes:
-  - `GET /api/experiments`
-  - `GET /api/experiments/{experiment_id}`
-  - `POST /api/experiments/import`
-- Added experiment request/response schemas.
-- Added experiment service logic for published visibility, admin visibility, pagination, filters, import, model reference checks, artifact path checks, and metric safety checks.
-- Added tracker-comparison wording guard for forbidden absolute tracking-accuracy terms.
-- Added targeted experiment API tests.
-- Registered the experiments router.
-- Updated `backend/index.md`.
-- Final fix strengthened tracker-comparison forbidden-term validation for embedded variants such as `mota_score`, `tracking_accuracy_score`, and metadata label `IDF1 metric`.
+- Read required agent files, phase docs, context contracts, planning resolution, mistake logs, and relevant product docs.
+- Added `backend/tests/test_api_contract.py` for:
+  - documented `/api` route coverage;
+  - concrete documented download paths in OpenAPI;
+  - paginated list schema shape;
+  - safe FastAPI-compatible `detail` error payloads.
+- Verified RED before implementation: `python -m pytest tests/test_api_contract.py` failed because concrete download routes were absent from OpenAPI.
+- Replaced dynamic documented download exposure with concrete route functions:
+  - `/api/jobs/{job_id}/download/media`;
+  - `/api/jobs/{job_id}/download/csv`;
+  - `/api/jobs/{job_id}/download/json`.
+- Re-ran targeted contract/job tests after implementation.
+- Updated `README.md` current backend state and API notes.
+- Updated `backend/index.md` test summary for Phase 13 contract tests.
+- Resolved OpenAI code review important item by adding representative successful API JSON response boundary scans for media, jobs/results, models, experiments, and admin endpoints.
+- Updated `.context/review-code-resolution.md`.
+- Logged the missed successful-response boundary scan in `docs/mistakes-codex.md`.
 
-## Quality gates
+## Quality Gates Run
 
-- `python -m pytest tests/test_experiments_api.py -q` from `backend/`: PASS
-- `python -m ruff check app/api/experiments.py app/services/experiments.py app/schemas/experiments.py tests/test_experiments_api.py` from `backend/`: PASS
-- `python -m pytest tests/test_experiments_api.py tests/test_admin_api.py::test_admin_stats_users_and_jobs_are_global_and_safe tests/test_data_model.py::test_detections_tracks_and_metrics_relationship_constraints` from `backend/`: PASS
-- Direct helper probe for reviewed tracker variants from `backend/`: PASS
-- `python -m ruff check .` from `backend/`: PASS
-- `python -m pytest` from `backend/`: PASS, 165 passed
+- `python -m pytest tests/test_api_contract.py` - RED observed before implementation.
+- `python -m pytest tests/test_api_contract.py tests/test_jobs_api.py` - PASS after implementation.
+- `python -m ruff check .` - PASS.
+- `python -m pytest` - PASS, 168 passed.
+- `python -m pytest tests/test_api_contract.py` - PASS after final fix, 4 passed.
+- `python -m ruff check .` - PASS after final fix.
+- `python -m pytest` - PASS after final fix, 169 passed.
 
-## Security/privacy
+## Security/Privacy
 
-- Experiment list/detail require active JWT user.
-- Regular users can see only published experiment runs.
-- Import requires active admin user.
-- Import rejects unsafe, absolute, outside-`reports/`, and missing artifact paths.
-- Import rejects metric metadata containing absolute paths.
-- Tracker-comparison import rejects forbidden absolute tracking-accuracy terms inside metric names and metadata text.
-- API responses expose only relative artifact paths and do not expose `STORAGE_ROOT`.
-- No training launch route, job creation, shell execution, or worker side effect was added.
+- Result downloads still require active JWT user and owner/admin access through existing `resolve_job_download` service path.
+- Concrete download routes expose no internal storage paths in OpenAPI.
+- Error contract tests scan representative `detail` payloads for stack traces, secrets, tokens, database passwords, absolute storage roots, and forbidden CV-boundary terms.
+- Successful API contract tests now scan representative JSON responses for absolute storage roots, internal path fields, secrets, and forbidden CV-boundary terms.
+- No training launch, frontend, worker polling, CV processing, new role, or out-of-scope safety behavior was added.
+
+## Index/Docs
+
+- Updated `README.md` backend current state and endpoint group notes.
+- Updated `backend/index.md` Phase 13 test summary.
+- Updated `docs/index.md` README description and current implementation state.
+- No index update required after final fix: `backend/index.md` already describes Phase 13 API contract/OpenAPI/pagination/error-safety behavior, and no new files/folders were created.
 
 ## Deviations
 
-- None from `.context/design.md`, `.context/plan.md`, or `.context/review-plan-resolution.md`.
+- Final fix aligns with `.context/design.md`, `.context/plan.md`, and `.context/review-plan-resolution.md`; no deviations remain.
 
-## Remaining risks
+## Remaining Risks
 
-- Import request shape was contract-defined because product docs do not specify exact JSON body.
-- `.context/research.md` notes stale implementation-state text in `docs/index.md`; no Phase 12 product behavior conflict found.
+- Phase 13 audit confirms backend contract shape only; worker-generated files and real CV exports still arrive in later phases.

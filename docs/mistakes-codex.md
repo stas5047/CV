@@ -1,5 +1,12 @@
 # Codex Mistake Log
 
+## 2026-05-14 - Phase 13 boundary scan covered errors but missed success responses
+
+- Mistake: Initial Phase 13 API contract test reused the response safety helper only for error payloads, not representative successful JSON responses.
+- Impact: The phase claimed API output boundary coverage without proving successful media, jobs/results, models, experiments, and admin responses avoided internal paths and forbidden CV-boundary terms.
+- Fix: Added successful-response contract coverage across representative implemented JSON endpoints.
+- Prevention: When a plan says "representative API responses," include both error and success payloads before marking boundary audit complete.
+
 ## 2026-05-14 - Phase 12 tracker wording guard matched only exact forbidden terms
 
 - Mistake: Initial tracker-comparison validation rejected exact `tracking_accuracy`, `MOTA`, `IDF1`, and `HOTA` strings but allowed variants such as `mota_score`, `tracking_accuracy_score`, and metadata label `IDF1 metric`.

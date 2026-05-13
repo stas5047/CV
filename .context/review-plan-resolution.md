@@ -1,48 +1,51 @@
-# Review Plan Resolution - Phase 12 Experiment Import Backend API
+# Planning Review Resolution - Phase 13 Backend Contract Audit
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude planning review verdict was `APPROVED_WITH_CHANGES`. All doc-backed changes were accepted and applied to the Phase 12 implementation contract. No source code was modified.
+Claude review found no blockers. All doc-consistent items are accepted. No item needs user decision.
 
-## Resolution table
+## Resolution Table
 
-| # | Claude item | Resolution | Contract update |
-|---:|---|---|---|
-| 1 | Tracker behavior wording guard too narrow; metric names/metadata could still expose absolute tracking-accuracy language. | accepted | `.context/design.md` now requires tracker-comparison metric wording validation. `.context/plan.md` adds failing tests and service/code-review checks for forbidden `tracking_accuracy`, `MOTA`, `IDF1`, and `HOTA` wording. |
-| 2 | Invalid `model_version_id` lacks explicit test. | accepted | `.context/design.md` and `.context/plan.md` now require safe 400/404 behavior for nonexistent model references without DB internals, stack traces, or storage roots. |
-| 3 | List pagination/filter behavior not explicit. | accepted | `.context/design.md` and `.context/plan.md` now require `items`, `total`, `limit`, `offset`, `experiment_type` filtering, admin published-status filtering, and visibility enforcement before rows return. |
-| 4 | Optional response-shape assertion: no absolute `STORAGE_ROOT`, including nested metric metadata if echoed. | accepted | `.context/design.md` and `.context/plan.md` now require response/metadata safety checks for absolute storage roots and unsafe absolute paths. |
-| 5 | Optional code-review checklist item: no new experiment type aliases. | accepted | `.context/plan.md` now explicitly checks that `tracker_comparison` remains the only documented tracker experiment type and no alias such as `tracker_behavior_comparison` is added. |
-| 6 | Conditional question: if implementation wants `artifacts_path` outside `reports/`, resolve before coding. | rejected | Current design does not want paths outside `reports/`; keeping `reports/` constraint matches Phase 12 contract and avoids scope expansion. |
+| ID | Claude item | Resolution | Reason | Contract update |
+|---|---|---|---|---|
+| I1 | README/API notes update may be skipped despite stale README. | accepted | `docs/phase.md` requires README/API notes update, and `README.md` is stale against implemented backend endpoint groups. | Plan step 12 now makes README/API notes audit/update required. Research records stale README fact. Design marks ambiguity resolved. |
+| I2 | Error response normalization under-specified. | accepted | `docs/API.md` requires clear predictable errors but does not require custom envelope. | Design and plan define minimal Phase 13 standard: FastAPI-compatible `detail` forms acceptable if tested safe, predictable, and frontend-consumable; new envelope only if current behavior fails that standard. |
+| O1 | Add OpenAPI assertions for documented concrete download paths. | accepted | `docs/API.md` documents concrete `/download/media`, `/download/csv`, `/download/json` routes. | Plan steps 3 and 8 now require explicit concrete download paths in OpenAPI. Design test strategy includes assertions. |
+| O2 | Include reusable response scan fixture for absolute paths and forbidden CV-boundary fields. | accepted | `docs/API.md`, `docs/AUTH_SECURITY.md`, and `docs/PROJECT_CONTEXT.md` ban unsafe paths and forbidden output fields. | Plan step 9 and design test strategy now require reusable scan helper/fixture for representative JSON responses. |
+| Q1 | Keep FastAPI/Pydantic default error payloads or introduce shared envelope? | accepted | Product docs do not mandate envelope; adding one now may create unnecessary API churn. | Final contract keeps FastAPI-compatible `detail` payloads if tests prove string/list details are safe and frontend-consumable. |
 
-## Accepted changes applied
+## Accepted Changes Applied
 
-- Added tracker behavior metric wording guard to `.context/design.md`.
-- Added allowed tracker behavior indicator examples and forbidden tracking-accuracy terms to `.context/plan.md`.
-- Added explicit invalid `model_version_id` test/validation contract.
-- Added list pagination and experiment filter tests/implementation contract.
-- Added nested metric metadata path-safety response contract.
-- Added no-alias code-review check for experiment types.
+- `.context/research.md`
+  - Added accepted planning-review facts for required README/API notes update, minimal error-response standard, concrete download OpenAPI assertions, and reusable response boundary scan.
+- `.context/design.md`
+  - Added Phase 13 error-response design decision.
+  - Added explicit download OpenAPI assertion requirement.
+  - Added string/list `detail` test criterion.
+  - Added reusable response scan fixture/helper requirement.
+  - Resolved README and error-envelope ambiguities.
+- `.context/plan.md`
+  - Updated step 3 to require concrete documented download paths in OpenAPI.
+  - Updated step 7 to define minimal accepted error-response standard.
+  - Updated step 8 to require concrete download paths in OpenAPI usability audit.
+  - Updated step 9 to require reusable response/output boundary scan helper or fixture.
+  - Updated step 12 to make README/API notes audit/update required.
 
-## Rejected items
+## Rejected Items
 
-- Artifact paths outside `reports/` were not adopted. Phase 12 remains scoped to existing report artifacts under storage `reports/`.
+None.
 
-## Duplicate items
+## Duplicate Items
 
-- None.
+None.
 
-## Items needing user decision
+## Items Needing User Decision
 
-- None.
+None.
 
-## Final contract status
+## Final Contract Status
 
-Phase 12 implementation contract is ready. Implement only:
-
-- `GET /api/experiments`;
-- `GET /api/experiments/{experiment_id}`;
-- `POST /api/experiments/import`;
-- backend schemas/services/router/tests needed for those endpoints.
-
-Do not implement frontend, CV worker, training execution, migrations, new top-level folders, new experiment types, or routes outside documented Phase 12 scope.
+- Scope remains Phase 13 only: backend contract audit, pagination, OpenAPI, error response normalization, security test audit, and README/API notes.
+- No source-code implementation performed in this resolution step.
+- No product-doc conflicts found.
+- Implementation may proceed under updated `.context/plan.md`.
