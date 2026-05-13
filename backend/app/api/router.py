@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
+from app.api.experiments import router as experiments_router
 from app.api.health import router as health_router
 from app.api.jobs import router as jobs_router
 from app.api.media import router as media_router
@@ -13,4 +14,5 @@ api_router.include_router(health_router)
 api_router.include_router(media_router)
 api_router.include_router(models_router)
 api_router.include_router(jobs_router)
+api_router.include_router(experiments_router)
 api_router.include_router(admin_router)

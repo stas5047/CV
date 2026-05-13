@@ -1,134 +1,127 @@
-# Phase 11 Implementation Plan
+# Plan - Phase 12 Experiment Import Backend API
 
-## Scope
+## Ordered implementation steps
 
-Phase only: admin backend APIs and safe storage cleanup.
+1. [ ] `@role/developer-backend` Add failing tests in `backend/tests/test_experiments_api.py` for guest rejection on `GET /api/experiments`, `GET /api/experiments/{experiment_id}`, and `POST /api/experiments/import`.
+   - Verify with: `cd backend; python -m pytest tests/test_experiments_api.py -q`
+   - Expected before implementation: tests fail because routes are missing.
 
-Do not implement frontend, experiments API, worker queue, CV processing, training utilities, schema migrations, or docs/product changes.
+2. [ ] `@role/developer-backend` Add failing tests in `backend/tests/test_experiments_api.py` for published visibility.
+   - Regular user sees only published runs in list.
+   - Regular user can read published detail.
+   - Regular user gets safe not-found behavior for unpublished detail.
+   - Admin sees published and unpublished runs.
+   - Verify with: `cd backend; python -m pytest tests/test_experiments_api.py -q`
 
-## Ordered atomic steps
+3. [ ] `@role/developer-backend` Add failing tests in `backend/tests/test_experiments_api.py` for list pagination and filters.
+   - List response uses existing collection shape: `items`, `total`, `limit`, `offset`.
+   - `limit` and `offset` page results deterministically.
+   - `experiment_type` filter returns only that documented type.
+   - Admin published-status filter supports published and unpublished views.
+   - Regular-user visibility still hides unpublished rows even when filters are present.
+   - Verify with: `cd backend; python -m pytest tests/test_experiments_api.py -q`
 
-1. `@role/developer-backend` Inspect current backend route/schema/service patterns.
-   - Verify files: `backend/app/api/router.py`, `backend/app/api/jobs.py`, `backend/app/api/models.py`, `backend/app/schemas/jobs.py`, `backend/app/schemas/auth.py`, `backend/app/services/results.py`.
-   - Verifiable: exact existing response/list patterns identified before adding admin code.
+4. [ ] `@role/developer-auth-security` Add failing tests in `backend/tests/test_experiments_api.py` for role access.
+   - Regular user cannot import.
+   - Inactive admin token cannot import.
+   - Admin can import.
+   - Verify with: `cd backend; python -m pytest tests/test_experiments_api.py -q`
 
-2. `@role/developer-auth-security` Confirm admin dependency behavior.
-   - Verify `get_current_admin_user` depends on active authenticated user and returns 403 for non-admin.
-   - Verifiable: existing `backend/tests/test_security_utils.py` covers admin dependency.
+5. [ ] `@role/developer-backend` Add failing tests in `backend/tests/test_experiments_api.py` for import data behavior.
+   - Admin can import `model_comparison`.
+   - Admin can import `threshold_analysis`.
+   - Admin can import `tracker_comparison`.
+   - Admin can import `false_positive_analysis`.
+   - Imported metrics are returned with `metric_value = null` preserved.
+   - Unsupported `tracking_accuracy` is rejected.
+   - Nonexistent `model_version_id` is rejected with a safe 400/404 response that does not expose stack traces, DB internals, or storage roots.
+   - Verify with: `cd backend; python -m pytest tests/test_experiments_api.py -q`
 
-3. `@role/developer-backend` Define admin API response/request schemas only from documented safe fields.
-   - Create `backend/app/schemas/admin.py`.
-   - Include no password hashes, tokens, absolute paths, or storage-root values.
-   - Prefer cleanup response counts and categories over path lists.
-   - If path-like cleanup details are returned, expose only relative/logical paths.
-   - If exact stats/cleanup JSON fields cannot be derived without inventing safe behavior, stop for user decision.
-   - Verifiable: schema fields map to existing documented DB/API concepts.
+6. [ ] `@role/developer-auth-security` Add failing tests in `backend/tests/test_experiments_api.py` for tracker behavior wording.
+   - Valid `tracker_comparison` metric names use documented behavior indicators, such as `video_processing_fps`, `unique_track_ids`, `frames_with_detections`, `average_confidence`, `track_fragmentation_proxy`, `qualitative_visual_stability`, and `observed_id_switches`.
+   - Reject case-insensitive forbidden tracker accuracy metric names or metadata labels: `tracking_accuracy`, `MOTA`, `IDF1`, `HOTA`.
+   - Do not add aliases such as `tracker_behavior_comparison`; documented experiment type remains `tracker_comparison`.
+   - Verify with: `cd backend; python -m pytest tests/test_experiments_api.py -q`
 
-4. `@role/developer-backend` Add admin service module.
-   - Create `backend/app/services/admin.py`.
-   - Add service functions for global stats, global jobs, basic users, and cleanup.
-   - Keep route handlers thin.
-   - Verifiable: routes will call service functions; no DB logic embedded in router.
+7. [ ] `@role/developer-auth-security` Add failing tests in `backend/tests/test_experiments_api.py` for artifact path and response safety.
+   - Reject `/app/storage/reports/exp/metrics.json`.
+   - Reject `C:/storage/reports/exp/metrics.json`.
+   - Reject `../reports/exp/metrics.json`.
+   - Reject `reports/../secret/metrics.json`.
+   - Reject `temp/experiment/metrics.json`.
+   - Reject missing `reports/...` target.
+   - Reject or sanitize echoed metric metadata that would expose absolute `STORAGE_ROOT` or unsafe absolute paths.
+   - Do not leak `STORAGE_ROOT` in response text, including nested metric metadata.
+   - Verify with: `cd backend; python -m pytest tests/test_experiments_api.py -q`
 
-5. `@role/developer-backend` Implement global stats query.
-   - Aggregate only from existing documented tables.
-   - Include no user secrets and no filesystem paths.
-   - Verifiable: admin stats endpoint returns deterministic aggregate values in tests.
+8. [ ] `@role/developer-backend` Create `backend/app/schemas/experiments.py`.
+   - Define request schemas using only documented `experiment_runs` and `experiment_metrics` fields.
+   - Define response schemas using existing ORM fields and nested metric rows.
+   - Preserve nullable `metric_value`.
+   - Forbid extra request fields.
+   - Verify with: `cd backend; python -m ruff check app/schemas/experiments.py`
 
-6. `@role/developer-backend` Implement global admin job history.
-   - Prefer reuse of existing safe job detail/list response logic.
-   - Enforce admin-only route even if underlying service can list all for admins.
-   - Preserve pagination and relevant filters only if already supported safely.
-   - Verifiable: admin sees all non-deleted jobs; regular user cannot call route.
+9. [ ] `@role/developer-backend` Create `backend/app/services/experiments.py`.
+   - Implement list-visible query with user/admin visibility rules.
+   - Implement pagination with `limit`/`offset`.
+   - Implement `experiment_type` filter and admin-only published-status filter.
+   - Implement detail lookup with safe not-found behavior for invisible runs.
+   - Implement admin import that inserts one `ExperimentRun` and its `ExperimentMetric` rows in one transaction.
+   - Validate optional `model_version_id` exists before commit.
+   - Validate experiment type against documented types.
+   - Validate tracker comparison metric wording against documented behavior-comparison boundary.
+   - Verify with: `cd backend; python -m ruff check app/services/experiments.py`
 
-7. `@role/developer-backend` Implement basic admin users list.
-   - Use safe user fields only.
-   - Support pagination because users can grow.
-   - Exclude `password_hash`.
-   - Verifiable: response text never contains password hash values.
+10. [ ] `@role/developer-auth-security` Implement artifact path and response safety validation in `backend/app/services/experiments.py`.
+   - Normalize with `validate_relative_storage_path`.
+   - Resolve with `safe_join_storage_path`.
+   - Require `reports/` prefix.
+   - Require resolved target to exist as file or directory under `STORAGE_ROOT`.
+   - Prevent echoed metric metadata from exposing absolute storage roots or unsafe absolute paths.
+   - Convert validation failures into safe `400` responses.
+   - Verify with: `cd backend; python -m pytest tests/test_experiments_api.py -q`
 
-8. `@role/developer-auth-security` Design cleanup protection set.
-   - Collect relative paths that must not be deleted from documented DB fields.
-   - Include non-deleted media/job references and active model artifacts.
-   - Protect active model `weights_path` and the derived active model directory, including `models/{model_version_id}/model_card.json` when derivable from documented layout.
-   - Treat referenced directories as protected prefixes, including `experiment_runs.artifacts_path` and derived active model directories.
-   - Treat invalid/absolute DB paths as protected skip/error, not delete targets.
-   - Verifiable: tests prove referenced files and descendants under referenced directories remain.
+11. [ ] `@role/developer-backend` Create `backend/app/api/experiments.py`.
+   - Add `GET /experiments` using active-user dependency.
+   - Add `GET /experiments/{experiment_id}` using active-user dependency.
+   - Add `POST /experiments/import` using admin dependency.
+   - Keep handlers thin and delegate to service functions.
+   - Verify with: `cd backend; python -m ruff check app/api/experiments.py`
 
-9. `@role/developer-auth-security` Implement conservative cleanup behavior.
-   - Operate only under `STORAGE_ROOT` through `safe_join_storage_path`.
-   - Do not delete active model weights/cards, referenced files, visible completed job files, or ambiguous recent result files.
-   - Do not physically delete files from `uploads/`, `results/`, `reports/`, `models/`, or `datasets/` in Phase 11 because no retention window is documented.
-   - If physical deletion is implemented, limit it to clearly safe unreferenced files under `temp/`.
-   - Return only safe relative/logical cleanup information.
-   - Log safe counts/actions only.
-   - Verifiable: cleanup cannot remove protected fixtures or a fresh unreferenced `results/` file, deletes only eligible `temp/` files if deletion is implemented, and cannot report absolute paths.
+12. [ ] `@role/developer-backend` Register experiments router in `backend/app/api/router.py`.
+    - Include router under existing `/api` prefix.
+    - Do not modify unrelated routers.
+    - Verify with: `cd backend; python -m pytest tests/test_experiments_api.py -q`
 
-10. `@role/developer-backend` Add admin router.
-    - Create `backend/app/api/admin.py`.
-    - Routes:
-      - `GET /admin/stats`
-      - `GET /admin/jobs`
-      - `GET /admin/users`
-      - `POST /admin/storage/cleanup`
-    - Use `get_current_admin_user` on every route.
-    - Verifiable: generated routes appear under `/api/admin/*`.
-
-11. `@role/developer-backend` Include admin router.
-    - Modify `backend/app/api/router.py`.
-    - Verifiable: `GET /api/admin/stats` resolves in TestClient.
-
-12. `@role/tester` Add admin API tests.
-   - Create `backend/tests/test_admin_api.py`.
-   - Cover guest, regular user, inactive admin, and active admin access.
-   - Cover global jobs/users/stats behavior.
-   - Cover cleanup safety and no absolute path exposure.
-   - Cover active model card/directory protection when only `weights_path` is stored.
-   - Cover referenced directory prefix protection for experiment artifacts.
-   - Cover fresh unreferenced `results/` file preservation.
-   - Cover temp-only physical deletion if cleanup deletes any files in Phase 11.
-   - Verifiable: targeted test file fails before implementation and passes after implementation.
-
-13. `@role/tester` Run targeted admin tests.
-    - Command: `python -m pytest tests/test_admin_api.py`
-    - Workdir: `backend/`
+13. [ ] `@role/tester` Run scoped Phase 12 backend checks.
+    - `cd backend; python -m ruff check app/api/experiments.py app/services/experiments.py app/schemas/experiments.py tests/test_experiments_api.py`
+    - `cd backend; python -m pytest tests/test_experiments_api.py tests/test_admin_api.py::test_admin_stats_users_and_jobs_are_global_and_safe tests/test_data_model.py::test_detections_tracks_and_metrics_relationship_constraints`
     - Expected: PASS.
 
-14. `@role/tester` Run backend lint.
-    - Command: `python -m ruff check .`
-    - Workdir: `backend/`
-    - Expected: PASS.
+14. [ ] `@role/code-reviewer` Review Phase 12 diff against docs.
+    - Confirm no training launch endpoint or side effect exists.
+    - Confirm only documented experiment types are accepted.
+    - Confirm no experiment type aliases are added.
+    - Confirm `tracker_comparison` is behavior comparison, not tracking accuracy.
+    - Confirm tracker comparison metrics/metadata do not expose `tracking_accuracy`, `MOTA`, `IDF1`, `HOTA`, or manually annotated identity metrics as required API-facing metrics.
+    - Confirm regular users cannot see unpublished runs.
+    - Confirm list pagination and documented filters enforce visibility before returning rows.
+    - Confirm import is admin-only.
+    - Confirm invalid `model_version_id` returns safe 400/404.
+    - Confirm `metric_value = null` survives API response.
+    - Confirm no absolute storage paths are returned, including in nested metric metadata.
+    - Confirm no unrelated frontend, worker, migration, or docs changes.
 
-15. `@role/tester` Run backend suite if targeted checks pass.
-    - Command: `python -m pytest`
-    - Workdir: `backend/`
-    - Expected: PASS.
+15. [ ] `@role/docs-maintainer` Decide docs/index updates.
+    - If implementation creates new backend files only, update `backend/index.md` if current-file inventory or commands become inaccurate.
+    - Do not modify product docs for Phase 12 behavior unless implementation changes documented commands or structure.
 
-16. `@role/code-reviewer` Review phase scope and safety.
-    - Check no frontend/worker/training/schema/product-doc changes.
-    - Check all admin routes require admin role.
-    - Check cleanup cannot delete protected files.
-    - Check responses/logs omit secrets and absolute paths.
-    - Verifiable: review notes no scope creep or lists exact blockers.
+## Phase boundary
 
-17. `@role/docs-maintainer` Update `backend/index.md` because Phase 11 creates backend admin files and the component index must stay current.
-    - Do not update product docs.
-    - Verifiable: index mentions admin API files honestly and keeps commands accurate.
-
-## Quality gates for phase
-
-- `python -m pytest tests/test_admin_api.py` from `backend/`
-- `python -m ruff check .` from `backend/`
-- `python -m pytest` from `backend/`
-
-## Explicit non-goals
-
-- No frontend admin page.
-- No experiments endpoints.
-- No model training/import changes.
-- No worker cleanup task.
-- No hard deletion of DB rows.
-- No deletion outside `STORAGE_ROOT`.
-- No physical deletion from `uploads/`, `results/`, `reports/`, `models/`, or `datasets/` without a future documented retention policy.
-- No new roles beyond `user` and `admin`.
-- No exposure of absolute paths or password hashes.
+- No frontend implementation.
+- No CV worker implementation.
+- No training utilities.
+- No migrations unless existing schema is proven insufficient.
+- No new top-level folders.
+- No routes beyond documented experiment endpoints.
+- No training launch from API or UI.

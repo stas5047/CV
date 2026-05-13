@@ -1,170 +1,146 @@
-# Phase 11 Design Contract
+# Design - Phase 12 Experiment Import Backend API
 
 ## Phase goal
 
-Build admin-only backend APIs for global stats, global job history, safe user listing, and conservative storage cleanup:
+Implement backend experiment import and visibility API for Phase 12 only:
 
-- `GET /api/admin/stats`
-- `GET /api/admin/jobs`
-- `GET /api/admin/users`
-- `POST /api/admin/storage/cleanup`
+- `GET /api/experiments`
+- `GET /api/experiments/{experiment_id}`
+- `POST /api/experiments/import`
 
-No frontend, worker, training, migration, or product-doc work in this phase.
+No source implementation happens in this planning phase.
 
 ## Intended behavior from docs
 
 Confirmed:
 
-- All `/api/admin/*` routes require authenticated active admin user.
-- Guests and regular users cannot access admin routes.
-- Admin can view global jobs/history and basic users list.
-- User list must exclude password hashes and sensitive fields.
-- Admin stats must be global processing/system statistics, limited to documented CV/backend data.
-- Storage cleanup must be safe and conservative.
-- Cleanup must not delete:
-  - active model weights;
-  - active model cards;
-  - files referenced by non-deleted records;
-  - recent user results accidentally;
-  - files needed by visible completed jobs.
-- Cleanup logs must omit secrets, tokens, unsafe absolute user-facing paths, passwords, password hashes, DB passwords, and sensitive env values.
-- API responses must not expose absolute host/container paths.
-- API outputs must remain inside CV-only boundary.
+- All experiment routes are protected by JWT auth.
+- Regular users can list and read only `is_published=true` experiment runs.
+- Admins can list and read all imported experiment runs.
+- Only admins can import experiment runs and metrics.
+- Import creates structured `experiment_runs` and `experiment_metrics` records from existing artifacts under storage.
+- Supported experiment types are:
+  - `model_comparison`
+  - `threshold_analysis`
+  - `tracker_comparison`
+  - `false_positive_analysis`
+- `metric_value` may be `null`.
+- Artifact paths must be relative, safe, and must not expose absolute filesystem paths.
+- API and UI-facing data must use tracker behavior wording, not absolute tracking accuracy.
+- API must not launch training.
+- Tracker comparison imports must not expose absolute tracking-accuracy metric wording. For `tracker_comparison`, reject forbidden metric names/metadata labels such as `tracking_accuracy`, `MOTA`, `IDF1`, and `HOTA`; use documented behavior indicators such as processing FPS, unique track IDs, frames with detections, average confidence, track fragmentation proxy, qualitative visual stability, and observed ID switches.
 
 Assumptions:
 
-- Admin jobs response may reuse existing safe `JobListResponse`/`JobDetailResponse` semantics.
-- Basic users response may reuse `UserResponse` fields.
-- Stats response should aggregate only from existing documented tables; exact fields remain an implementation ambiguity because docs do not name them.
-- Cleanup should default to dry-run/report-only when deletion eligibility is ambiguous. Because no retention policy exists, Phase 11 must not physically delete files from `uploads/`, `results/`, `reports/`, `models/`, or `datasets/`. Physical deletion, if implemented, is limited to clearly safe unreferenced `temp/` files.
+- Import request uses only documented experiment run fields and documented metric fields.
+- List response follows existing backend collection shape: `items`, `total`, `limit`, `offset`.
+- List supports pagination plus `experiment_type` filter for all authenticated users and published-status filter for admins. Visibility is enforced before rows are returned.
+- Detail response includes run data and metric rows for runs visible to caller.
+- `artifacts_path` is constrained to `reports/` because docs describe experiment reports/artifacts under storage reports.
+- Existing file or directory under `STORAGE_ROOT` satisfies artifact existence.
 
 ## Architecture decisions
 
-- Add a dedicated `admin` router under existing `/api` router with prefix `/admin`.
-- Use `get_current_admin_user` on every admin endpoint.
-- Keep route handlers thin; place aggregation and cleanup rules in `backend/app/services/admin.py`.
-- Keep Pydantic response models in `backend/app/schemas/admin.py`.
-- Reuse existing SQLAlchemy session dependency and ORM models.
-- Reuse existing job-list logic where it preserves safe output and global admin visibility.
-- Do not add DB tables, migrations, Redis/Celery, background cleanup jobs, or worker coupling.
-- Do not expose storage internals in responses. Cleanup reports should prefer counts and categories. If paths are returned at all, they must be relative/logical and never absolute.
+- Add a new experiments router and include it in `backend/app/api/router.py`.
+- Keep route handlers thin; route layer handles FastAPI dependencies and response model conversion.
+- Put visibility, import, validation, and persistence logic in `backend/app/services/experiments.py`.
+- Put request/response schemas in `backend/app/schemas/experiments.py`.
+- Reuse existing ORM models; do not add tables, migrations, or schema fields.
+- Reuse `get_current_active_user` and `get_current_admin_user`.
+- Reuse storage path helpers for path normalization and traversal prevention.
+- Do not read metric JSON contents from disk in this phase unless docs already define exact artifact schema; import accepts structured metrics in request body and validates the referenced artifact path exists.
 
 ## Backend impact
 
-Touched:
+- Add experiment list/detail/import routes under `/api/experiments`.
+- Register router with `/api` root router.
+- Add service helpers for:
+  - list visible experiments;
+  - get visible experiment detail;
+  - import experiment run with metric rows;
+  - validate experiment type;
+  - validate artifact path.
+- Return safe 404 for unpublished or missing run when regular user requests it.
+- Return 403 for non-admin import.
+- Return validation error for unsupported experiment type, unsafe artifact path, missing artifact path target, invalid model reference, and forbidden tracker accuracy metric wording.
 
-- New admin router.
-- New admin schemas.
-- New admin service functions.
-- Main API router inclusion.
-- Backend tests for admin access and cleanup safety.
+## Frontend impact
 
-Not touched:
-
-- Auth token format.
-- Password hashing.
-- Media upload behavior.
-- Job creation behavior.
-- CV worker behavior.
-- Database schema.
-- Frontend routes.
-
-## API impact
-
-Confirmed route additions:
-
-- `GET /api/admin/stats`
-- `GET /api/admin/jobs`
-- `GET /api/admin/users`
-- `POST /api/admin/storage/cleanup`
-
-Contract limits:
-
-- Do not expose `password_hash`.
-- Do not expose absolute paths.
-- Do not expose forbidden CV boundary data.
-- Do not create or modify jobs through admin history endpoint.
-- Do not physically delete referenced files.
-
-Ambiguous:
-
-- Exact JSON field names for admin stats.
-- Cleanup request body shape.
-- Cleanup response body shape.
-- Retention threshold for old files/recent results.
+- No frontend source changes in this phase.
+- Backend response must support later `/experiments` page:
+  - published-only visibility for regular users;
+  - null metric values preserved as JSON null;
+  - no raw absolute filesystem paths;
+  - tracker behavior wording available through documented type/value names.
 
 ## DB impact
 
-- No schema change planned.
-- Queries aggregate from existing documented tables.
-- Cleanup reference protection must inspect existing relative path fields:
-  - `media_files.stored_path`;
-  - `processing_jobs.result_media_path`;
-  - `processing_jobs.csv_path`;
-  - `processing_jobs.json_path`;
-  - `model_versions.weights_path`;
-  - `experiment_runs.artifacts_path`.
-- Non-deleted media/jobs and active model artifacts must be protected.
-- Active model-card protection must be derived from the active model directory or documented `models/{model_version_id}/model_card.json` layout because the database stores `weights_path` but no explicit model-card path.
-- Referenced directories, including `experiment_runs.artifacts_path` and derived active model directories, must be protected as prefixes so descendants cannot be deleted by exact-path-only cleanup logic.
+- No migration planned.
+- Use existing `experiment_runs` fields:
+  - `name`
+  - `experiment_type`
+  - `description`
+  - `model_version_id`
+  - `dataset_name`
+  - `config_json`
+  - `artifacts_path`
+  - `is_published`
+  - `created_by_user_id`
+- Use existing `experiment_metrics` fields:
+  - `experiment_run_id`
+  - `metric_name`
+  - `metric_value`
+  - `metric_unit`
+  - `metadata_json`
+
+## API impact
+
+- Implement documented endpoints only.
+- Do not add routes outside `/api/experiments`.
+- Do not add training-launch endpoints, file upload endpoints, or frontend-only flows.
+- Do not expose absolute host/container paths.
+- Keep API output inside CV-only boundary: model, dataset, config, artifacts reference, experiment metrics, and performance/detection analysis metadata only.
 
 ## Security/privacy impact
 
-- High sensitivity: admin endpoints expose global data and cleanup touches filesystem.
-- Enforce admin role server-side on all endpoints.
-- Inactive admin tokens must be rejected through existing active-user dependency chain.
-- Regular users receive 403, not partial data.
-- Cleanup path handling must use safe join under `STORAGE_ROOT`.
-- Logs must describe cleanup counts/actions without secrets or absolute host paths.
-- Responses must not include password hashes, raw tokens, JWT secrets, DB passwords, or stack traces.
-- Cleanup must not physically delete from `uploads/`, `results/`, `reports/`, `models/`, or `datasets/` in Phase 11 because no retention window exists.
+- Import route requires admin role.
+- List/detail require active authenticated user.
+- Regular users cannot see unpublished runs.
+- Path validation rejects absolute paths, traversal, empty paths, and paths outside reports storage.
+- API responses must not include secrets, tokens, passwords, stack traces, or absolute storage roots, including echoed metric metadata.
+- No training execution, shell execution, notebook launch, or user-uploaded file execution.
 
 ## Test strategy
 
-Targeted backend tests only:
+Backend tests only, scoped to Phase 12:
 
-- Guest cannot access admin routes.
-- Regular user cannot access admin routes.
-- Inactive admin token cannot access admin routes.
-- Admin can access stats, jobs, users, cleanup endpoint.
-- Admin users endpoint omits `password_hash` and sensitive fields.
-- Admin jobs endpoint returns global job history safely and omits internal result path fields/absolute paths.
-- Cleanup protects active model weights and derived active model-card/directory paths.
-- Cleanup protects files referenced by non-deleted records.
-- Cleanup protects child files under referenced artifact directories and derived active model directories.
-- Cleanup preserves a fresh unreferenced file under `results/`.
-- Cleanup physically deletes only clearly safe unreferenced files under `temp/`, if physical deletion is implemented at all.
-- Cleanup protects files needed by visible completed jobs.
-- Cleanup does not escape `STORAGE_ROOT`.
-- Cleanup logs do not include secrets or absolute storage root.
+- Guest cannot list/read/import experiments.
+- Active regular user lists only published runs.
+- Active admin lists published and unpublished runs.
+- List pagination returns `items`, `total`, `limit`, and `offset`.
+- List filtering supports `experiment_type`; admin-only published-status filtering supports published and unpublished views without bypassing visibility rules.
+- Regular user gets safe not-found behavior for unpublished detail.
+- Admin can import each documented experiment type.
+- Admin import with nonexistent `model_version_id` returns safe 400/404 without stack traces, DB internals, or storage roots.
+- Regular user cannot import.
+- Inactive admin token cannot import.
+- Import accepts `metric_value = null` and response preserves it.
+- Import rejects unsupported experiment type such as `tracking_accuracy`.
+- Import rejects `tracker_comparison` metrics/metadata using absolute tracking-accuracy wording such as `tracking_accuracy`, `MOTA`, `IDF1`, or `HOTA`.
+- Import rejects absolute, traversal, outside-category, and missing artifact paths.
+- Responses do not include absolute `STORAGE_ROOT`, including nested metric metadata when metadata is echoed.
+- Import does not create processing jobs, worker work, or training side effects.
+- Existing admin stats remain compatible with imported runs.
 
-Relevant gates:
+Planned quality gates:
 
-- `python -m ruff check .` from `backend/`
-- `python -m pytest tests/test_admin_api.py` from `backend/`
-- `python -m pytest` from `backend/` if targeted tests pass
-
-Not relevant for this phase:
-
-- Frontend build/typecheck.
-- Worker/CV processing tests.
-- Docker full-stack smoke unless backend wiring changes break container startup.
+- `cd backend; python -m ruff check app/api/experiments.py app/services/experiments.py app/schemas/experiments.py tests/test_experiments_api.py`
+- `cd backend; python -m pytest tests/test_experiments_api.py tests/test_admin_api.py::test_admin_stats_users_and_jobs_are_global_and_safe tests/test_data_model.py::test_detections_tracks_and_metrics_relationship_constraints`
 
 ## Ambiguities or conflicts
 
-WARNING: CONFLICT:
-
-- `docs/index.md` stale implementation-state text conflicts with current repository and `backend/index.md`. It says only Phase 1 placeholders exist; repo has backend implementation through Phase 10.
-
-Ambiguities:
-
-- Stats field contract absent.
-- Cleanup request/response contract absent.
-- "Recent user results" retention window absent.
-- Physical cleanup scope absent beyond negative safety rules.
-
-Planning position:
-
-- Implement only what docs confirm.
-- Do not invent a retention window. Use temp-only physical deletion plus report-only behavior for other storage categories.
-- If implementation cannot define stats/cleanup JSON shape without inventing unsafe behavior, stop before source edits and request user/product-doc decision.
+- WARNING: CONFLICT: `docs/index.md` current implementation state says backend is still placeholder-only, while current repository and `backend/index.md` show implemented backend APIs through Phase 11. This affects implementation-state research only, not Phase 12 experiment API behavior.
+- No confirmed doc conflict found between `docs/phase.md` and `docs/ROADMAP.md` for Phase 12.
+- Ambiguity: exact import request body is not specified. Use only documented database fields and metric fields; do not add product concepts.
+- Ambiguity: docs mention artifact paths from existing files, while cleanup logic supports file or directory protection. Use existing path helper behavior and accept existing file or directory under `reports/`.
+- Ambiguity: `FRONTEND_UX.md` gives exact Ukrainian empty text for frontend, but Phase 12 is backend only. Do not implement frontend empty states here.

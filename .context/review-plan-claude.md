@@ -2,9 +2,9 @@
 
 ## Summary
 
-Plan matches Phase 11 scope: admin-only backend routes, no frontend/worker/training/schema creep, admin dependency required, safe responses, targeted backend tests.
+Phase 12 plan matches main docs: protected `/api/experiments` routes, admin-only import, published-only user visibility, nullable metrics, safe artifact paths, no training launch, no frontend/worker scope creep.
 
-Changes needed before implementation: tighten cleanup protection model and tests. Risk sits in filesystem deletion, not route scaffolding.
+Approval needs small plan changes before implementation. Issues below are real phase risks, not broad release checks.
 
 ## Blocking issues
 
@@ -12,30 +12,32 @@ None.
 
 ## Important issues
 
-1. Active model card protection too vague.
-   - Evidence: `docs/AUTH_SECURITY.md` says admin cleanup must not remove active model weights or model cards. `docs/API.md` repeats active model weights safety. `docs/ARCHITECTURE.md` documents model layout with `models/{model_version_id}/weights.pt` and `models/{model_version_id}/model_card.json`. `docs/DATA_MODEL.md` stores only `model_versions.weights_path`, no explicit model-card path.
-   - Plan evidence: `.context/plan.md` steps 8-9 say protect active model artifacts/weights/cards, but do not say how to derive/protect `model_card.json` when DB has only `weights_path`; test wording says "when represented by documented paths", which can skip real active model cards.
-   - Required change: implementation plan/checks must explicitly protect active model card path or whole active model directory derived from active model `weights_path`.
+1. Tracker behavior wording guard too narrow.
+   - Evidence: `docs/phase.md` requires API/UI-facing data use tracker behavior wording, not absolute tracking accuracy. `docs/TRAINING_EXPERIMENTS.md` says tracker comparison is not absolute tracking accuracy and must not require MOTA, IDF1, HOTA, or manually annotated track identity metrics.
+   - Plan evidence: step 4 rejects unsupported experiment type `tracking_accuracy`, but does not cover metric names or metric metadata inside valid `tracker_comparison` imports.
+   - Risk: admin can import a valid `tracker_comparison` with API-facing metric names like `tracking_accuracy`, `MOTA`, `IDF1`, or `HOTA`, causing product-doc mismatch.
+   - Needed change: add explicit validation/test for tracker-comparison metric names/metadata wording, or document allowed tracker behavior metric names from `TRAINING_EXPERIMENTS.md`.
 
-2. Referenced directory paths need prefix protection, not exact-path protection only.
-   - Evidence: `docs/DATA_MODEL.md` lists `experiment_runs.artifacts_path` as relative path field. `docs/ARCHITECTURE.md` stores reports under directories like `reports/{experiment_id}/metrics.json` and `reports/{experiment_id}/confusion_matrix.png`.
-   - Plan evidence: `.context/plan.md` step 8 says collect relative paths from documented DB fields. Exact file-path protection can miss descendants under referenced artifact directories.
-   - Required change: cleanup protection set must treat referenced artifact directories and derived active model directories as protected prefixes, with tests proving child files remain.
+2. Invalid `model_version_id` lacks explicit test.
+   - Evidence: `docs/API.md` lists missing model version as an error case. `docs/DATA_MODEL.md` defines `experiment_runs.model_version_id -> model_versions.id`.
+   - Plan evidence: step 7 says validate optional `model_version_id` exists before commit, but test steps do not include invalid model reference.
+   - Risk: raw FK/DB error or stack detail leaks instead of safe API error.
+   - Needed change: add test where admin import uses nonexistent UUID and receives safe 400/404 without storage root, stack trace, or DB internals.
 
-3. Recent user-result safety lacks direct test.
-   - Evidence: `docs/API.md` and `docs/AUTH_SECURITY.md` both say cleanup must not delete recent user results accidentally. `docs/DATA_MODEL.md` allows physical deletion only through safe admin cleanup and warns against deleting recent user results.
-   - Plan evidence: `.context/plan.md` tests protect referenced files, active model artifacts, visible completed jobs, and path escape, but no explicit recent orphan/unreferenced result file test.
-   - Required change: add targeted cleanup test where a fresh file under `results/` remains untouched, or make cleanup dry-run/no-delete outside `temp/` until retention policy exists.
+3. List pagination/filter behavior not explicit in implementation/test steps.
+   - Evidence: `docs/API.md` says list endpoints should support pagination when lists can grow and recommends experiment filters by experiment type and published status for admins.
+   - Plan evidence: design assumes existing collection shape, but ordered steps do not require `limit`/`offset`, `experiment_type`, or admin `published` filter behavior/tests.
+   - Risk: `/api/experiments` may ship as unbounded or without documented filters, causing API drift and poor frontend support.
+   - Needed change: add list implementation/tests for pagination and relevant filters, with visibility enforced before returning rows.
 
 ## Optional improvements
 
-- Make `backend/index.md` update non-optional if new backend files are created, because `docs/index.md` says component index files track current contents. Product docs need no change.
-- Prefer cleanup response with counts and categories over path lists. If paths are returned, keep only relative/logical paths.
+- Add one response-shape assertion that experiment responses never include absolute `STORAGE_ROOT`, including nested metric metadata if metadata is echoed.
+- In code-review checklist, include "no new experiment type aliases" so `tracker_behavior_comparison` or `tracking_accuracy` does not creep in beside documented `tracker_comparison`.
 
 ## Questions for resolution
 
-- What retention window defines "recent" for cleanup? If unresolved, safest implementation is dry-run/no-delete for `uploads/`, `results/`, `reports/`, `models/`, and `datasets/`, with possible narrow cleanup of unreferenced `temp/`.
-- Should cleanup physically delete files in Phase 11, or only report eligible files until retention policy exists?
+None blocking. If implementation wants `artifacts_path` outside `reports/`, resolve before coding because current design constrains it to `reports/`.
 
 ## Files consulted
 
@@ -48,7 +50,9 @@ None.
 - `.context/design.md`
 - `.context/plan.md`
 - `docs/API.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/DATA_MODEL.md`
-- `docs/ARCHITECTURE.md`
+- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/FRONTEND_UX.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
+- `C:/Users/Kotletka/.codex/skills/caveman/SKILL.md`

@@ -1,44 +1,46 @@
-## Phase 11 - Admin backend APIs and safe storage cleanup
+## Phase 12 - Experiment import backend API
 
-**Direction:** Backend / Admin  
-**Goal:** Implement admin-only global statistics, global history, basic user list, and conservative storage cleanup.
+**Direction:** Backend / Admin / Experiments  
+**Goal:** Implement imported experiment records and metrics without launching training from the app.
 
 ### Scope
 
 - Implement endpoints:
-  - `GET /api/admin/stats`;
-  - `GET /api/admin/jobs`;
-  - `GET /api/admin/users`;
-  - `POST /api/admin/storage/cleanup`.
-- Enforce admin role explicitly on all admin endpoints.
-- Provide global processing statistics and recent global job history.
-- Provide basic user list without password hashes or sensitive fields.
-- Implement conservative cleanup rules.
-- Cleanup must not remove:
-  - active model weights;
-  - model cards for active models;
-  - files referenced by non-deleted records;
-  - recent user results accidentally;
-  - files needed by visible completed jobs.
-- Log cleanup actions safely.
-- Add admin/regular-user access tests and cleanup safety tests.
+  - `GET /api/experiments`;
+  - `GET /api/experiments/{experiment_id}`;
+  - `POST /api/experiments/import`.
+- Restrict experiment import to admins.
+- Regular users can view only published experiment runs.
+- Admins can view all imported experiment runs.
+- Support required experiment types:
+  - model comparison;
+  - confidence threshold analysis;
+  - tracker behavior comparison;
+  - false-positive analysis.
+- Import structured metrics and artifact paths from existing files under storage.
+- Allow `metric_value = null` for incomplete imports.
+- Validate artifact paths as relative and safe.
+- Ensure API and UI-facing data use tracker behavior wording, not absolute tracking accuracy.
+- Add tests for import, published visibility, null metrics, role access, and path safety.
 
 ### Relevant docs
 
 - `docs/API.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/DATA_MODEL.md`
-- `docs/ARCHITECTURE.md`
+- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/FRONTEND_UX.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Regular users cannot access admin routes.
-- Admin can view global stats, jobs, and basic users.
-- Cleanup dry-run or conservative mode works if implemented.
-- Cleanup does not delete referenced files or active model artifacts.
-- Admin endpoint tests pass.
+- Admin can import experiment metadata and metrics.
+- Regular users see only published experiments.
+- Admins see unpublished experiments.
+- Null metric values do not break API responses.
+- Training cannot be launched from API routes.
+- Experiment tests pass.
 
 ### Commit
 
-`feat(backend-admin): add admin stats users jobs and safe storage cleanup`
+`feat(backend-experiments): add experiment import and visibility API`
