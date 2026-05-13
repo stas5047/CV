@@ -52,6 +52,16 @@ def test_settings_reject_wildcard_cors_origin(
         Settings()
 
 
+def test_settings_reject_empty_cors_origins(
+    required_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BACKEND_CORS_ORIGINS", " , ")
+
+    with pytest.raises(ValidationError):
+        Settings()
+
+
 def test_settings_repr_masks_sensitive_values(required_env: None) -> None:
     settings = Settings()
 

@@ -1,114 +1,120 @@
-# Phase 5 Implementation Plan
+# Phase 6 Implementation Plan
 
-Scope: **Phase 5 - Authentication and account activity** only.
+Scope: Authorization, ownership, CORS, path safety, and security utilities only. No source changes in this planning phase. Implementation must not add product APIs, frontend work, CV worker work, database migrations, or later-phase media/job/result behavior.
 
-Risk assumption: **HIGH** because auth/security behavior gates all later protected APIs.
+1. [@role/developer-auth-security] Re-read `docs/AUTH_SECURITY.md`, `docs/API.md`, `docs/ARCHITECTURE.md`, and `docs/TESTING_QA.md`.
+   - Verify Phase 6 scope before edits.
+   - Stop with `WARNING: CONFLICT` if docs disagree with current code.
 
-## Ordered Atomic Steps
+2. [@role/developer-backend] Inspect existing backend auth, dependency, CORS, logging, config, model, and test files.
+   - Verify current `/api/auth/me` still enforces valid token and active account.
+   - Identify smallest existing module boundaries for helpers.
 
-1. `@role/developer-backend` Inspect existing backend auth-adjacent code.
-   - Verify current `User` model, settings, bcrypt helper, API router, DB session setup, and tests.
-   - Verifiable: exact existing functions/classes to reuse are listed before edits.
+3. [@role/tester] Add failing Phase 6 tests for admin role enforcement.
+   - Regular user must be rejected by admin-only dependency.
+   - Admin user must be accepted.
+   - Missing/invalid token must remain rejected through protected-route dependency.
+   - Inactive user must remain rejected.
 
-2. `@role/developer-backend` Define Phase 5 auth schemas inside existing backend app structure.
-   - Include register input, login input, safe user output, and login token output.
-   - Exclude `password_hash` from every response schema.
-   - Exclude token fields from registration and `/me` responses.
-   - Verifiable: schema tests or route tests prove password hash is absent and only login returns a token.
+4. [@role/developer-auth-security] Implement reusable admin-only dependency.
+   - Reuse existing current-active-user dependency.
+   - Enforce exactly documented roles: `user` and `admin`.
+   - Return safe HTTP error without passwords, hashes, tokens, or stack traces.
 
-3. `@role/developer-auth-security` Add JWT helper.
-   - Use configured `JWT_SECRET_KEY`, `JWT_ALGORITHM`, and `ACCESS_TOKEN_EXPIRE_MINUTES`.
-   - Include expiry claim.
-   - Reject invalid/expired tokens.
-   - Verifiable: tests cover valid, invalid, and expired token behavior.
+5. [@role/tester] Run targeted auth/security tests for admin dependency.
+   - Command: `cd backend; python -m pytest tests/test_auth.py -q`
+   - Expected: admin dependency tests pass; existing auth tests still pass.
 
-4. `@role/developer-backend` Add request-scoped DB session dependency if absent.
-   - Use existing SQLAlchemy session factory.
-   - Ensure sessions close after request.
-   - Verifiable: auth route tests can override/use test DB session cleanly.
+6. [@role/tester] Add failing ownership-helper tests.
+   - Owner accepted.
+   - Admin accepted.
+   - Other active user rejected.
+   - Missing resource rejected safely.
+   - Indirect ownership through a media owner is accepted for the owner and admin.
+   - Indirect ownership through a job/media owner is accepted for the owner and admin.
+   - Cross-owner indirect resources are rejected with the same safe not-found style response as missing resources where practical.
+   - Test must not require new product endpoints.
 
-5. `@role/developer-auth-security` Add current active user dependency.
-   - Read bearer token from `Authorization`.
-   - Decode JWT.
-   - Load user by token subject.
-   - Reject missing user or inactive user.
-   - Verifiable: `/api/auth/me` rejects missing, invalid, expired, unknown-user, and inactive-user cases.
+7. [@role/developer-auth-security] Implement reusable ownership helper.
+   - Support owner-id based resources from current SQLAlchemy models.
+   - Support predicate/callback or explicit lookup patterns for indirect ownership through media and job records.
+   - Support admin override.
+   - Avoid leaking cross-owner resource existence in response detail.
+   - Use forbidden response for admin-only role failures; use safe not-found style denial for user-owned missing/cross-owner resources where practical.
+   - Keep helper generic enough for later media, job, result, and download services without adding those services now.
 
-6. `@role/developer-backend` Implement `POST /api/auth/register`.
-   - Reject authenticated user/admin requests with HTTP 403.
-   - Obey `ALLOW_PUBLIC_REGISTRATION`.
-   - Require password length >= 8.
-   - Normalize email consistently with seed flow.
-   - Hash password before save.
-   - Always set `role = user`.
-   - Ignore or reject role-like input so public registration cannot smuggle `role = admin`.
-   - Reject duplicate email safely.
-   - Return safe user data only; do not return a JWT access token.
-   - Verifiable: tests cover enabled, disabled, authenticated caller forbidden, short password, duplicate email, hashed password, no admin creation, and no registration token.
+8. [@role/tester] Run targeted ownership tests.
+   - Command: `cd backend; python -m pytest tests/test_auth.py -q`
+   - Expected: ownership helper tests pass; existing auth tests still pass.
 
-7. `@role/developer-backend` Implement `POST /api/auth/login`.
-   - Reject authenticated user/admin requests with HTTP 403.
-   - Verify normalized email and password.
-   - Reject inactive users.
-   - Return JWT access token for valid active user.
-   - Use generic failure for bad credentials/inactive state unless implementation tests require split status.
-   - Verifiable: tests cover valid regular user, seeded admin, authenticated caller forbidden, wrong password, unknown email, inactive user.
+9. [@role/tester] Add failing path safety tests.
+   - Safe relative path accepted.
+   - Empty path rejected where database-facing path is required.
+   - Absolute Unix path rejected.
+   - Windows drive path rejected.
+   - UNC path rejected.
+   - `../`, `..\\`, nested slash traversal, and nested backslash traversal rejected.
+   - Safe join result stays inside configured `STORAGE_ROOT`.
 
-8. `@role/developer-backend` Implement `GET /api/auth/me`.
-   - Use current active user dependency.
-   - Return safe user profile with role.
-   - Verifiable: tests prove valid token succeeds and response omits password hash and token fields.
+10. [@role/developer-auth-security] Implement path safety utilities.
+    - Validate database-facing paths are relative to `STORAGE_ROOT`.
+    - Prevent traversal before joining paths.
+    - Safely join relative path under configured storage root.
+    - Do not return absolute paths in API-facing structures.
 
-9. `@role/developer-backend` Decide optional `POST /api/auth/logout`.
-   - Preferred Phase 5 minimal scope: skip endpoint because docs allow client-side token deletion and no invalidation storage is required.
-   - If implemented, make it authenticated no-op consistency endpoint only.
-   - Verifiable: plan/status notes state skipped or tests cover authenticated no-op behavior.
+11. [@role/tester] Add failing filename safety tests.
+   - Normal filenames preserve safe display value.
+   - Path components are stripped.
+   - Traversal names are neutralized.
+   - Empty/unsafe names produce safe fallback display name.
+   - Download filename helper emits safe name without path separators.
+   - Windows reserved or hostile names such as `CON`, `NUL`, trailing dots, and trailing spaces are neutralized.
 
-10. `@role/developer-backend` Register auth router under existing `/api` router.
-    - Keep health endpoints public.
-    - Verifiable: `/api/health` still works without token; auth routes live under `/api/auth`.
+12. [@role/developer-auth-security] Implement filename and download-name helpers.
+    - Sanitize original filename for display metadata.
+    - Ensure raw user filename never controls internal storage path.
+    - Ensure suggested download names cannot traverse paths.
 
-11. `@role/tester` Add focused backend auth tests.
-    - Cover registration, login, JWT, `/me`, inactive users, seeded admin login, guest-only register/login enforcement, role-smuggling prevention, and response secrecy.
-    - Do not add upload/job/admin/frontend/worker tests in this phase.
-    - Verifiable: `python -m pytest` from `backend/` runs these tests.
+13. [@role/tester] Run targeted path/filename tests.
+    - Command: `cd backend; python -m pytest tests/test_auth.py tests/test_settings.py -q`
+    - Expected: path, filename, CORS/settings, and auth tests pass.
 
-12. `@role/tester` Run backend lint.
+14. [@role/tester] Verify or add explicit CORS validation tests.
+    - Explicit configured origins are accepted.
+    - Wildcard origin is rejected.
+    - Empty origin configuration is rejected when settings require configured origins.
+    - If these tests live outside `tests/test_settings.py`, include their exact file path in targeted gate commands.
+
+15. [@role/developer-auth-security] Review CORS validation against docs.
+    - Keep configured explicit origins required.
+    - Keep wildcard rejection unless implementation introduces a documented local-only exception.
+    - Do not use broad wildcard CORS for non-local configuration.
+
+16. [@role/tester] Verify secure error response behavior for Phase 6 helper paths.
+    - Add a narrow test route only inside tests if needed; do not add product API surface.
+    - Assert helper-raised HTTP errors expose safe detail only.
+    - Assert responses do not expose tracebacks, secrets, tokens, passwords, password hashes, database passwords, or unsafe absolute storage paths.
+
+17. [@role/developer-auth-security] Review logging and error safety.
+    - Ensure new helpers do not log passwords, hashes, tokens, JWT secrets, database passwords, or sensitive environment values.
+    - Ensure new HTTP errors use safe details.
+    - Preserve current API response style; do not invent new public error envelope unless needed for stack-trace prevention.
+
+18. [@role/tester] Run relevant backend gates.
     - Command: `cd backend; python -m ruff check .`
-    - Expected: `PASS`.
+    - Expected: PASS.
+    - Command: `cd backend; python -m pytest tests/test_auth.py tests/test_settings.py tests/test_logging.py -q`
+    - Expected: PASS.
+    - Include any new test files explicitly if they are not in the listed files.
+    - Because shared security/core helpers are touched, run `cd backend; python -m pytest -q`.
 
-13. `@role/tester` Run backend tests.
-    - Command: `cd backend; python -m pytest`
-    - Expected: `PASS`.
+19. [@role/code-reviewer] Phase 6 scope review.
+    - Confirm no frontend/CV worker/source-of-truth docs changed.
+    - Confirm no media/job/result/model/experiment/admin product API added.
+    - Confirm no migration/schema change was introduced.
+    - Confirm CV-only boundary unaffected.
+    - Confirm security utilities match consulted docs.
 
-14. `@role/code-reviewer` Review Phase 5 diff against docs.
-    - Check no password/token leakage, no public admin creation, inactive checks, no extra roles, no out-of-scope APIs, no frontend/worker/media/job work.
-    - Verifiable: review notes list any accepted/rejected issues.
-
-15. `@role/docs-maintainer` Decide docs/index updates.
-    - Product docs must not change for this implementation unless commands, env vars, or documented paths change.
-    - Backend index/README update only if implementation changes current-state or commands.
-    - Verifiable: final implementation report says docs updated or skipped with reason.
-
-## Relevant Quality Gates
-
-- `cd backend; python -m ruff check .`
-- `cd backend; python -m pytest`
-
-Not relevant for Phase 5:
-
-- frontend build/tests;
-- CV worker tests;
-- Docker full-stack smoke, unless backend startup/Docker files change;
-- migration validation, unless implementation adds an unexpected migration.
-
-## Scope Exclusions
-
-- No source work in this planning turn.
-- No product docs modification in this planning turn.
-- No schema change unless implementation later proves blocker.
-- No role/ownership helpers beyond current active user dependency.
-- No media, jobs, results, downloads, models, experiments, admin routes.
-- No frontend UI.
-- No worker/CV/training changes.
-- No refresh tokens, password reset, email verification, OAuth, 2FA, rate limiting, lockout, token blacklist, or extra roles.
+20. [@role/docs-maintainer] Documentation/index decision.
+    - Do not update product docs unless implementation changes documented commands, env variables, folder structure, or file paths.
+    - If no such change, record docs update skipped in final implementation report.

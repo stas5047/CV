@@ -1,42 +1,39 @@
-## Phase 5 - Authentication and account activity
+## Phase 6 - Authorization, ownership, CORS, path safety, and security utilities
 
 **Direction:** Backend / Security  
-**Goal:** Implement registration, login, current-user, JWT, password hashing, and account activity checks.
+**Goal:** Add reusable authorization and safety primitives before implementing protected product APIs.
 
 ### Scope
 
-- Implement password hashing with bcrypt or Argon2.
-- Implement JWT access-token creation and verification.
-- Implement auth dependencies/middleware for protected routes.
-- Implement endpoints:
-  - `POST /api/auth/register`;
-  - `POST /api/auth/login`;
-  - `GET /api/auth/me`;
-  - `POST /api/auth/logout` as optional consistency endpoint.
-- Enforce `ALLOW_PUBLIC_REGISTRATION`.
-- Enforce minimum password length of 8 characters.
-- Ensure registration always creates `role = user`.
-- Reject inactive users at login and on protected-route access.
-- Ensure API responses never expose password hashes or tokens except login token response.
-- Add tests for register/login/me/inactive/disabled-registration cases.
+- Add role-check dependency for admin-only endpoints.
+- Add reusable ownership-check helpers for user-owned resources.
+- Add account-active enforcement for protected routes.
+- Add safe path utilities:
+  - relative path validation;
+  - path traversal prevention;
+  - safe join under `STORAGE_ROOT`;
+  - safe download filename handling.
+- Add upload filename sanitization helper.
+- Add CORS validation using explicit configured origins.
+- Add secure error response patterns that do not expose stack traces.
+- Add logging helpers/events that omit secrets and tokens.
+- Add security tests for unauthorized, forbidden, inactive, ownership, CORS, and path traversal cases.
 
 ### Relevant docs
 
 - `docs/AUTH_SECURITY.md`
 - `docs/API.md`
-- `docs/DATA_MODEL.md`
+- `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Registration works when public registration is enabled.
-- Registration returns forbidden behavior when disabled.
-- Public registration cannot create admin accounts.
-- Login works with valid credentials and fails with invalid credentials.
-- Inactive accounts cannot authenticate or access protected routes.
-- Seeded admin can log in.
-- Auth tests pass.
+- Protected test route or existing auth route rejects missing/invalid tokens.
+- Admin-only dependency rejects regular users.
+- Path traversal attempts fail in utility tests.
+- Absolute paths are rejected for database-facing path fields.
+- Logs do not include passwords, tokens, secrets, or database passwords in tests or manual inspection.
 
 ### Commit
 
-`feat(backend-auth): add JWT auth registration login and account activity checks`
+`feat(backend-security): add authorization ownership and path safety utilities`

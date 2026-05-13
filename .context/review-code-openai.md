@@ -1,12 +1,12 @@
-# Phase 5 OpenAI/Codex Code Review
+# Phase 6 OpenAI/Codex Code Review
 
 ## Verdict: APPROVED
 
 ## Summary
 
-Phase 5 implementation matches documented scope: backend-only authentication and account activity. It adds JWT issuance/validation, public registration toggle, guest-only register/login behavior, current active user dependency, `/api/auth/register`, `/api/auth/login`, `/api/auth/me`, safe response schemas, and focused auth tests.
+Phase 6 implementation matches documented scope: backend-only authorization and safety primitives. It adds admin-role dependency, owner-or-admin helper, direct and indirect ownership owner-id helpers, storage relative-path validation, safe storage-root join, upload/download filename sanitization, and focused tests.
 
-No correctness, product-doc, architecture, security/privacy, or relevant-test defect found in changed Phase 5 code.
+No correctness, product-doc mismatch, architecture regression, missing relevant test, or security/privacy defect found in changed Phase 6 code.
 
 ## Critical issues
 
@@ -22,31 +22,27 @@ None.
 
 ## Quality gate assessment
 
-- `rtk git status --short`: inspected. Changed source surface is backend auth/router/index plus context docs. New auth files are untracked, so direct file reads were used because `rtk git diff` does not include untracked content.
+- `rtk git status --short`: inspected. Changed surface includes Phase 6 context/docs updates, `backend/index.md`, `backend/tests/test_settings.py`, and untracked Phase 6 helper/test files.
 - `rtk git diff --stat`: inspected.
-- `rtk git diff`: inspected.
+- `rtk git diff`: inspected. Untracked helper/test files were read directly because normal diff output did not include their content.
 - `python -m ruff check .` from `backend/`: PASS.
-- `python -m pytest` from `backend/`: PASS, 38 passed.
-- Phase-specific coverage present in `backend/tests/test_auth.py`: registration enabled/disabled, short password, duplicate email, role smuggling, authenticated register/login rejection, login success/failure, inactive login, `/me` valid/missing/invalid/expired/inactive token behavior, seeded admin login, response secrecy.
+- `python -m pytest -q` from `backend/`: PASS, 73 passed.
+- Test coverage present for admin dependency, safe admin error response, owner/admin access, missing and cross-owner denial equivalence, indirect media/job ownership, unsafe storage paths, safe join, filename sanitization, safe download filenames, wildcard CORS rejection, and empty CORS rejection.
 
 ## Security/privacy assessment
 
-Applicable because Phase 5 touches auth, JWT, passwords, and account activity.
-
-- Passwords are hashed on registration through `hash_password()` and never returned by auth response schemas.
-- Login is only endpoint returning `access_token`; registration and `/me` omit token fields.
-- Public registration always creates `role = user`; extra role/activity fields are ignored and tested.
-- Inactive users cannot log in or access `/api/auth/me`.
-- Protected auth dependency rejects missing, malformed, expired, unknown-user, and inactive-user tokens.
-- No evidence of password, token, JWT secret, or password-hash logging in touched auth code.
+- Admin dependency uses active-user dependency path and returns safe 403 for non-admin users.
+- Ownership helper returns same safe 404 detail for missing and cross-owner user resources, reducing resource-existence leakage.
+- Path utilities reject empty paths, null bytes, absolute Unix paths, Windows drive paths, UNC paths, duplicate separators, and `..` traversal before joining under `STORAGE_ROOT`.
+- Filename helpers strip path components and neutralize hostile Windows names used in tests.
+- No secrets, tokens, password hashes, raw database credentials, or unsafe absolute storage paths added to API-facing helper responses.
 
 ## Positive findings
 
-- `backend/app/api/auth.py` keeps handlers small and delegates token/current-user behavior to helpers.
-- `backend/app/core/auth.py` uses configured JWT secret, algorithm, and expiry and returns standard bearer authentication errors for protected routes.
-- `backend/app/schemas/auth.py` response models prevent password-hash exposure and keep token exposure limited to login response.
-- `backend/tests/test_auth.py` covers accepted planning-review fixes: guest-only register/login enforcement, no registration token, role-smuggling prevention, and `/me` response secrecy.
-- Optional logout was skipped consistently with `docs/API.md` and `.context/plan.md`.
+- Implementation stayed within Phase 6; no product APIs, migrations, frontend work, CV worker work, or queue behavior added.
+- Helper modules are narrow and reusable for later media, jobs, results, downloads, model, experiment, and admin endpoints.
+- Tests cover both direct ownership and indirect ownership through media/job-shaped resources, matching planning-review resolution.
+- Full backend test suite and ruff pass after changes.
 
 ## Files consulted
 
@@ -57,25 +53,21 @@ Applicable because Phase 5 touches auth, JWT, passwords, and account activity.
 - `docs/phase.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/API.md`
-- `docs/DATA_MODEL.md`
+- `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
-- `backend/app/api/router.py`
-- `backend/app/api/auth.py`
-- `backend/app/api/deps.py`
+- `backend/app/core/authorization.py`
+- `backend/app/core/storage_paths.py`
 - `backend/app/core/auth.py`
 - `backend/app/core/config.py`
-- `backend/app/core/passwords.py`
-- `backend/app/db/session.py`
 - `backend/app/db/models.py`
-- `backend/app/main.py`
-- `backend/app/schemas/auth.py`
-- `backend/app/schemas/__init__.py`
-- `backend/tests/test_auth.py`
+- `backend/tests/test_security_utils.py`
+- `backend/tests/test_settings.py`
 - `backend/tests/conftest.py`
 - `backend/pyproject.toml`
 - `backend/index.md`
+- Command output: `rtk git status --short`, `rtk git diff --stat`, `rtk git diff`, `python -m ruff check .`, `python -m pytest -q`

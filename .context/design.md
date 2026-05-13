@@ -1,188 +1,136 @@
-# Phase 5 Design Contract
+# Phase Design
 
-## Phase Goal
+## Phase goal
 
-Implement backend authentication and account activity only:
+Add reusable backend security primitives for protected product APIs before media, jobs, results, models, experiments, and admin APIs are implemented.
 
-- public registration controlled by `ALLOW_PUBLIC_REGISTRATION`;
-- login with email/password;
-- JWT access-token creation and verification;
-- current-user endpoint;
-- guest-only access enforcement for register/login;
-- protected-route dependency that rejects inactive accounts;
-- focused tests for the documented auth cases.
+## Intended behavior from docs
 
-No frontend, uploads, jobs, downloads, role/ownership utility expansion, worker, training, or admin API work belongs in this phase.
+Confirmed:
 
-## Intended Behavior From Docs
+- Protected routes require valid JWT authentication.
+- Inactive users must be rejected on protected routes.
+- Admin-only routes must enforce `role = admin`.
+- Regular users may access user-owned resources only when resource belongs to them or to a media/job record owned by them.
+- Admins may access global resources through admin-authorized routes and permissions.
+- Backend must prevent path traversal.
+- Database-facing file references must be relative to `STORAGE_ROOT`.
+- API responses and downloads must not expose unsafe absolute host/container paths.
+- Safe download endpoints must verify ownership or admin access before serving files.
+- Uploaded filenames must be sanitized and must not control internal storage paths.
+- CORS must use configured explicit origins; wildcard is not allowed in non-local configuration.
+- Logs must not include passwords, password hashes, tokens, JWT secrets, database passwords, or sensitive environment values.
+- API responses must not expose stack traces.
 
-Confirmed required endpoints:
+Assumptions:
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `GET /api/auth/me`
+- Phase 6 creates reusable primitives and tests only; it does not implement media upload, job creation, results downloads, admin APIs, or frontend behavior.
+- Existing `/api/auth/me` remains enough to prove missing/invalid token rejection.
+- Security utilities should avoid storing or returning absolute paths.
 
-Confirmed optional endpoint:
+## Architecture decisions
 
-- `POST /api/auth/logout` may exist, but token invalidation storage is not required.
+- Backend remains authorization authority.
+- No frontend, CV worker, Docker service, database schema, or product endpoint work belongs in this phase.
+- Role and ownership checks should live in backend dependency/service helper layer, not frontend.
+- Path safety should be centralized so later upload/download code cannot repeat ad hoc path logic.
+- Storage helpers should resolve paths under `STORAGE_ROOT` only at runtime and return safe filesystem paths internally while keeping database/API references relative.
+- Logging helpers should redact sensitive values and sensitive key names before emission.
+- Error handling should preserve FastAPI-compatible errors without exposing stack traces or secrets.
 
-Confirmed auth rules:
+## Backend impact
 
-- JWT access tokens are required for protected routes.
-- Passwords must be hashed with bcrypt or Argon2; current repo already uses bcrypt.
-- Password minimum length is 8 characters.
-- Public registration obeys `ALLOW_PUBLIC_REGISTRATION`.
-- Disabled public registration returns HTTP 403.
-- Public registration always creates `role = user`.
-- Public registration must never create admins.
-- Inactive users must not receive tokens at login.
-- Inactive users must not access protected endpoints.
-- Register/login are guest-only endpoints per `docs/API.md`; authenticated users/admins must be rejected with HTTP 403.
-- Login is the only Phase 5 endpoint that returns a JWT access token.
-- Registration returns safe user data only and must not return a JWT access token.
-- Auth responses must not expose `password_hash`, JWT secret, or raw token except in the login token response.
+- Add or extend reusable auth/security dependencies for:
+  - active-user requirement.
+  - admin-role requirement.
+  - ownership-or-admin checks for existing model instances, direct owner IDs, and indirect ownership through media/job records.
+- Add or extend path safety helpers for:
+  - relative path validation.
+  - traversal rejection.
+  - safe join under configured storage root.
+  - safe download filename generation.
+  - upload filename sanitization.
+- Add tests proving helpers reject unsafe inputs and preserve safe inputs.
+- Do not add public product API routes.
 
-Confirmed data rules:
+## Frontend impact
 
-- Use existing `users` table.
-- `users.email` is unique.
-- `users.role` is `user` or `admin`.
-- `users.is_active` gates authentication and protected route access.
+- None in this phase.
 
-Confirmed QA rules:
+## DB impact
 
-- Register enabled works.
-- Register disabled returns forbidden behavior.
-- Short password is rejected.
-- Login works with valid credentials.
-- Login fails with invalid credentials.
-- JWT token allows protected access.
-- Missing/invalid token blocks protected access.
-- Seeded admin can log in.
-- Inactive account cannot authenticate or access protected route.
-- Public registration cannot create admin account.
+- No schema or migration changes planned.
+- Existing relative-path database checks remain useful defense-in-depth, but Phase 6 must add service-level validation too.
 
-## Architecture Decisions
+## API impact
 
-- Keep auth in backend only; frontend and worker remain untouched.
-- Keep route handlers thin; place token/password/user lookup rules in backend auth helpers or services under existing backend package.
-- Reuse `backend/app/core/passwords.py` bcrypt helpers.
-- Use `python-jose` already present in `backend/pyproject.toml` for JWT encode/decode unless implementation finds a concrete blocker.
-- Add request-scoped SQLAlchemy session dependency so auth routes and current-user dependency do not use global sessions directly.
-- Normalize email consistently with seed behavior: trim and lower-case before lookup/create.
-- Use generic login failure errors for invalid email/password or inactive user to avoid account-state disclosure unless tests/docs require more detail.
-- Reject authenticated requests to `POST /api/auth/register` and `POST /api/auth/login` with HTTP 403 because the API access matrix says user/admin access is `No`.
-- Do not create extra roles, refresh tokens, password reset, email confirmation, OAuth, 2FA, account lockout, rate limiting, or token blacklist.
-- Do not add database migrations unless implementation proves current `users` schema cannot satisfy Phase 5.
+- No new product endpoints planned.
+- Existing protected auth behavior may be tested.
+- Future endpoints will consume new dependencies/utilities.
 
-## Backend Impact
+## Security/privacy impact
 
-Touched backend surface:
+- Positive impact: reusable enforcement for role checks, ownership checks, active accounts, safe paths, safe filenames, CORS origin validation, safe errors, and secret-safe logs.
+- Risk: weak helper semantics could later permit cross-owner resource access or path traversal. Tests must cover deny cases explicitly.
+- Sensitive data must not appear in test logs, API error details, or helper outputs.
 
-- Add auth router under `/api/auth`.
-- Register auth router in existing `/api` router.
-- Add schemas for register/login/current-user/token responses.
-- Add JWT helper for token create/verify.
-- Add current active user dependency.
-- Add DB session dependency if absent.
-- Add tests for auth behavior.
+## Accepted review clarifications
 
-Out of scope:
+- Ownership helper contract must support direct ownership and indirect ownership needed by later summaries, detections, tracks, and downloads:
+  - direct owner ID checks for resources that carry `owner_id`/`user_id`;
+  - predicate/callback or explicit owner lookup for resources owned through `media_files.user_id`;
+  - predicate/callback or explicit owner lookup for resources owned through `processing_jobs.media_file.user_id`;
+  - admin override only after authenticated active admin is known.
+- Ownership denial policy for user-owned resources:
+  - missing resources and cross-owner resources should return the same safe not-found style response where practical, to avoid leaking existence;
+  - admin-role failures remain forbidden responses.
+- CORS must have explicit test or existing-test verification for:
+  - configured explicit origins accepted;
+  - wildcard origin rejected;
+  - empty origin configuration rejected when settings require configured origins.
+- Error-response safety must be verified for Phase 6 helper paths:
+  - safe `HTTPException` detail only;
+  - no traceback exposure;
+  - no secret, token, password, password hash, database password, or unsafe absolute storage path exposure.
+- Filename/download-name tests should include Windows-hostile names in addition to path separator and traversal inputs:
+  - reserved device names such as `CON` and `NUL`;
+  - trailing dots/spaces;
+  - empty or all-unsafe names.
 
-- Media/job/result/model/experiment/admin APIs.
-- Role-check dependency for admin-only endpoints beyond what `/me` needs.
-- Ownership helpers.
-- Upload/path safety utilities beyond existing config/log safety.
+## Test strategy
 
-## Frontend Impact
+- Backend unit tests for admin dependency:
+  - admin accepted.
+  - regular user rejected with 403.
+  - inactive user rejected through existing active-user dependency.
+- Backend unit tests for ownership helper:
+  - owner accepted.
+  - admin accepted.
+  - other user rejected with 404 or 403 according to existing helper contract.
+  - missing resource rejected without leaking ownership.
+- Backend unit tests for path safety:
+  - safe relative paths accepted.
+  - absolute Unix paths rejected.
+  - Windows drive paths rejected.
+  - UNC paths rejected.
+  - `..` traversal rejected in slash and backslash forms.
+  - safe join result stays under `STORAGE_ROOT`.
+  - unsafe download names are sanitized.
+- Backend tests for CORS/settings:
+  - explicit origins accepted.
+  - wildcard rejected.
+  - empty origins rejected.
+- Backend logging/error tests:
+  - passwords, tokens, JWT secret, database URL/password values are redacted.
+  - unsafe absolute storage paths are not returned by helper-facing API responses.
+- Relevant gates only:
+  - `cd backend; python -m ruff check .`
+  - `cd backend; python -m pytest tests/test_auth.py tests/test_settings.py tests/test_logging.py`
+  - `cd backend; python -m pytest` if shared auth/core helpers changed broadly.
 
-No frontend source changes in Phase 5.
+## Ambiguities or conflicts
 
-Frontend-relevant contract only:
-
-- Backend must provide stable auth endpoints for later Ukrainian UI phases.
-- Response errors should be safe and localizable; no frontend Ukrainian copy is required in this backend phase.
-
-## DB Impact
-
-Expected no schema change.
-
-Use current `users` fields:
-
-- `id`
-- `email`
-- `password_hash`
-- `role`
-- `is_active`
-- `created_at`
-- `updated_at`
-
-If implementation discovers missing DB support, stop before migration and report because Phase 3 already owns schema.
-
-## API Impact
-
-Auth routes only:
-
-- `POST /api/auth/register`: guest-only public registration when enabled; creates `user` account only; returns safe user data only; never returns a token.
-- `POST /api/auth/login`: guest-only credential login; returns JWT access token for active users only.
-- `GET /api/auth/me`: protected; returns current active user profile.
-- `POST /api/auth/logout`: optional; if implemented, authenticated no-op consistency endpoint only, no token invalidation storage.
-
-Ambiguous response details:
-
-- Docs require a JWT access token but do not define exact token response fields.
-- Docs require current-user profile and role but do not define exact profile fields.
-- Implementation tests must lock chosen safe response schemas without adding undocumented business behavior.
-- Authenticated requests to register/login should return HTTP 403.
-
-## Security/Privacy Impact
-
-Security rules for this phase:
-
-- Never store plain-text passwords.
-- Never return `password_hash`.
-- Never return JWT tokens except from `POST /api/auth/login`.
-- Never log passwords, password hashes, JWT tokens, JWT secret, admin password, or database password.
-- Reject inactive users at login and protected-route access.
-- Reject missing, malformed, expired, or invalid JWT on protected routes.
-- Ensure public registration cannot set or smuggle `role = admin`.
-- Keep CORS behavior unchanged and explicit.
-
-## Test Strategy
-
-Backend tests only:
-
-- register success when `ALLOW_PUBLIC_REGISTRATION=true`;
-- register forbidden when disabled;
-- short password rejected;
-- duplicate email rejected safely;
-- registration stores bcrypt hash, not plain password;
-- registration payload with `role = admin` or another role-like extra field cannot create an admin;
-- registration result cannot create admin and does not expose `password_hash` or a token field;
-- authenticated regular-user and admin requests to register are rejected with HTTP 403;
-- login success returns JWT access token;
-- login invalid password/email fails;
-- authenticated regular-user and admin requests to login are rejected with HTTP 403;
-- inactive user login fails;
-- `/api/auth/me` succeeds with valid token;
-- `/api/auth/me` rejects missing/invalid/expired token;
-- inactive user token cannot access `/api/auth/me`;
-- `/api/auth/me` response omits `password_hash` and any token field;
-- seeded admin can log in using existing setup behavior.
-
-Relevant checks:
-
-- `cd backend; python -m ruff check .`
-- `cd backend; python -m pytest`
-
-Docker smoke is optional for this planning contract unless implementation changes Docker/startup behavior. No frontend/CV gates apply.
-
-## Ambiguities Or Conflicts
-
-No confirmed doc conflicts.
-
-Ambiguities:
-
-- Exact login token response JSON field names are not specified.
-- Exact `/api/auth/me` response fields are not specified beyond current user profile and role.
-- Optional logout endpoint is not required because client-side token deletion is acceptable.
+- No `WARNING: CONFLICT`.
+- Ambiguity: docs do not prescribe internal module names or exact helper function signatures.
+- Resolved ambiguity: user-owned missing/cross-owner denial should use the same safe not-found style response where practical; admin-role failures should use forbidden.
+- Resolved ambiguity: Phase 6 should not add a central error envelope unless implementation discovers current FastAPI configuration exposes stack traces or secrets. Prove current helper errors are safe first.

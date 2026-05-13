@@ -1,42 +1,44 @@
-# Phase 5 Planning Review Resolution
+# Verdict: READY_FOR_IMPLEMENTATION
 
-## Verdict: READY_FOR_IMPLEMENTATION
+Claude planning review resolved. No item conflicts with product docs. Accepted items applied only to Phase 6 planning contract files. No source code changes.
 
-Claude review verdict was `APPROVED_WITH_CHANGES`. All required and optional items are doc-consistent and accepted or resolved as duplicates. No item needs user decision.
+## Resolution table
 
-## Resolution Table
+| ID | Claude item | Resolution | Rationale | Contract update |
+|---|---|---|---|---|
+| I1 | Indirect ownership path not explicit enough. | accepted | `AUTH_SECURITY.md` requires ownership through direct resource ownership and media/job-owned resources for summaries, detections, tracks, and downloads. | `.context/design.md`, `.context/plan.md` now require direct and indirect ownership helper/test coverage. |
+| I2 | CORS validation has review step but weak explicit test step. | accepted | Phase 6 scope includes CORS validation and `TESTING_QA.md` requires explicit CORS security tests. | `.context/plan.md` now requires verify-or-add CORS tests for explicit origins, wildcard rejection, and empty-origin rejection. |
+| I3 | Secure error response pattern not verified. | accepted | `AUTH_SECURITY.md` and `API.md` require no stack traces, secrets, tokens, passwords, database passwords, or unsafe absolute paths in API responses. | `.context/design.md`, `.context/plan.md` now require helper-path error-response verification. |
+| I4 | Validation commands may miss new tests depending on file placement. | accepted | Security helper tests may land in new files; targeted gates must not skip them. | `.context/plan.md` now requires explicit new test file inclusion plus full backend pytest because shared security/core helpers are touched. |
+| O1 | State ownership denial policy once. | accepted | Docs require ownership enforcement and safe errors; choosing same not-found style response for missing/cross-owner user resources avoids existence leaks without changing product behavior. | `.context/design.md`, `.context/plan.md` now define denial policy. |
+| O2 | Include Windows reserved filename cases in filename tests. | accepted | Phase 6 includes filename/download-name helpers; Windows-hostile names matter on current Windows checkout and do not conflict with docs. | `.context/design.md`, `.context/plan.md` now include `CON`, `NUL`, trailing dot/space cases. |
+| Q1 | Should ownership helper return 404 for cross-owner user resources while admin-role failures return 403? | duplicate | Covered by accepted O1. | Same as O1. |
+| Q2 | Should Phase 6 add one central error handler now, or only prove current FastAPI/error configuration? | duplicate | Covered by accepted I3. Contract chooses verification first; central handler only if current behavior exposes unsafe details. | Same as I3. |
 
-| ID | Claude item | Resolution | Action |
-|---|---|---|---|
-| I1 | Guest-only auth endpoints are not test-pinned. | accepted | Added contract that authenticated user/admin calls to `POST /api/auth/register` and `POST /api/auth/login` must be rejected with HTTP 403, with tests required. |
-| I2 | Registration token response is ambiguous and can drift from API contract. | accepted | Registration must return safe user data only. Only login may return JWT access token. |
-| O1 | Add explicit role-smuggling registration test. | accepted | Added required test coverage for `role = admin` or role-like payload fields. |
-| O2 | Add `/api/auth/me` response-shape test with no `password_hash` and no token. | accepted | Added required `/me` response secrecy test. |
-| Q1 | Which status for authenticated clients calling register/login? | accepted | Use HTTP 403 for authenticated user/admin calls to guest-only endpoints. |
-| Q2 | Should registration ever return JWT? | duplicate | Duplicate of I2. Final contract says no registration token without future explicit approval/doc update. |
+## Accepted changes applied
 
-## Accepted Changes Applied
+- Ownership contract tightened for direct owner IDs plus indirect ownership through media/job records.
+- Ownership denial policy added: missing and cross-owner user resources should use same safe not-found style response where practical; admin-role failures stay forbidden.
+- CORS test obligation made explicit.
+- Error-response safety verification added for Phase 6 helper paths.
+- Filename/download-name tests expanded for Windows reserved/hostile names.
+- Validation gates updated to include any new test files and full backend pytest for shared security/core helper changes.
 
-- Updated `.context/research.md` with guest-only auth endpoint facts, registration-no-token fact, and HTTP 403 assumption.
-- Updated `.context/design.md` to make register/login guest-only, registration token-free, and login the only JWT-returning endpoint.
-- Updated `.context/design.md` test strategy for authenticated register/login rejection, role-smuggling prevention, and `/me` no-token response shape.
-- Updated `.context/plan.md` steps 2, 6, 7, 8, and 11 to enforce accepted contract changes.
-
-## Rejected Items
-
-None.
-
-## Duplicate Items
-
-- Q2 duplicates I2: registration JWT behavior.
-
-## Items Needing User Decision
+## Rejected items
 
 None.
 
-## Final Contract Status
+## Duplicate items
 
-- Scope remains Phase 5 only: backend authentication and account activity.
-- No source code changes authorized by this resolution.
-- No product docs changes required.
-- Implementation may proceed using accepted `.context` contract updates.
+- Q1 duplicates accepted O1 ownership denial policy.
+- Q2 duplicates accepted I3 secure error-response verification.
+
+## Items needing user decision
+
+None.
+
+## Final contract status
+
+- Final implementation contract is Phase 6 only: authorization dependencies, ownership helpers, CORS validation, path safety, filename/download-name helpers, logging/error safety checks, and relevant backend tests.
+- No product API, frontend, CV worker, Docker, database schema/migration, training, or later media/job/result/model/experiment behavior is authorized by this resolution.
+- Ready for implementation after re-reading Phase 6 docs at implementation start.
