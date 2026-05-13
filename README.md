@@ -1,6 +1,6 @@
 # AeroVision
 
-AeroVision is documented as a Dockerized full-stack drone computer-vision subsystem for uploaded images and videos. Current repository state is Phase 1 scaffold only.
+AeroVision is documented as a Dockerized full-stack drone computer-vision subsystem for uploaded images and videos. Current repository state includes the Phase 1 scaffold and Phase 2 backend FastAPI foundation.
 
 ## Current State
 
@@ -11,11 +11,12 @@ This phase provides:
 - Docker Compose baseline with `postgres`, `backend`, `cv-worker`, and `frontend`;
 - shared storage mount for backend and CV worker at `/app/storage`;
 - optional GPU Compose override for `cv-worker` only;
-- storage directory bootstrap helper.
+- storage directory bootstrap helper;
+- FastAPI backend scaffold with `/api/health` and `/api/health/db`;
+- backend settings, explicit CORS configuration, safe logging baseline, and database connectivity skeleton.
 
 Not available yet:
 
-- FastAPI routes, including `/api/health`;
 - database schema and migrations;
 - authentication, uploads, jobs, downloads, or admin APIs;
 - CV model loading, worker queue polling, inference, tracking, exports;
@@ -73,7 +74,9 @@ Do not commit uploads, generated results, reports, datasets, model weights, or t
 |---|---|
 | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap-storage.ps1` | available |
 | `docker compose --env-file .env.example config` | available |
-| `docker compose up --build` | placeholder baseline only; uses `.env` after setup |
-| Backend tests | not available yet |
+| `docker compose up --build` | starts scaffold services; backend exposes health endpoints when `.env` is configured |
+| `python -m pip install -e ".[dev]"` from `backend/` | installs backend dependencies |
+| `python -m pytest` from `backend/` | runs backend tests |
+| `python -m ruff check .` from `backend/` | runs backend lint checks |
 | CV worker tests | not available yet |
 | Frontend tests/build | not available yet |

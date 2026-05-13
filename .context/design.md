@@ -1,94 +1,116 @@
-# Phase Contract Design
+# Phase 2 Design - Backend FastAPI Scaffold, Settings, Logging, And Health
 
 ## Phase Goal
 
-Create repository scaffold, safe environment example, minimal Docker Compose baseline, shared storage bootstrap, and honest README setup notes for Phase 1 only.
-
-Do not implement product business logic, API contracts, database schema, CV processing, frontend UI, auth endpoints, migrations, worker polling, or training utilities in this phase.
+Create backend foundation for AeroVision: FastAPI app, environment-based settings, safe logging baseline, public health endpoints, database connectivity skeleton, explicit CORS, backend Docker startup, and initial backend tests. Do not implement auth, database schema, uploads, jobs, CV processing, model registry, experiments, admin APIs, or frontend UI in this phase.
 
 ## Intended Behavior From Docs
 
-- Runtime service names must be:
-  - `postgres`
-  - `backend`
-  - `cv-worker`
-  - `frontend`
-- Backend and CV worker must mount same shared storage path at `/app/storage`.
-- Base CPU launch must be possible after setup; GPU acceleration is optional and isolated to `cv-worker`.
-- `.env.example` must use safe placeholders only and cover documented variable groups:
-  - database
-  - auth
-  - storage
-  - backend
-  - worker
-  - CV
-- Required storage folders are:
-  - `uploads/`
-  - `results/`
-  - `reports/`
-  - `models/`
-  - `temp/`
-  - `datasets/`
-- Git ignore rules must prevent real `.env`, uploads, generated results, datasets, model weights, reports, temp files, Python caches, Node artifacts, and build outputs from being committed.
-- README must describe current state honestly and not imply finished product features.
-- Compose baseline may use placeholders, but must not introduce unsupported services like Celery, Redis, Flask, Streamlit, or RTSP/live-camera services.
+Confirmed facts:
+
+- Backend exposes REST API under `/api`.
+- Public health endpoints:
+  - `GET /api/health`
+  - `GET /api/health/db`
+- `GET /api/health` returns safe backend health status.
+- `GET /api/health/db` verifies PostgreSQL connectivity without leaking secrets.
+- Backend settings load from environment variables.
+- CORS uses explicit configured origins from `BACKEND_CORS_ORIGINS`.
+- Logs omit secrets, tokens, passwords, password hashes, DB passwords, admin password, and sensitive env values.
+- Backend container must start in Docker Compose.
+- Phase 2 adds tests for health and settings.
+
+Assumptions:
+
+- Health JSON can be minimal and safe because docs do not require exact response schema.
+- DB health may return available/unavailable status and appropriate HTTP behavior, but must not expose DSN, credentials, host internals, stack traces, or raw exception text.
+- Phase 2 may include Alembic dependency and placeholder config, but concrete migrations and SQLAlchemy models remain Phase 3.
 
 ## Architecture Decisions
 
-- Keep service boundaries explicit in Compose:
-  - frontend depends on backend only as frontend client target, not DB/storage.
-  - backend connects to PostgreSQL and mounts storage.
-  - cv-worker connects to PostgreSQL and mounts storage.
-  - postgres owns structured data only.
-- Use root `storage/` as default host path and `/app/storage` as backend/worker container path.
-- Use buildable placeholder containers for `backend`, `cv-worker`, and `frontend` when Compose defines them with `build:`.
-  - Placeholder Dockerfiles/commands must be enough for `docker compose up --build` to start a minimal baseline.
-  - Placeholders must not add product routes, UI, database schema, worker queue behavior, CV processing, auth, migrations, or training logic.
-- Use optional `docker-compose.gpu.yml` for GPU configuration or equivalent GPU-only override for `cv-worker` only.
-- Use helper script and/or `Makefile` target for storage directory creation; helper must create only empty required directories.
-- Keep Dockerfiles and entrypoints minimal placeholders if needed for `docker compose config` and basic container buildability; no product logic.
+- Create a backend-local Python project under `backend/`, keeping backend ownership separate from frontend and CV worker.
+- Use a small app factory or main module that includes an `/api` router and health router.
+- Keep route handlers thin. Health route calls a database connectivity helper instead of embedding DB setup directly in route body.
+- Use Pydantic v2 settings model for environment parsing and validation.
+- Parse `BACKEND_CORS_ORIGINS` as explicit origins list.
+- Reject `*` in `BACKEND_CORS_ORIGINS` during settings validation rather than adding a local/non-local environment flag. Local development should use explicit localhost origins, as `.env.example` already does.
+- Add secret-safe settings representation so logs/tests do not print sensitive values.
+- Add logging setup with redaction or omission for known sensitive fields.
+- Add SQLAlchemy 2 engine/session skeleton only; no models, no migrations beyond optional empty Alembic scaffolding.
+- Update backend Dockerfile from placeholder to install backend dependencies and start ASGI app.
+- Adjust Compose only as needed for Phase 2 backend startup and health verification, using existing environment variables and shared storage mount.
 
 ## Backend Impact
 
-- Backend touched only for placeholder runtime/build files if needed by Compose.
-- No `/api` routes, auth, upload, health, database model, migration, seed, or application logic in Phase 1.
-
-## Frontend Impact
-
-- Frontend touched only for placeholder runtime/build files if needed by Compose.
-- No React UI, routes, Ukrainian UI text, API client, auth state, or dashboard logic in Phase 1.
-
-## DB Impact
-
-- PostgreSQL service appears in Compose.
-- No SQLAlchemy models, Alembic config, migrations, seed data, or schema changes in Phase 1.
+- Backend project scaffold appears in `backend/`.
+- Backend app serves only Phase 2 public health endpoints.
+- Backend settings include existing env groups needed by Phase 2:
+  - database URL;
+  - JWT/auth placeholders from `.env.example` as settings only, not auth logic;
+  - storage root/model root as settings only;
+  - CORS origins;
+  - upload size limits as settings only.
+- Backend startup must not run migrations or seed setup in Phase 2 unless docs change; that belongs to Phase 4.
+- Backend must not implement auth endpoints in Phase 2.
 
 ## API Impact
 
-- No API contract implementation in Phase 1.
-- README may say API is not implemented yet.
+- Adds `GET /api/health`.
+- Adds `GET /api/health/db`.
+- No other API routes in Phase 2.
+- Health responses must be public and safe.
+- API must not expose absolute filesystem paths, credentials, stack traces, JWT secrets, raw tokens, or database URL.
+
+## DB Impact
+
+- Add database connectivity skeleton only.
+- No concrete tables, constraints, seed data, or migrations in this phase.
+- DB health performs a minimal connectivity check against PostgreSQL.
+- Phase 3 remains responsible for SQLAlchemy models and initial Alembic migration.
+
+## Frontend Impact
+
+- None, except Compose/frontend may continue to point at backend `/api`.
+- No React UI changes in Phase 2.
 
 ## Security/Privacy Impact
 
-- `.env.example` must contain no real secrets.
-- `.gitignore` must exclude real `.env` and generated/large storage artifacts.
-- Compose and README must not expose real credentials.
-- Logs/config examples must not include tokens, JWT secrets, admin password, database password, or sensitive env values beyond placeholders.
-- No uploaded file execution or path safety implementation occurs yet; only storage layout and ignore rules are prepared.
+- Settings must treat `JWT_SECRET_KEY`, `ADMIN_PASSWORD`, `POSTGRES_PASSWORD`, database URL, and tokens as sensitive.
+- Logging must not emit secrets or full settings dumps.
+- DB health must not return connection strings, passwords, exception tracebacks, or internal env values.
+- CORS must use explicit configured origins.
+- CORS settings must reject wildcard origins so non-local wildcard drift cannot occur.
+- Public health endpoints must not reveal more than service/database availability.
 
 ## Test Strategy
 
-- Run `docker compose --env-file .env.example config` after Compose exists, or document copying `.env.example` to `.env` before using plain `docker compose config`.
-- Run `docker compose -f docker-compose.yml -f docker-compose.gpu.yml --env-file .env.example config` when GPU override exists.
-- Inspect rendered GPU config and verify only `cv-worker` requests GPU access.
-- Inspect `.env.example` for placeholder-only secret values.
-- Run storage bootstrap helper or `Makefile` target and verify required folders exist.
-- Run `git status --short` and verify generated storage contents are not tracked.
-- Confirm README describes current scaffold state and unavailable features honestly.
-- Commands for backend/frontend/CV tests remain `not available yet` unless scaffolds add real test commands, which Phase 1 should avoid.
+Relevant checks only:
+
+- Backend settings tests:
+  - required env values load;
+  - CORS origins parse as explicit list;
+  - wildcard CORS origins are rejected;
+  - sensitive fields are not exposed by settings representation/log output.
+- Backend health tests:
+  - `GET /api/health` returns success and safe payload;
+  - `GET /api/health` payload contains no sensitive values;
+  - `GET /api/health/db` calls DB health helper and returns safe available response when helper succeeds;
+  - `GET /api/health/db` returns safe unavailable response when helper fails, without raw exception text, DSN, or secret leakage.
+  - health response assertions intentionally freeze only minimal safe status/availability fields, not an expanded product schema.
+- Backend command checks:
+  - backend lint/format command if configured;
+  - backend test suite;
+  - Docker Compose backend build/start smoke when available.
+
+Out of scope tests:
+
+- Auth, ownership, uploads, jobs, model selection, worker queue, CV processing, frontend routes, exports, admin routes.
 
 ## Ambiguities Or Conflicts
 
-- Prompt risk and phase title were placeholders, not concrete values. Design uses `docs/phase.md` as current phase source.
-- Docs allow storage bootstrap script or Makefile target; implementation may choose either or both.
-- No `WARNING: CONFLICT` found.
+- No docs conflict found for Phase 2.
+- Risk value not provided by user; contract assumes MEDIUM.
+- Exact health response schema is unspecified; implementation should keep it minimal and avoid treating chosen shape as product-wide contract beyond Phase 2 tests.
+- Exact dependency manager and lint tools are unspecified; implementation should pick pragmatic backend-local tooling and document commands if added.
+- Whether to add `alembic.ini` in Phase 2 is mildly ambiguous: phase requires Alembic dependency, while Phase 3 owns initial migration. Safer design: include dependency and optional config placeholder only if needed by backend tooling; do not create migration scripts or schema in Phase 2.
+- Claude review asked what flag defines non-local CORS behavior if wildcard is allowed locally. Final contract avoids the ambiguity by rejecting wildcard CORS values in all modes.

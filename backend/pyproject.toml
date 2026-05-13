@@ -1,0 +1,35 @@
+[project]
+name = "aerovision-backend"
+version = "0.1.0"
+description = "AeroVision FastAPI backend"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.13,<2.0",
+    "fastapi>=0.115,<1.0",
+    "passlib[bcrypt]>=1.7,<2.0",
+    "psycopg[binary]>=3.2,<4.0",
+    "pydantic>=2.10,<3.0",
+    "pydantic-settings>=2.7,<3.0",
+    "python-jose[cryptography]>=3.3,<4.0",
+    "sqlalchemy>=2.0,<3.0",
+    "uvicorn[standard]>=0.34,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx>=0.28,<1.0",
+    "pytest>=8.3,<9.0",
+    "pytest-cov>=6.0,<7.0",
+    "ruff>=0.8,<1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

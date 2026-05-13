@@ -1,14 +1,14 @@
-# Code Review Resolution - Phase 1
+# Phase 2 Code Review Resolution
 
 ## Verdict: FIXED
 
-OpenAI code review verdict was `APPROVED_WITH_CHANGES`. No Claude code review file exists. One important item is accepted for final fix. No critical, duplicate, or user-decision items.
+OpenAI/Codex review approved Phase 2 with one optional logging hardening item. No Claude code review file content was present. No blocking user decision needed.
 
 ## Resolution table
 
-| ID | Source | Priority | Review item | Resolution | Reason | Planned fix |
-|---|---|---:|---|---|---|---|
-| OAI-I-1 | `.context/review-code-openai.md` | important | README tells users to copy `.env.example` to `.env`, but launch commands still use `.env.example`, bypassing edited secrets. | accepted | Matches docs: `.env.example` is safe sample; real local/demo launch after setup should use `.env` or default Compose env loading. | Update README launch and command table to use `docker compose up --build` after `.env` copy. Keep `.env.example` only for validation examples. |
+| Priority | ID | Review source | Item | Resolution | Rationale |
+|---|---|---|---|---|---|
+| optional | O-1 | `.context/review-code-openai.md` | Logging redaction is keyword-based only; future raw secret values without sensitive key names may not be redacted. | accepted | Low-risk hardening within Phase 2 logging/security scope and consistent with `docs/AUTH_SECURITY.md` logging safety rules. |
 
 ## Accepted critical fixes
 
@@ -16,11 +16,11 @@ None.
 
 ## Accepted important fixes
 
-- OAI-I-1: Fix README launch flow so user-edited `.env` is used for real startup.
+None.
 
 ## Accepted optional fixes
 
-None.
+- O-1: Add value-aware logging redaction support and test coverage so configured sensitive values can be removed even when the log message lacks sensitive key names.
 
 ## Rejected items
 
@@ -36,25 +36,18 @@ None.
 
 ## Fixes applied
 
-- Updated `README.md` startup command from `docker compose --env-file .env.example up --build` to `docker compose up --build`.
-- Updated `README.md` command table to state real launch uses `.env` after setup.
-- Kept `.env.example` for Compose validation examples only.
+- Updated `backend/app/core/logging.py` so `SecretRedactionFilter` redacts configured sensitive values in addition to sensitive key-name matches.
+- Updated `backend/app/core/config.py` with `Settings.sensitive_log_values()` for the database URL, JWT secret, and admin password.
+- Updated `backend/app/main.py` so application startup passes configured sensitive values into logging setup.
+- Added `backend/tests/test_logging.py` coverage for redacting a raw configured secret value when the message has no sensitive key name.
 
 ## Final verification
 
-- `rg --line-number "env.example.*up|up --build|\\.env" README.md`: PASS; no `.env.example up --build` launch command remains.
+- `python -m pytest` from `backend/`: PASS, 9 tests.
+- `python -m ruff check .` from `backend/`: PASS.
 - `docker compose --env-file .env.example config`: PASS.
-- `docker compose -f docker-compose.yml -f docker-compose.gpu.yml --env-file .env.example config`: PASS.
-- GPU config inspection: PASS; GPU device reservation and `CV_DEVICE=cuda` appear only under `cv-worker`.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap-storage.ps1`: PASS.
-- Required storage folder check: PASS.
-- `.env.example` secret-placeholder inspection: PASS; values remain `change-me-*`.
-- `git status --short`: PASS for generated storage contents; no storage files or directories are listed.
-- `docker compose --env-file .env.example build`: PASS.
-- `docker compose --env-file .env.example up --build -d`: PASS; all four placeholder services started and `postgres` became healthy.
-- `docker compose --env-file .env.example ps`: PASS; `postgres`, `backend`, `cv-worker`, and `frontend` were up.
-- `docker compose --env-file .env.example logs --no-color --tail=20 backend cv-worker frontend`: PASS; placeholder logs only, no secrets.
-- `docker compose --env-file .env.example down`: PASS; containers stopped and removed.
-- Backend tests: not available yet.
-- CV worker tests: not available yet.
-- Frontend tests/build: not available yet.
+- `docker compose --env-file .env.example up -d --build postgres backend`: PASS.
+- `Invoke-RestMethod -Uri 'http://localhost:8000/api/health'`: PASS, returned `{"status":"ok","service":"backend"}`.
+- `Invoke-RestMethod -Uri 'http://localhost:8000/api/health/db'`: PASS, returned `{"status":"ok","database":"available"}`.
+- `docker compose --env-file .env.example down`: PASS.
+- `git diff --check`: FAIL, pre-existing/out-of-scope trailing whitespace in `docs/phase.md:3`; not changed because accepted review fix scope only covered logging redaction.

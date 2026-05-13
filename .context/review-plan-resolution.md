@@ -1,26 +1,26 @@
-# Planning Review Resolution - Phase 1
+# Phase 2 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude planning review verdict was `APPROVED_WITH_CHANGES`. No blocking issues and no questions were raised. Accepted changes were applied only to the Phase 1 implementation contract in `.context/design.md` and `.context/plan.md`.
+Claude review found no blocking issues. Accepted items were applied to the Phase 2 implementation contract only. No source code changes were made.
 
 ## Resolution Table
 
-| ID | Claude item | Resolution | Reason | Applied update |
-|---|---|---|---|---|
-| I-1 | Placeholder service buildability is conditional, but Phase 1 requires buildable placeholders. | accepted | `docs/phase.md` and `docs/ROADMAP.md` require buildable placeholder services for Phase 1. `docker compose config` alone can miss missing Dockerfiles/start commands. | `.context/design.md`, `.context/plan.md` now require buildable backend, cv-worker, and frontend placeholders when Compose uses `build:`. |
-| I-2 | GPU override validation is not explicit enough. | accepted | `docs/PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md`, and `docs/TESTING_QA.md` require optional GPU access isolated to `cv-worker`; combined config should be validated when override exists. | `.context/design.md`, `.context/plan.md` now require combined GPU Compose config validation and inspection that only `cv-worker` requests GPU. |
-| I-3 | Compose config validation should use safe env sample. | accepted | `.env.example` must cover Compose variables with safe placeholders; validation should catch drift between sample env and Compose. | `.context/design.md`, `.context/plan.md` now require `docker compose --env-file .env.example config` or documented `.env` copy before plain config. |
-| O-1 | Storage bootstrap should avoid tracking generated dirs/content. | duplicate | Existing contract already requires `.gitignore` coverage, helper-created empty required folders, and `git status --short` generated-storage check. | No new update. Covered by `.context/design.md` security/test strategy and `.context/plan.md` steps 2, 6, 10. |
-| O-2 | README command examples should mark missing product commands as `not available yet`. | duplicate | Existing contract already requires README honesty, current scaffold limitations, and backend/frontend/CV tests reported as `not available yet` unless real commands exist. | No new update. Covered by `.context/design.md` test strategy and `.context/plan.md` steps 8, 10. |
+| ID | Claude review item | Resolution | Applied contract change |
+|---|---|---|---|
+| I-1 | CORS wildcard restriction needs explicit implementation and test coverage. | accepted | `.context/research.md`, `.context/design.md`, and `.context/plan.md` now require rejecting wildcard `*` CORS origins during settings validation and testing that rejection. |
+| O-1 | Add targeted test that DB health failure response excludes raw DB exception text. | accepted | `.context/design.md` and `.context/plan.md` now require DB-health failure tests to assert no raw exception text, DSN, or secret leakage. |
+| O-2 | Make health response shape intentionally minimal in tests. | accepted | `.context/design.md` and `.context/plan.md` now require minimal health response assertions only for safe status/availability. |
+| Q-1 | What environment flag defines non-local for CORS wildcard rejection if wildcard is allowed locally? | accepted | Resolved by contract decision: no local wildcard exception, no new environment flag. Phase 2 rejects wildcard in all modes and uses explicit localhost origins for local development. |
 
 ## Accepted Changes Applied
 
-- Made buildable service placeholders explicit for `backend`, `cv-worker`, and `frontend` when Compose uses `build:`.
-- Required placeholder Dockerfiles/commands to support minimal `docker compose up --build` startup without product behavior.
-- Required base Compose validation against safe sample env via `docker compose --env-file .env.example config`, or documented `.env` copy before plain config.
-- Required GPU override validation with combined Compose config when `docker-compose.gpu.yml` exists.
-- Required inspection that GPU access is isolated to `cv-worker`.
+- CORS settings must reject wildcard `*` origins in all modes.
+- Local development must use explicit origins such as `http://localhost:5173` and `http://127.0.0.1:5173`.
+- No new local/non-local environment flag is added for Phase 2.
+- Settings tests must cover wildcard CORS rejection.
+- DB-health failure tests must prove response excludes raw DB exception text, DSN, and secrets.
+- Health endpoint tests must avoid freezing an undocumented expanded schema.
 
 ## Rejected Items
 
@@ -28,8 +28,7 @@ None.
 
 ## Duplicate Items
 
-- O-1 storage bootstrap generated-dir/content tracking risk: already covered.
-- O-2 README unavailable command honesty: already covered.
+None.
 
 ## Items Needing User Decision
 
@@ -37,10 +36,8 @@ None.
 
 ## Final Contract Status
 
-- `.context/research.md`: unchanged; review did not require new research facts.
-- `.context/design.md`: updated for accepted buildability, env-file validation, and GPU validation requirements.
-- `.context/plan.md`: updated for accepted buildability, env-file validation, and GPU validation requirements.
-- Source code: not modified.
-- Product docs: not modified.
-- Scope: Phase 1 only.
-- Implementation contract is ready for Phase 1 implementation.
+Phase 2 contract is ready for implementation.
+
+Scope remains limited to backend FastAPI scaffold, settings, safe logging, public health endpoints, database connectivity skeleton, explicit CORS, backend Docker startup, backend-local docs, and focused tests.
+
+Still excluded: auth endpoints, user tables, Alembic schema migrations, uploads, jobs, worker queue, CV processing, frontend UI, training utilities, and later-phase product APIs.

@@ -4,26 +4,27 @@
 
 The `backend/` folder is reserved for the AeroVision FastAPI backend application.
 
-According to `../docs/`, this backend will expose the `/api` REST API, enforce JWT authentication and role/ownership rules, validate uploads and processing parameters, persist structured records in PostgreSQL, manage media/jobs/results/models/experiments/admin operations, and serve safe downloads from shared storage. The backend must not perform long-running image or video inference inside upload or job-creation requests.
+According to `../docs/`, this backend exposes the `/api` REST API. Current implementation contains the Phase 2 FastAPI foundation: typed environment settings, safe logging baseline, explicit CORS configuration, database connectivity skeleton, and public health endpoints. Later phases add JWT authentication, role/ownership rules, upload validation, media/jobs/results/models/experiments/admin APIs, and safe downloads.
 
 ## Current Files
 
 | Path | Purpose |
 |---|---|
-| `Dockerfile` | Phase 1 buildable placeholder container; no FastAPI application or product routes yet. |
+| `Dockerfile` | Backend container image that installs the backend package and starts Uvicorn with the FastAPI app factory. |
+| `pyproject.toml` | Backend Python dependencies, dev dependencies, pytest configuration, and Ruff configuration. |
+| `app/` | FastAPI app package with API router, health endpoints, settings, CORS, logging, and database connectivity skeleton. |
+| `tests/` | Phase 2 tests for settings, health endpoints, and logging redaction. |
 | `index.md` | Backend folder summary, current contents, and backend-local commands. |
 
-No backend scaffold, dependency manifest, application package, migrations, or tests exist yet in this checkout.
+No auth endpoints, ORM models, Alembic migration scripts, upload/media/job/result/model/experiment/admin APIs, or worker queue logic exist yet in this checkout.
 
 ## Commands
 
 | Command | Status |
 |---|---|
-| Backend dependency install | not available yet |
-| Backend application start | not available yet |
-| Backend lint/type checks | not available yet |
-| Backend tests | not available yet |
+| `python -m pip install -e ".[dev]"` | installs backend runtime and dev dependencies from `backend/` |
+| `python -m uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000` | starts the backend app from `backend/` when required environment variables are set |
+| `python -m ruff check .` | runs backend lint checks from `backend/` |
+| `python -m pytest` | runs backend tests from `backend/` |
 | Backend Docker build | available through root `docker compose --env-file .env.example build backend` |
 | Database migration and seed | not available yet |
-
-Update this section when backend files and scripts are added.

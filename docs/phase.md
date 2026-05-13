@@ -1,35 +1,38 @@
-## Phase 1 - Repository scaffold, environment, and Docker baseline
+## Phase 2 - Backend FastAPI scaffold, settings, logging, and health
 
-**Direction:** DevOps / Repository setup  
-**Goal:** Create the project skeleton and a minimal Compose runtime without product business logic.
+**Direction:** Backend  
+**Goal:** Create the FastAPI backend foundation with configuration, logging, and health checks.
 
 ### Scope
 
-- Create or normalize root structure: `backend/`, `frontend/`, `cv/`, `training/`, `scripts/`, `storage/`, `docs/` if not already present.
-  - Add `.gitignore` rules for `.env`, uploads, results, datasets, model weights, generated reports, temp files, Python caches, Node artifacts, and build outputs.
-  - Add `.env.example` with safe placeholders for database, auth, storage, backend, worker, and CV variables.
-  - Add initial `docker-compose.yml` with `postgres`, `backend`, `cv-worker`, and `frontend` services as buildable placeholders.
-  - Add optional `docker-compose.gpu.yml` or GPU profile placeholder for `cv-worker` only.
-  - Ensure backend and worker both mount shared storage at `/app/storage`.
-  - Add storage-directory bootstrap script or Makefile target.
-  - Add README section for initial setup and expected one-command local/demo launch.
-  - Avoid implementing frontend UI or backend product routes beyond placeholders.
+- Scaffold `backend/` Python project.
+- Add dependency management for FastAPI, Pydantic v2, Uvicorn/Gunicorn-Uvicorn, SQLAlchemy 2.x, Alembic, PostgreSQL driver, auth/security helpers, testing tools, and lint/format tools.
+- Implement typed settings loaded from environment variables.
+- Implement app factory or main app module.
+- Implement structured logging baseline that does not log secrets.
+- Implement public health endpoints:
+  - `GET /api/health`;
+  - `GET /api/health/db`.
+- Add database connectivity layer skeleton.
+- Add CORS configuration using explicit configured origins.
+- Add backend Dockerfile and startup entrypoint placeholder.
+- Add initial backend tests for health and settings.
 
 ### Relevant docs
 
-- `docs/PROJECT_CONTEXT.md`
-  - `docs/ARCHITECTURE.md`
-  - `docs/AUTH_SECURITY.md`
-  - `docs/TESTING_QA.md`
+- `docs/ARCHITECTURE.md`
+- `docs/API.md`
+- `docs/AUTH_SECURITY.md`
+- `docs/TESTING_QA.md`
 
 ### Validation
 
-- `docker compose config` succeeds.
-  - `.env.example` contains no real secrets.
-  - Storage directories can be created locally.
-  - Git status does not include generated storage contents.
-  - README documents the current state honestly.
+- Backend lint/format checks pass.
+- Backend test suite passes.
+- `GET /api/health` returns a safe status response.
+- `GET /api/health/db` verifies PostgreSQL connectivity without leaking secrets.
+- Backend container starts in Docker Compose.
 
 ### Commit
 
-`chore(scaffold): add repository layout environment and compose baseline`
+`feat(backend): scaffold FastAPI settings logging and health`

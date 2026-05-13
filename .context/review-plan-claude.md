@@ -1,10 +1,12 @@
-# Independent Planning Review - Phase 1
+# Independent Planning Review - Phase 2
 
 ## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Plan matches Phase 1 scope: repo scaffold, env example, Compose baseline, shared storage bootstrap, README honesty. No product-doc mismatch found. Main risks: Compose placeholder buildability and GPU/env validation are underspecified.
+Plan matches Phase 2 scope: FastAPI scaffold, settings, safe logging, public health endpoints, DB connectivity skeleton, explicit CORS, Docker startup, and focused backend tests.
+
+One important gap: CORS implementation/test plan does not clearly enforce documented wildcard restriction for non-local configurations. No blockers found.
 
 ## Blocking issues
 
@@ -12,37 +14,24 @@ None.
 
 ## Important issues
 
-1. Placeholder service buildability is conditional, but Phase 1 scope requires buildable placeholders.
-   - Evidence: `docs/phase.md` and `docs/ROADMAP.md` require initial `docker-compose.yml` with `postgres`, `backend`, `cv-worker`, and `frontend` as buildable placeholders.
-   - Evidence: `.context/plan.md` step 7 says add placeholder service build files "only if required for Compose validity"; `docker compose config` can pass while `docker compose up --build` later fails from missing Dockerfiles or placeholder commands.
-   - Risk: Phase 1 may produce syntactically valid Compose that is not a meaningful minimal runtime baseline.
-   - Needed change: make placeholder Dockerfiles/commands explicit when Compose uses `build:` for backend, worker, or frontend; keep them free of product logic.
-
-2. GPU override validation is not explicit enough for touched surface.
-   - Evidence: `docs/PROJECT_CONTEXT.md` and `docs/ARCHITECTURE.md` require GPU access optional and isolated to `cv-worker`.
-   - Evidence: `.context/plan.md` step 5 adds GPU override, but validation step 10 lists only base `docker compose config`.
-   - Risk: GPU override can be syntactically broken or accidentally grant GPU to non-worker services.
-   - Needed change: include a validation gate for combined GPU config, e.g. `docker compose -f docker-compose.yml -f docker-compose.gpu.yml config`, plus inspection that only `cv-worker` requests GPU.
-
-3. Compose config validation should use safe env sample.
-   - Evidence: `docs/ARCHITECTURE.md` requires `.env.example` with database/auth/storage/backend/worker/CV groups and safe placeholders.
-   - Evidence: `.context/plan.md` step 10 says `docker compose config`, but does not state whether `.env.example` is used or copied to `.env`.
-   - Risk: Compose may depend on missing local `.env`, or `.env.example` may drift from Compose variables without detection.
-   - Needed change: validate Compose with sample env, e.g. `docker compose --env-file .env.example config`, or document copying `.env.example` to `.env` before config.
+1. CORS wildcard restriction needs explicit implementation and test coverage.
+   - Evidence: `docs/AUTH_SECURITY.md` says CORS must allow only configured frontend origins and wildcard `*` must not be used in non-local configurations.
+   - Evidence: `docs/phase.md` Phase 2 scope requires CORS configuration using explicit configured origins.
+   - Evidence: `.context/plan.md` Step 4 tests only CORS origin parsing; Step 7 adds CORS middleware using explicit origins. Neither step requires rejecting or guarding wildcard origins outside local configuration.
+   - Risk: implementation may accept `*` silently, creating security drift in backend foundation.
+   - Required change: add Phase 2 implementation/test step that rejects or fails configuration for wildcard CORS in non-local mode, or documents a local-only exception with an explicit environment guard.
 
 ## Optional improvements
 
-1. Storage bootstrap should avoid tracking generated dirs/content.
-   - Evidence: `docs/phase.md` requires storage dirs can be created locally and Git status does not include generated storage contents.
-   - Improvement: if empty dirs need placeholders, avoid committing generated media-like files; prefer helper-created dirs and ignore storage contents.
+1. Add a targeted test that DB health failure response excludes raw DB exception text.
+   - Plan already says no raw exception/DSN/secret leakage. A named assertion for exception text would make this harder to miss.
 
-2. README command examples should mark missing product commands as not available yet.
-   - Evidence: `docs/index.md` says no implementation scaffolds or runnable commands exist yet; `AGENTS.md` says report unavailable scaffolds as `not available yet`.
-   - Improvement: README should not imply backend/frontend/CV tests or APIs exist in Phase 1.
+2. Make health response shape intentionally minimal in tests.
+   - Docs do not define a full schema. Tests should avoid over-freezing fields beyond safe status and DB availability.
 
 ## Questions for resolution
 
-None.
+1. What environment flag defines "non-local" for CORS wildcard rejection, if implementation chooses to allow wildcard only in local development?
 
 ## Files consulted
 
@@ -51,12 +40,12 @@ None.
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
+- `docs/ARCHITECTURE.md`
+- `docs/API.md`
+- `docs/AUTH_SECURITY.md`
+- `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
-- `docs/PROJECT_CONTEXT.md`
-- `docs/ARCHITECTURE.md`
-- `docs/AUTH_SECURITY.md`
-- `docs/TESTING_QA.md`
-- Command output: `git status --short`
-- Command output: `rg --files`
+- `.context/review-plan-claude.md`
+- `git status --short`

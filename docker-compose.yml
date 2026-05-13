@@ -31,6 +31,8 @@ services:
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS}
       MAX_IMAGE_SIZE_MB: ${MAX_IMAGE_SIZE_MB}
       MAX_VIDEO_SIZE_MB: ${MAX_VIDEO_SIZE_MB}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - ./storage:/app/storage
     depends_on:
@@ -67,4 +69,3 @@ services:
 
 volumes:
   postgres_data:
-

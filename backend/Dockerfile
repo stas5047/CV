@@ -5,5 +5,11 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "-c", "import time; print('AeroVision backend placeholder: FastAPI scaffold not implemented in Phase 1.', flush=True); time.sleep(10**9)"]
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir .
 
+COPY app ./app
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
