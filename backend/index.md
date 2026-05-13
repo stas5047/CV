@@ -4,7 +4,7 @@
 
 The `backend/` folder contains the AeroVision FastAPI backend application.
 
-According to `../docs/`, this backend exposes the `/api` REST API. Current implementation contains the FastAPI foundation, typed environment settings, safe logging baseline, explicit CORS configuration, database connectivity skeleton, public health endpoints, SQLAlchemy ORM models for the documented schema, Alembic configuration, the initial database migration, local/demo startup migration switches, idempotent admin seed/setup, and storage bootstrap. Later phases add JWT authentication, role/ownership rules, upload validation, media/jobs/results/models/experiments/admin APIs, worker queue behavior, and safe downloads.
+According to `../docs/`, this backend exposes the `/api` REST API. Current implementation contains the FastAPI foundation, typed environment settings, safe logging baseline, explicit CORS configuration, database connectivity skeleton, public health endpoints, SQLAlchemy ORM models for the documented schema, Alembic configuration, the initial database migration, local/demo startup migration switches, idempotent admin seed/setup, storage bootstrap, JWT authentication, public registration, login, and current-user endpoints. Later phases add role/ownership utilities, upload validation, media/jobs/results/models/experiments/admin APIs, worker queue behavior, and safe downloads.
 
 ## Current Files
 
@@ -14,12 +14,12 @@ According to `../docs/`, this backend exposes the `/api` REST API. Current imple
 | `alembic.ini` | Alembic configuration for backend database migrations. |
 | `pyproject.toml` | Backend Python dependencies, dev dependencies, pytest configuration, and Ruff configuration. |
 | `startup.sh` | Container startup script that optionally runs migrations and setup before Uvicorn. |
-| `app/` | FastAPI app package with API router, health endpoints, settings, CORS, logging, password hashing helper, database connectivity, ORM models, and setup command. |
+| `app/` | FastAPI app package with API router, health/auth endpoints, settings, CORS, logging, password hashing and JWT helpers, database connectivity, ORM models, schemas, and setup command. |
 | `migrations/` | Alembic migration environment and initial schema migration. |
-| `tests/` | Backend tests for settings, health endpoints, logging redaction, Phase 3 data-model constraints, and Phase 4 setup behavior. |
+| `tests/` | Backend tests for settings, health endpoints, logging redaction, Phase 3 data-model constraints, Phase 4 setup behavior, and Phase 5 auth behavior. |
 | `index.md` | Backend folder summary, current contents, and backend-local commands. |
 
-No auth endpoints, upload/media/job/result/model/experiment/admin APIs, or worker queue logic exist yet in this checkout.
+No upload/media/job/result/model/experiment/admin APIs, role/ownership utility layer, or worker queue logic exist yet in this checkout.
 
 ## Commands
 

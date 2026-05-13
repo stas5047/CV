@@ -1,121 +1,115 @@
-# Phase 4 Research - Backend startup migrations, idempotent seed/setup, and storage bootstrap
+# Phase 5 Research Contract
 
-## Current phase
+## Current Phase
 
-- Confirmed current phase: `Phase 4 - Backend startup migrations, idempotent seed/setup, and storage bootstrap`.
-- Source: `docs/phase.md`.
-- Direction: Backend / DevOps.
-- Goal from docs: local/demo backend startup prepares database and minimal demo setup automatically.
-- Risk level: not provided by user input; assumed `MEDIUM` because phase touches startup, database writes, admin credentials, and storage creation.
+Confirmed: `docs/phase.md` identifies current phase as **Phase 5 - Authentication and account activity**.
 
-## Docs consulted
+Confirmed risk surface: backend/security. User did not replace risk placeholder; assumed risk is **HIGH** because this phase creates auth, JWT, password checks, and protected-route access rules.
+
+## Docs Consulted
+
+Read first:
 
 - `AGENTS.md`
 - `CLAUDE.md`
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- Phase 4 relevant docs only:
-  - `docs/ARCHITECTURE.md`
-  - `docs/AUTH_SECURITY.md`
-  - `docs/DATA_MODEL.md`
-  - `docs/TESTING_QA.md`
 
-## Confirmed repository facts
+Relevant docs from `docs/phase.md`:
+
+- `docs/AUTH_SECURITY.md`
+- `docs/API.md`
+- `docs/DATA_MODEL.md`
+- `docs/TESTING_QA.md`
+
+Context files checked:
+
+- `.context/status.md` was present and empty.
+- `.context/research.md`, `.context/design.md`, `.context/plan.md` were present and empty before this contract.
+
+## Confirmed Repository Facts
 
 - Git checkout exists.
-- `git status --short` showed existing modified files before this planning task:
-  - `.context/design.md`
-  - `.context/plan.md`
-  - `.context/research.md`
-  - `.context/review-code-openai.md`
-  - `.context/review-code-resolution.md`
-  - `.context/review-plan-claude.md`
-  - `.context/review-plan-resolution.md`
-  - `.context/status.md`
-  - `docs/phase.md`
-- Required top-level service folders exist: `backend/`, `frontend/`, `cv/`, `training/`, `scripts/`, `storage/`, `docs/`.
-- Root runtime files exist: `docker-compose.yml`, `docker-compose.gpu.yml`, `.env.example`, `Makefile`, `README.md`.
-- `docker-compose.yml` defines `postgres`, `backend`, `cv-worker`, and `frontend`.
-- `backend` and `cv-worker` both mount `./storage:/app/storage`.
-- `.env.example` contains safe placeholder values for DB, auth, storage, backend, CV, worker, and local ports.
-- `scripts/bootstrap-storage.ps1` exists for local storage directory bootstrap.
-- `backend/pyproject.toml` includes FastAPI, Pydantic settings, SQLAlchemy, Alembic, psycopg, passlib bcrypt, jose, pytest, and ruff dependencies.
+- `git status --short` showed modified `.context/*` files and modified `docs/phase.md`; source code was not shown as modified.
+- Current source layout includes `backend/`, `frontend/`, `cv/`, `training/`, `docs/`, `scripts/`, Compose files, `.env.example`, and README.
+- Backend Python scaffold exists with FastAPI app factory, `/api` router, health endpoints, settings, CORS, logging redaction, SQLAlchemy session setup, SQLAlchemy models, Alembic migration, setup command, and tests.
+- Backend dependencies already include `bcrypt`, `python-jose[cryptography]`, FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, psycopg, pytest, and Ruff.
+- `backend/app/core/passwords.py` already has `hash_password()` and `verify_password()` using bcrypt.
+- `backend/app/core/config.py` already defines `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `ALLOW_PUBLIC_REGISTRATION`, and seeded admin settings.
+- `backend/app/db/models.py` already defines `User` with `email`, `password_hash`, `role`, `is_active`, `created_at`, and `updated_at`.
+- `backend/app/setup.py` already seeds an active admin from `ADMIN_EMAIL` and hashes `ADMIN_PASSWORD`.
+- `backend/app/api/router.py` currently includes only health routes.
+- Existing backend tests cover health, settings, logging redaction, data model, and setup.
 
-## Existing implementation state
+## Existing Implementation State
 
-- Backend FastAPI app factory exists at `backend/app/main.py`.
-- Backend health routes exist under `/api/health` and `/api/health/db`.
-- Backend settings exist in `backend/app/core/config.py`.
-- Existing settings include:
-  - `DATABASE_URL`
-  - `JWT_SECRET_KEY`
-  - `JWT_ALGORITHM`
-  - `ACCESS_TOKEN_EXPIRE_MINUTES`
-  - `ADMIN_EMAIL`
-  - `ADMIN_PASSWORD`
-  - `ALLOW_PUBLIC_REGISTRATION`
-  - `STORAGE_ROOT`
-  - `MODELS_ROOT`
-  - `BACKEND_CORS_ORIGINS`
-  - `MAX_IMAGE_SIZE_MB`
-  - `MAX_VIDEO_SIZE_MB`
-- Existing settings do not include:
-  - `RUN_MIGRATIONS_ON_START`
-  - `RUN_SEED_ON_START`
-- Database session factory exists at `backend/app/db/session.py`.
-- SQLAlchemy models exist in `backend/app/db/models.py` for all required tables from `docs/DATA_MODEL.md`.
-- Alembic configuration exists in `backend/alembic.ini` and `backend/migrations/env.py`.
-- Initial migration exists at `backend/migrations/versions/20260513_0001_initial_schema.py`.
-- Backend Dockerfile currently starts Uvicorn directly:
-  - `CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]`
-- No backend seed/setup command exists.
-- No startup script exists for running `alembic upgrade head` before API start.
-- No backend storage bootstrap service/module exists.
-- No auth endpoints exist yet, so seeded admin authentication can only be verified at DB/hash level in this phase.
-- Existing backend tests cover health, settings, logging redaction, and data-model constraints.
-- Existing `.context/research.md`, `.context/design.md`, and `.context/plan.md` were empty when read.
+Confirmed implemented before Phase 5:
 
-## WARNING: CONFLICT
+- Public health endpoints:
+  - `GET /api/health`
+  - `GET /api/health/db`
+- Database schema and initial Alembic migration exist.
+- Admin seed/setup exists and hashes admin password.
+- CORS rejects wildcard origins through settings validation.
+- Logging redaction exists for secret-like messages.
 
-- `docs/index.md` says current implementation contains only Phase 1 Docker Compose scaffold and placeholder backend/frontend/CV Dockerfiles with no product app scaffolds, dependency manifests, source packages, migrations, tests, API routes, or worker logic.
-- Repository facts contradict that statement:
-  - `backend/pyproject.toml`
-  - `backend/app/main.py`
-  - `backend/app/api/health.py`
-  - `backend/app/db/models.py`
-  - `backend/migrations/versions/20260513_0001_initial_schema.py`
-  - `backend/tests/*`
-- `README.md` says database schema and migrations are not available yet, but repo contains SQLAlchemy models and an initial Alembic migration.
-- `backend/index.md` matches repo state and says DB schema/migration exist.
-- This appears to be stale implementation-state documentation, not conflict with Phase 4 product behavior.
+Confirmed not implemented yet:
 
-## Unknowns and assumptions
+- No auth API endpoints exist:
+  - `POST /api/auth/register`
+  - `POST /api/auth/login`
+  - `GET /api/auth/me`
+  - optional `POST /api/auth/logout`
+- No JWT creation/verification helpers found.
+- No FastAPI auth dependency for current active user found.
+- No request-scoped database session dependency found.
+- No role-check or ownership helpers are required by Phase 5; those belong to Phase 6.
+- No media, jobs, downloads, models, experiments, admin APIs, worker queue logic, or frontend UI exist in this checkout.
 
-- User did not replace placeholder `Goal` or `Risk level`; contract assumes current phase from `docs/phase.md` and `MEDIUM` risk.
-- Password hashing algorithm can use existing dependency `passlib[bcrypt]`; Argon2 is allowed by docs but not currently installed.
-- Seed behavior assumption:
-  - If `ADMIN_EMAIL` does not exist, create active admin user with hashed `ADMIN_PASSWORD`.
-  - If `ADMIN_EMAIL` exists as admin, refresh password hash from current env and ensure account remains active.
-  - If `ADMIN_EMAIL` exists as non-admin, fail with a safe error instead of silently escalating a regular user.
-- Email normalization is not specified in docs; avoid adding undocumented canonicalization beyond trim/lower only if existing auth implementation later establishes it.
-- Optional model/experiment placeholder seeding should be skipped in this phase unless existing relative artifacts are present and docs already define safe metadata.
-- Auth endpoints are later-phase work; no `/api/auth/*` implementation belongs in this phase.
-- Storage bootstrap should create only documented folders under `STORAGE_ROOT`: `uploads/`, `results/`, `reports/`, `models/`, `temp/`, `datasets/`.
+## Unknowns And Assumptions
 
-## Files likely relevant for implementation
+Confirmed docs do not specify exact JSON field names for auth responses beyond returning a JWT access token.
+Confirmed `docs/API.md` marks `POST /api/auth/register` and `POST /api/auth/login` as guest-only endpoints for authenticated users/admins.
+Confirmed `docs/phase.md` allows tokens only in the login token response, and `docs/AUTH_SECURITY.md` describes registration followed by login rather than registration auto-login.
 
+Assumptions for implementation contract:
+
+- Use the existing `users` table; no Phase 5 migration should be needed unless implementation discovers a schema mismatch.
+- Use existing bcrypt helpers; do not add Argon2 unless there is a reason to replace current working helper.
+- Use configured JWT algorithm and expiration from settings.
+- `/api/auth/me` returns a safe current-user profile with role and no `password_hash`.
+- Login token response may use a conventional bearer-token shape, but exact schema must be defined in implementation tests because docs only require a JWT access token.
+- Registration returns safe user data only and must not return a JWT access token.
+- Authenticated user/admin requests to guest-only register/login endpoints should be rejected with HTTP 403.
+- Optional backend logout can be skipped in Phase 5 because API docs allow client-side token deletion and do not require token invalidation storage.
+- Email normalization should at least trim and lower-case before uniqueness checks, matching existing seed behavior.
+
+## Files Likely Relevant For Implementation
+
+Existing files likely touched:
+
+- `backend/app/api/router.py`
+- `backend/app/main.py`
 - `backend/app/core/config.py`
+- `backend/app/core/passwords.py`
 - `backend/app/db/session.py`
 - `backend/app/db/models.py`
-- `backend/migrations/env.py`
-- `backend/Dockerfile`
-- `backend/pyproject.toml`
 - `backend/tests/conftest.py`
-- New backend seed/setup module under `backend/app/` or `backend/app/db/`
-- New backend startup/entrypoint script under `backend/`
-- New backend tests for seed/setup, startup switches, password hashing, and storage bootstrap
-- `.env.example`
-- `docker-compose.yml`
-- `README.md`
-- `backend/index.md`
+- `backend/tests/test_settings.py`
+- `backend/tests/test_setup.py`
+- `backend/pyproject.toml`
+
+Existing files likely referenced only:
+
+- `backend/app/setup.py`
+- `backend/tests/test_health.py`
+- `backend/tests/test_logging.py`
+- `backend/tests/test_data_model.py`
+- `backend/migrations/versions/20260513_0001_initial_schema.py`
+
+New implementation files are expected under existing `backend/app/` and `backend/tests/` only if needed. Exact filenames are implementation detail; do not add top-level folders or product-doc changes for Phase 5.
+
+## Conflict Check
+
+No `WARNING: CONFLICT` found. `docs/phase.md` Phase 5 matches `docs/ROADMAP.md` Phase 5 scope and relevant docs.

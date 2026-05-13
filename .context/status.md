@@ -1,31 +1,47 @@
-# Phase 4 Implementation Status
+# Phase 5 Implementation Status
+
+## Current State
+
+- Branch: `phase-5-auth`.
+- Phase implemented: `Phase 5 - Authentication and account activity`.
+- Risk assumption: HIGH, because auth/JWT/password behavior was touched.
 
 ## Completed
 
-- Added `RUN_MIGRATIONS_ON_START` and `RUN_SEED_ON_START` backend settings.
-- Added bcrypt password hash/verify helper for seeded admin.
-- Added idempotent setup command at `python -m app.setup`.
-- Setup command creates documented storage folders under `STORAGE_ROOT`.
-- Setup command creates configured admin if absent, refreshes existing admin password hash, and fails safely if `ADMIN_EMAIL` belongs to a non-admin user.
-- Added backend container startup script that optionally runs Alembic migrations and setup before Uvicorn.
-- Wired startup switches through `.env.example` and `docker-compose.yml`.
-- Updated README and `backend/index.md`.
-- Final code-review fix enforced 8-character minimum for `ADMIN_PASSWORD`.
-- Final code-review fix aligned startup script enabled-value parsing with common boolean true forms.
+- Added Phase 5 auth tests with RED run proving `/api/auth/*` routes were absent.
+- Added request-scoped database session dependency.
+- Added safe auth schemas for register/login/current-user/token responses.
+- Added JWT access-token creation and validation using configured secret, algorithm, and expiry.
+- Added current active user dependency that rejects missing, malformed, expired, unknown-user, and inactive-user tokens.
+- Added optional authenticated-user dependency for guest-only auth endpoint enforcement.
+- Added `POST /api/auth/register`.
+- Added `POST /api/auth/login`.
+- Added `GET /api/auth/me`.
+- Registered auth router under `/api`.
+- Skipped optional `POST /api/auth/logout` per plan because client-side token deletion is acceptable and no token invalidation storage is required.
+- Updated `backend/index.md` to reflect current backend auth state.
 
-## Quality gates run
+## Quality Gates
 
-- `python -m pytest tests/test_settings.py tests/test_setup.py -q` from `backend/`: PASS.
-- `python -m ruff check app/core/config.py app/core/passwords.py app/setup.py tests/test_settings.py tests/test_setup.py` from `backend/`: PASS.
+- `python -m pytest tests/test_auth.py` from `backend/`: PASS, 16 passed.
 - `python -m ruff check .` from `backend/`: PASS.
-- `python -m pytest` from `backend/`: PASS, 22 tests.
-- `docker compose --env-file .env.example config` from repo root: PASS.
-- `docker compose --env-file .env.example run --rm --build backend alembic upgrade head` from repo root: PASS.
-- `docker compose --env-file .env.example run --rm backend python -m app.setup` from repo root: PASS after migration; rerun also PASS.
-- `docker compose --env-file .env.example up -d --build backend` plus `GET /api/health` and `GET /api/health/db`: PASS.
-- `docker run --rm --entrypoint /bin/sh aerovision-backend -n /app/startup.sh` from repo root: PASS.
+- `python -m pytest` from `backend/`: PASS, 38 passed.
+- Final review-resolution verification:
+  - `python -m ruff check .` from `backend/`: PASS.
+  - `python -m pytest` from `backend/`: PASS, 38 passed.
 
-## Notes
+## Code Review Resolution
 
-- One seed smoke failed before rerun because migration and seed were mistakenly launched in parallel. Logged in `docs/mistakes-codex.md`; rerun after migration passed.
-- No auth endpoints, upload APIs, frontend UI, worker queue logic, model registry APIs, or experiment APIs were added.
+- `.context/review-code-openai.md`: APPROVED with no critical, important, or optional issues.
+- `.context/review-code-claude.md`: not present or empty.
+- `.context/review-code-resolution.md`: FIXED.
+- Source fixes applied during review resolution: none; no accepted source fixes existed.
+- Index updates after review resolution: skipped; no files were created, deleted, renamed, or materially changed by accepted fixes.
+
+## Deviations
+
+- No deviations from `.context/design.md`, `.context/plan.md`, or `.context/review-plan-resolution.md`.
+
+## Remaining Risks
+
+- No known Phase 5 blockers.
