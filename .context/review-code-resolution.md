@@ -1,72 +1,58 @@
-# Code Review Resolution - Phase 24 Final Fix
+# Phase 25 Code Review Resolution
 
 ## Verdict: FIXED
 
-Resolved against `docs/phase.md`, `docs/FRONTEND_UX.md`, `docs/API.md`, `docs/AUTH_SECURITY.md`, `docs/TESTING_QA.md`, `.context/plan.md`, `.context/review-code-openai.md`, and the current user instruction to align login/register layout with `prototype/`.
-
-No item needed user decision. No accepted item conflicts with product docs. Accepted source/doc fixes were applied. Backend-backed auth smoke remains blocked because backend is unavailable.
+OpenAI code review verdict was `APPROVED_WITH_CHANGES`. No Claude code review content was available. All review items are resolved below. No item needs user decision.
 
 ## Resolution table
 
-| ID | Source | Priority | Item | Resolution | Reason |
-|---|---|---:|---|---|---|
-| OAI-I1 | OpenAI review | important | `docs/phase.md` has trailing whitespace, causing diff whitespace gate failure. | accepted | Clean diff gate is valid and low-risk. |
-| OAI-I2 | OpenAI review | important | `docs/index.md` Current Implementation State says frontend has only placeholder Dockerfile/no scaffold. | accepted | Index is stale after Phase 24 scaffold and must be current-state. |
-| OAI-I3 | OpenAI review | important | Backend-backed auth smoke was not completed because backend was unavailable. | accepted | Re-run availability check after fixes; backend remains unavailable, so exact blocker is documented. |
-| OAI-I4 | OpenAI review | important | `/api/auth/me` 401/403/inactive cleanup path lacks focused coverage and currently clears state during render. | accepted | Cleanup moved into effects and tests added for unauthorized/inactive paths. |
-| USER-I1 | User final-fix note | important | Login and registration page layout differs from `prototype/`; elements must be positioned like prototype. | accepted | Production auth layout now uses prototype-style centered auth card without copying demo credentials/mock behavior. |
+| Priority | ID | Review item | Resolution | Rationale | Fix plan |
+|---|---|---|---|---|---|
+| important | I1 | Admin average confidence/FPS are derived from only 5 recent admin jobs. | accepted | Accepted planning resolution forbids calculating global averages from limited recent admin rows. Existing admin stats do not expose confidence/FPS aggregates. | Render Ukrainian unavailable placeholders for admin average confidence/FPS until backend provides supported aggregates. Keep recent jobs for table/activity only. |
+| important | I2 | Required prototype/dashboard browser smoke is incomplete. | accepted | Phase is frontend and prototype-driven; dev-server reachability alone does not verify rendered dashboard or responsive behavior. | Run a browser smoke with mocked API if tooling permits; otherwise record exact blocker after a fresh attempt. |
+| important | I3 | Diff whitespace gate fails on `docs/phase.md:3`. | accepted | Trailing whitespace is a low-risk cleanup in touched docs and fixes a red quality gate. | Remove trailing whitespace only. |
 
 ## Accepted critical fixes
 
-None.
+- None.
 
 ## Accepted important fixes
 
-- Remove trailing whitespace from `docs/phase.md`.
-- Update `docs/index.md` frontend implementation state to reflect Phase 24 scaffold.
-- Re-run backend-backed auth smoke availability check and document blocker if backend remains unavailable.
-- Move auth cleanup side effects from render into `useEffect` paths.
-- Add tests for unauthorized current-user cleanup and inactive-user cleanup/redirect.
-- Align production login/register layout to prototype centered auth-card structure while keeping documented Ukrainian auth behavior and no demo credentials.
+- I1: Render admin average confidence and average FPS as unavailable placeholders instead of deriving them from `/api/admin/jobs?limit=5`.
+- I2: Complete or freshly attempt required dashboard/prototype browser smoke and document exact result.
+- I3: Remove trailing whitespace in `docs/phase.md`.
 
 ## Accepted optional fixes
 
-None.
+- None.
 
 ## Rejected items
 
-None.
+- None.
 
 ## Duplicate items
 
-None.
+- None.
 
 ## Items needing user decision
 
-None.
+- None.
 
 ## Fixes applied
 
+- `frontend/src/pages/DashboardPage.tsx`: admin average confidence/FPS now render unavailable placeholders instead of deriving from `/api/admin/jobs?limit=5`.
+- `frontend/src/test/dashboard.test.tsx`: admin dashboard test now asserts unavailable average placeholders and rejects the recent-job confidence value in dashboard metrics.
 - `docs/phase.md`: removed trailing whitespace on the direction line.
-- `docs/index.md`: updated current frontend implementation state.
-- `frontend/src/auth/AuthProvider.tsx`: moved 401/403 token cleanup into an effect.
-- `frontend/src/auth/ProtectedRoute.tsx`: moved inactive/missing-user logout into an effect.
-- `frontend/src/test/auth-routes.test.tsx`: expanded auth route tests from 6 to 8, covering unauthorized and inactive cleanup paths.
-- `frontend/src/pages/AuthLayout.tsx`: replaced split auth layout with prototype-style centered card.
-- `frontend/src/pages/LoginPage.tsx`: adjusted form spacing/placeholders/link wording for prototype alignment.
-- `frontend/src/pages/RegisterPage.tsx`: adjusted form spacing/placeholders/helper/link wording for prototype alignment.
-- `frontend/src/index.css`: added auth-card entry animation matching prototype behavior.
-- `.context/status.md`: updated final status, verification, security, docs, and remaining risks.
+- `.context/status.md`: updated final fix status, verification, security/privacy, deviations, and remaining risk.
+- `docs/mistakes-codex.md`: logged the real Playwright storage-state BOM smoke-script mistake.
 
 ## Final verification
 
-- `npm test -- src/test/auth-routes.test.tsx` from `frontend/`: PASS, 8 tests.
+- `cd frontend; npm test`: PASS, 13 tests.
+- `cd frontend; npm run lint`: PASS.
+- `cd frontend; npm run build`: PASS.
 - `git diff --check`: PASS, line-ending warnings only.
-- `npm test` from `frontend/`: PASS, 8 tests.
-- `npm run lint` from `frontend/`: PASS.
-- `npm run build` from `frontend/`: PASS.
-- `Invoke-WebRequest http://localhost:8000/api/health`: BLOCKED, backend unavailable (`Unable to connect to the remote server`).
-- `npx playwright --version` from `frontend/`: PASS, version 1.60.0.
-- `npx playwright screenshot --viewport-size=1280,800 http://localhost:5173/login $env:TEMP\aerovision-login-final.png`: PASS.
-- `npx playwright screenshot --viewport-size=390,844 http://localhost:5173/register $env:TEMP\aerovision-register-final-mobile.png`: PASS.
-- Text search for `frame_stride`, unsafe storage paths, prototype credentials, emoji, and forbidden CV-boundary wording in `frontend/src`: PASS; only benign test names mention admin navigation.
+- Browser plugin path: BLOCKED because the Node REPL JavaScript tool required by the Browser plugin is not exposed in this session.
+- `cd frontend; npx playwright --version`: PASS, version 1.60.0.
+- `cd frontend; npx playwright screenshot` with mock API, token storage state, `1440x900` dashboard: PASS, screenshot written to temp.
+- `cd frontend; npx playwright screenshot` with mock API, token storage state, `390x844` dashboard: PASS, screenshot written to temp.

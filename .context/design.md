@@ -1,142 +1,154 @@
-# Design - Phase 24 Frontend scaffold, API client, auth, and protected routing
+# Phase 25 Design
 
-## Phase goal
+## Phase Goal
 
-Create the production frontend foundation under `frontend/` using React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router, TanStack Query, and the backend `/api` contract. Implement only auth pages, auth state, API client base, protected route wrapper, admin route guard, and route placeholders needed to prove routing.
+Implement Phase 25 only: responsive authenticated shell/navigation and `/dashboard` page for the Ukrainian React frontend, based on product docs and the static prototype visual reference.
 
-## Intended behavior from docs
+## Intended Behavior From Docs
 
-Confirmed:
+Confirmed behavior:
 
-- Visible frontend UI text must be Ukrainian.
-- Code identifiers, route names, API fields, database fields, logs, and developer comments stay English.
-- Required frontend routes include `/login`, `/register`, `/dashboard`, `/upload`, `/jobs`, `/jobs/:jobId`, `/models`, `/experiments`, and `/admin`.
-- Protected routes redirect unauthenticated users to `/login`.
-- Admin routes reject or redirect non-admin users.
-- Guests must not see authenticated dashboard navigation.
-- Admin navigation appears only for admin users.
-- Login page needs email input, password input, login button, registration link when public registration is enabled or appropriate registration UX, error display, and loading state.
-- Registration page needs email, password, confirm password, registration button, login link, validation messages, and visible minimum password length rule.
-- Public registration disabled state should redirect to login or show a Ukrainian notice.
-- Frontend logout may delete local JWT because backend logout endpoint is optional and currently absent.
-- Backend remains authorization source of truth. Frontend hiding controls is not security enforcement.
-- API responses, UI text, and exports must stay inside CV-only boundary and must not imply targeting, navigation, interception, or hardware control.
+- Protected dashboard shell is visible only to authenticated users.
+- Guests do not see authenticated dashboard navigation.
+- Navigation includes:
+  - Dashboard
+  - Upload
+  - Jobs
+  - Models
+  - Experiments
+  - Admin only for admins
+- Admin navigation must be hidden from regular users.
+- `/dashboard` must show:
+  - total processed files
+  - total detections
+  - average confidence
+  - average FPS
+  - active model
+  - recent processing jobs
+  - quick upload action
+- Regular users see their own statistics.
+- Admins can see global statistics where backend supports it.
+- Missing data renders Ukrainian empty/placeholder states.
+- No raw `null` appears in UI.
+- Visible UI text is Ukrainian. Technical labels like `FPS`, `YOLO`, `CSV`, and `JSON` may stay English.
+- Frontend must call only backend REST API.
+- Backend authorization remains source of truth.
 
-Assumptions:
+Prototype visual contract:
 
-- Because no registration-settings endpoint exists, the register page cannot know disabled-registration state before submit unless implementation later adds a documented backend capability. For Phase 24, map `403` from `POST /api/auth/register` to a Ukrainian disabled-registration notice.
-- Use `localStorage` or equivalent browser storage for the JWT in this phase unless implementation review chooses a safer documented pattern. Do not store passwords or user secrets beyond the access token.
-- Route placeholders for later pages should be minimal Ukrainian protected/admin shells, not full Phase 25-31 feature pages.
+- Keep dark, compact, work-focused dashboard style.
+- Keep 56px desktop icon sidebar, divider lines, active accent rail, tooltip behavior where practical, and mobile drawer.
+- Use compact metric cards, dark bordered surfaces, 6-8px radii, muted grid/table borders, mono numeric values, and green accent.
+- Dashboard layout should mirror prototype:
+  - page header with quick upload action
+  - 4 metric cards
+  - active model panel plus activity/summary panel
+  - recent jobs table with status badges
+  - skeleton loading state
+  - empty state with upload action
+- Motion stays modest: CSS transitions, skeleton shimmer, status pulse. No `framer-motion` because package is not installed and Phase 25 does not require new dependency.
 
-## Architecture decisions
+## Architecture Decisions
 
-- Production frontend must live under `frontend/`; do not convert `prototype/` into production code.
-- Use prototype as visual reference:
-  - dark dashboard surface;
-  - compact left icon sidebar for authenticated layout;
-  - mobile top bar/drawer;
-  - `AeroVision` brand mark;
-  - muted slate/charcoal palette with green accent around `#3d8b6a`;
-  - compact metric/card/table visual grammar;
-  - skeletons, badges, empty/error blocks, progress primitives where needed.
-- Do not copy prototype mock state, mock data, demo credentials, edit/tweaks panel, UMD/Babel loading pattern, or inline global `window.*` module style.
-- Use React Router for route definitions and redirects.
-- Use TanStack Query for `/api/auth/me` current-user query and future API calls.
-- Build a small API client around `VITE_API_BASE_URL`, JSON requests, `Authorization: Bearer <token>`, typed error normalization, and file-download compatibility for later phases.
-- Build auth provider/state around token persistence, login mutation, register mutation, current-user query, and logout token deletion.
-- Keep route guards thin:
-  - `ProtectedRoute` waits for current-user query when token exists;
-  - redirects guests to `/login`;
-  - rejects inactive/missing users by clearing token and redirecting;
-  - `AdminRoute` checks `user.role === "admin"` and shows/redirects with Ukrainian forbidden handling.
-- shadcn/ui components should be customized to match the prototype, not left as generic defaults.
-- No emoji in markup, text, alt text, or code-generated UI symbols.
-- Keep frontend away from PostgreSQL, shared storage internals, direct CV inference, and absolute filesystem paths.
+- Keep frontend-only scope. No backend, database, worker, or product-doc changes.
+- Replace dashboard placeholder with a real dashboard page.
+- Keep React Router route `/dashboard`; do not add routes.
+- Use TanStack Query for dashboard data fetching.
+- Use existing `apiRequest` and token storage for API calls.
+- Add typed frontend API models matching existing backend schemas:
+  - jobs list/detail fields used by dashboard
+  - model list fields used for active model
+  - admin stats fields used for admin dashboard
+- Derive dashboard view model in frontend helpers:
+  - regular user: use `GET /api/jobs` and `GET /api/models?is_active=true&limit=1`
+  - admin: use `GET /api/admin/stats`, `GET /api/admin/jobs?limit=5`, and `GET /api/models?is_active=true&limit=1`
+- Metric derivation rules:
+  - total processed files means completed jobs only; use `jobs.by_status.completed` for admins when present, and count visible completed jobs for regular users;
+  - total detections may use `admin.stats.detections.total` for admins and completed-job summaries for regular users when numeric summary data exists;
+  - average confidence and average FPS must be derived only from available completed-job `summary_json` numeric values;
+  - if a required value cannot be derived from available data, show a Ukrainian unavailable placeholder instead of substituting total jobs, total media, recent-row averages, or mock values.
+- For regular users, use only available visible jobs. If exact aggregate cannot be known from returned data, show available data or Ukrainian placeholder; do not invent totals.
+- Format all missing values through helpers: never render `null`, `undefined`, absolute paths, or raw JSON.
+- Do not display `weights_path` or any storage-like model path from model API responses on the dashboard.
+- Regular-user dashboard code must not call `/api/admin/*`; admin endpoints are used only after authenticated user role is admin.
+- Use Radix icons only, because installed dependency matches design-skill allowed icon path.
+- Keep Tailwind v3 syntax only.
 
-## Backend impact
+## Frontend Impact
 
-- No backend source changes in this phase.
-- Frontend consumes existing backend auth endpoints:
-  - `POST /api/auth/login`
-  - `POST /api/auth/register`
-  - `GET /api/auth/me`
-- Frontend may define typed client wrappers for other existing endpoints, but must not create calls to undocumented or unimplemented routes.
-- Backend `POST /api/auth/logout` is not currently implemented; frontend logout must use client token deletion.
+- `/dashboard` changes from placeholder to real page.
+- Authenticated shell may be polished to better match prototype:
+  - active state for nested `/jobs/:jobId`
+  - compact sidebar icon tooltips
+  - mobile drawer consistent with prototype
+  - role-safe admin nav
+- Dashboard adds loading, error, empty, and success states.
+- Frontend tests add coverage for:
+  - protected dashboard route
+  - admin nav visibility
+  - dashboard loading/empty/error states
+  - dashboard uses mocked user/admin API data
+  - no raw `null`
 
-## Frontend impact
+## Backend Impact
 
-- Create Vite React TypeScript scaffold.
-- Add dependency manifest and scripts for dev, build, lint/typecheck, and test if test tooling is added.
-- Add Tailwind and shadcn/ui baseline.
-- Add production source structure for app shell, routes, auth, API client, shared UI, and utilities.
-- Leave `frontend/Dockerfile` replacement out of Phase 24 unless implementation uncovers a direct scaffold need; Docker runtime finalization belongs to Phase 32.
-- Implement `/login` and `/register` fully for Phase 24.
-- Implement authenticated shell/guard wiring enough to verify protected and admin routing.
-- Add minimal Ukrainian placeholders for later protected pages only when needed for route tests.
-- Keep later feature pages out of scope:
-  - no real dashboard metrics;
-  - no upload flow;
-  - no jobs table/details;
-  - no models management;
-  - no experiments charts;
-  - no admin data panels.
+- None planned.
+- Existing backend endpoints are consumed only.
+- No route, schema, or auth behavior changes.
 
-## DB impact
+## DB Impact
 
-- No database schema, migration, seed, or persistence changes.
+- None.
 
-## API impact
+## API Impact
 
-- No API contract changes.
-- Client types must mirror current backend schemas or be generated from/checked against backend OpenAPI if implementation chooses that route.
-- Do not invent request fields, response fields, routes, filters, or settings endpoints.
+- None planned.
+- Frontend uses existing endpoints only:
+  - `GET /api/jobs`
+  - `GET /api/admin/jobs`
+  - `GET /api/admin/stats`
+  - `GET /api/models`
 
-## Security/privacy impact
+## Security/Privacy Impact
 
-- Do not log or display passwords, JWTs, token storage contents, backend stack traces, database passwords, or sensitive environment values.
-- Do not hard-code demo credentials from prototype.
-- Do not expose raw backend error details when they are unsafe; map known auth errors to Ukrainian UI messages.
-- Enforce guest-only UX for login/register by redirecting authenticated users away from guest auth pages or preventing duplicate auth submissions.
-- Enforce admin route visibility and route guard in frontend, while documenting that backend authorization remains authoritative.
-- Token storage must be cleared on logout, invalid token, inactive-user response, or `/api/auth/me` unauthorized response.
+- Frontend must not weaken security:
+  - no admin nav for regular users
+  - no guest navigation
+  - no backend authorization bypass assumptions
+  - no display of tokens, secrets, absolute paths, password data, or unsafe backend internals
+- API errors shown as safe Ukrainian messages.
+- Logout continues to remove local token.
 
-## Test strategy
+## Test Strategy
 
 Relevant checks only:
 
-- Frontend dependency install: after scaffold exists, run chosen package install command.
-- Frontend lint/typecheck/build: run configured commands from `frontend/`.
-- Frontend route/component tests if scaffolded:
-  - `/login` renders Ukrainian login form;
-  - `/register` renders Ukrainian registration form;
-  - short password validation appears in Ukrainian;
-  - failed login shows Ukrainian error;
-  - disabled registration `403` maps to Ukrainian notice/error;
-  - protected route redirects guest to `/login`;
-  - admin nav hidden for `user`;
-  - `/admin` rejects non-admin;
-  - admin nav visible for `admin`.
-- Manual browser smoke when dev server exists:
-  - login page loads;
-  - registration page loads;
-  - protected placeholders redirect guests;
-  - authenticated shell matches prototype layout at desktop and mobile widths.
-- Manual browser smoke is mandatory after the Vite dev server starts. If the dev server cannot start, record the exact failing command as a blocker.
-- Backend-backed auth smoke is required when the backend is available:
-  - submit login with seeded admin or a test user;
-  - verify token storage;
-  - verify `/api/auth/me` loads the current user;
-  - verify a protected route renders after auth;
-  - verify logout clears the token;
-  - verify disabled registration `403` maps to a Ukrainian notice.
-- If the backend is unavailable, record the exact blocker instead of treating route-only tests as sufficient.
-- Add a text-search review gate for Ukrainian UI coverage, raw prototype mock credentials/actions, emoji, `frame_stride`, absolute-path display, and targeting/navigation/interception wording.
-- Backend tests are not required for this frontend-only phase unless frontend work reveals a backend contract mismatch.
+- `cd frontend; npm run lint`
+- `cd frontend; npm test`
+- `cd frontend; npm run build`
 
-## Ambiguities or conflicts
+Frontend test scenarios:
 
-- No `WARNING: CONFLICT` found among consulted Phase 24 docs.
-- User prompt used placeholders for phase title and risk level. Current phase was identified from `docs/phase.md`; risk level remains an assumption.
-- Prototype is a UI reference only, while docs remain source of truth for product behavior. Any prototype behavior absent from docs must not be treated as required product behavior.
-- Docs mention registration link when public registration is enabled, but no backend endpoint exposes that setting to frontend. Phase 24 should handle disabled registration through `403` from register attempt unless a documented settings endpoint is later added.
-- Planning review resolution leaves risk level as the documented `MEDIUM` assumption because the user did not specify `HIGH`.
+- Guest visiting `/dashboard` redirects to login.
+- Regular authenticated user sees dashboard shell without admin nav.
+- Admin authenticated user sees admin nav and admin/global dashboard data where mock API supports it.
+- Dashboard renders metric cards, active model, quick upload action, recent jobs.
+- Empty jobs/model data renders Ukrainian empty/placeholder states.
+- Failed dashboard API request renders Ukrainian error state.
+- Raw `null` does not appear.
+- Active model UI does not display `weights_path` or storage paths.
+- Regular-user dashboard fetch path does not call `/api/admin/*`.
+
+Manual browser check, required during implementation unless tooling is genuinely unavailable:
+
+- Start Vite dev server if needed.
+- Check `/dashboard` on desktop and narrow viewport.
+- Compare against `prototype/AeroVision.html` dashboard/shell reference.
+- If skipped, record the exact unavailable tool or startup blocker.
+
+## Ambiguities Or Conflicts
+
+- No `WARNING: CONFLICT` found between current phase docs.
+- Ambiguity: docs require user-scoped dashboard totals, but existing API has no dedicated user aggregate stats endpoint and admin stats does not include average confidence/FPS. Phase 25 should not invent backend API. Use visible jobs and placeholders for regular users; use `GET /api/admin/stats` only for exact admin count stats.
+- Ambiguity: prototype nav labels differ slightly from docs wording. Product docs define routes and visibility; prototype defines visual treatment. Ukrainian labels can follow product meaning while staying visually prototype-aligned.
+- Ambiguity: prototype includes mock activity chart data. Production dashboard must not copy mock numbers as real data. Activity panel can use available job data or show empty state.

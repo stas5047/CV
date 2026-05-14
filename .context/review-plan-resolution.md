@@ -1,36 +1,38 @@
-# Planning Review Resolution - Phase 24
+# Phase 25 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude's planning review was resolved against `docs/phase.md`, `docs/FRONTEND_UX.md`, `docs/API.md`, `docs/AUTH_SECURITY.md`, and `docs/TESTING_QA.md`.
-
-No item requires user decision. No accepted item changes product scope or backend/source behavior.
+Claude planning review verdict was `APPROVED_WITH_CHANGES`. All review items were resolved. No item needs user decision and no product-doc conflict was found.
 
 ## Resolution table
 
-| ID | Claude item | Resolution | Reason | Applied to |
+| ID | Claude item | Resolution | Rationale | Applied updates |
 |---|---|---|---|---|
-| I1 | Add backend-backed auth smoke as required validation. | accepted | `docs/phase.md` requires auth smoke flow against backend; API/auth docs define login/register/me behavior. | `.context/design.md`, `.context/plan.md` |
-| I2 | Make manual browser smoke mandatory for new Vite app. | accepted | Phase 24 creates runnable frontend scaffold and rendered auth/protected routes must be checked. | `.context/design.md`, `.context/plan.md` |
-| O1 | Clarify whether `frontend/Dockerfile` remains placeholder or changes in Phase 24. | accepted | Phase 24 does not require Compose/frontend-container launch; Phase 32 owns final Docker runtime. Clarification reduces scope drift. | `.context/research.md`, `.context/design.md`, `.context/plan.md` |
-| O2 | Add text-search gate for Ukrainian UI and forbidden prototype carryover. | accepted | Matches frontend language rules and prototype-as-reference-only constraint. | `.context/design.md`, `.context/plan.md` |
-| Q1 | Confirm whether risk level should be `HIGH` instead of assumed `MEDIUM`. | rejected | Current user instruction and product docs do not set `HIGH`; `MEDIUM` assumption is documented and adequate after added validation gates. | `.context/research.md`, `.context/design.md` |
-| Q2 | Decide whether Phase 24 should update `frontend/Dockerfile` or defer it. | duplicate | Covered by O1: defer replacement to Phase 32 unless direct Phase 24 scaffold need is discovered and documented. | O1 |
+| I1 | Dashboard metric derivation is under-specified and can misrepresent required stats. | accepted | `docs/FRONTEND_UX.md` requires processed files, detections, average confidence, and average FPS. Existing admin stats exposes count stats, not confidence/FPS averages. Plan must prevent invented totals or averages. | `.context/research.md`, `.context/design.md`, `.context/plan.md` |
+| I2 | Prototype visual verification is conditional even though phase is prototype-driven. | accepted | User instruction requires frontend built from `@prototype`; browser smoke is necessary unless tooling is truly unavailable. | `.context/research.md`, `.context/design.md`, `.context/plan.md` |
+| O1 | Add assertion that active model UI does not display `weights_path` or storage-like paths. | accepted | Model API includes `weights_path`; docs forbid exposing filesystem paths. Dashboard only needs display metadata. | `.context/research.md`, `.context/design.md`, `.context/plan.md` |
+| O2 | Add assertion that regular-user dashboard code does not call `/api/admin/*`. | accepted | Backend remains authorization authority, but frontend must not intentionally fetch admin routes for regular users. | `.context/design.md`, `.context/plan.md` |
 
 ## Accepted changes applied
 
-- Added mandatory backend-backed auth smoke when backend is available: login, token storage, `/api/auth/me`, protected route render, logout cleanup, and disabled-registration `403` Ukrainian notice.
-- Made manual browser smoke mandatory after Vite dev server starts; dev-server failure must be reported as blocker with exact command.
-- Clarified `frontend/Dockerfile` replacement is deferred to Phase 32 runtime finalization unless implementation discovers a direct Phase 24 need.
-- Added text-search review gate for Ukrainian UI coverage, prototype mock credential/action carryover, emoji, `frame_stride`, absolute paths, and targeting/navigation/interception wording.
+- Added metric derivation contract:
+  - `total processed files` means completed jobs only.
+  - Admin total detections may use `GET /api/admin/stats`.
+  - Regular-user detections may use completed visible job summaries when numeric data exists.
+  - Average confidence and average FPS must come only from available completed-job `summary_json` numeric values.
+  - Missing derivable values render Ukrainian unavailable placeholders.
+  - Limited recent admin rows must not be used to invent global averages.
+- Made manual browser/prototype verification required unless dev-server or browser tooling is genuinely unavailable; exact blocker must be recorded if skipped.
+- Added dashboard rule to avoid displaying `weights_path` or storage-like paths.
+- Added dashboard test/review rule that regular-user fetch logic must not call `/api/admin/*`.
 
 ## Rejected items
 
-- Q1 risk confirmation rejected. Phase remains `MEDIUM` by documented assumption because no current user instruction or source-of-truth doc requires `HIGH`.
+- None.
 
 ## Duplicate items
 
-- Q2 duplicates accepted O1 Dockerfile clarification.
+- None.
 
 ## Items needing user decision
 
@@ -38,9 +40,4 @@ No item requires user decision. No accepted item changes product scope or backen
 
 ## Final contract status
 
-- `.context/research.md` updated for Dockerfile deferral and risk assumption.
-- `.context/design.md` updated for Dockerfile deferral, mandatory browser smoke, backend-backed auth smoke, text-search gate, and risk assumption.
-- `.context/plan.md` updated with revised validation steps and Dockerfile deferral.
-- Product docs unchanged.
-- Source code unchanged.
-- Final implementation contract remains scoped to Phase 24 only.
+Phase 25 implementation contract is ready and remains scoped to frontend dashboard/authenticated shell only. No backend, database, CV worker, training, Docker, route-contract, or product-doc changes are authorized by this resolution.

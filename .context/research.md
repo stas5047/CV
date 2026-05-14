@@ -1,103 +1,150 @@
-# Research - Phase 24 Frontend scaffold, API client, auth, and protected routing
+# Phase 25 Research
 
-## Current phase
+## Current Phase
 
-- Confirmed current phase: `Phase 24 - Frontend scaffold, API client, auth, and protected routing`.
-- Source: `docs/phase.md`.
+- Current phase: Phase 25 - Frontend dashboard and authenticated shell.
 - Direction: Frontend.
-- Goal from phase doc: create the React frontend foundation after backend contracts are stable.
-- Risk level: not provided in user prompt. Assumption for this contract: `MEDIUM`, because this phase introduces frontend auth state, token handling, protected routing, and admin route guarding, but does not change backend authorization.
+- Goal from `docs/phase.md`: implement dashboard-style authenticated layout and main dashboard.
+- Risk level: MEDIUM, inferred because user left risk placeholder and phase touches protected UI, role visibility, API integration, and prototype-based visual parity.
 
-## Docs consulted
+## Docs Consulted
+
+Read first:
 
 - `AGENTS.md`
 - `CLAUDE.md`
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
+
+Relevant docs from current phase:
+
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
-## Confirmed repository facts
+Additional user-required UI reference:
 
-- Git checkout is dirty before this planning work.
-- Existing modified/tracked state includes `.context/research.md`, `.context/design.md`, `.context/plan.md`, `.context/*review*`, `.context/status.md`, `docs/index.md`, `docs/phase.md`, and added `prototype/*` files.
-- `.context/` files currently exist and are empty in the working tree.
-- `frontend/` currently contains only:
-  - `frontend/Dockerfile`
-  - `frontend/index.md`
-- No `package.json`, lockfile, `components.json`, Tailwind config, Vite config, or TypeScript config exists yet.
-- `frontend/index.md` says frontend dependency install, dev server, lint/typecheck, tests, and build are not available yet.
-- `frontend/Dockerfile` is still a placeholder that prints that the React app is not implemented.
-- `docker-compose.yml` defines `frontend` with build context `./frontend` and `VITE_API_BASE_URL=http://localhost:${BACKEND_PORT:-8000}/api`.
-- Planning review resolution explicitly defers replacing `frontend/Dockerfile` to Phase 32 runtime finalization. Phase 24 may leave it as a placeholder because current phase validation does not require Compose/frontend-container launch.
-- Backend API routes are already mounted under `/api`.
-- Implemented auth endpoints:
-  - `POST /api/auth/register`
-  - `POST /api/auth/login`
-  - `GET /api/auth/me`
-- Current backend auth response/request schemas:
-  - `RegisterRequest`: `email`, `password`
-  - `LoginRequest`: `email`, `password`
-  - `TokenResponse`: `access_token`, `token_type`
-  - `UserResponse`: `id`, `email`, `role`, `is_active`, `created_at`, `updated_at`
-- No backend `POST /api/auth/logout` route exists in current code. Docs allow frontend logout by deleting local token.
-- Admin-only backend endpoints exist for stats, jobs, users, and storage cleanup.
-- Prototype exists under `prototype/` and is explicitly documented as a static UI reference, not production app code or API contract.
-- Prototype has React UMD/Babel, CSS variables, compact dark dashboard styling, icon-only desktop sidebar, mobile drawer, auth pages, page modules, status badges, metric cards, skeletons, empty states, progress bars, tabs, toasts, upload controls, jobs, job detail, models, experiments, and admin mock screens.
+- `prototype/index.md`
+- `prototype/dashboard.jsx`
+- `prototype/sidebar.jsx`
+- `prototype/ui.jsx`
+- `prototype/styles.css`
 
-## Existing implementation state
+## Confirmed Repository Facts
 
-- Backend is implemented beyond auth: media, jobs/results/downloads, models, experiments, admin APIs, OpenAPI contract tests, and backend tests exist.
-- CV worker and training folders exist, but Phase 24 should not modify worker or training code.
-- Frontend production app is not scaffolded.
-- Frontend Phase 24 must create Vite/React/TypeScript foundation and auth routing only.
-- Frontend Phase 24 must not implement later pages beyond route shells/placeholders needed for protected/admin routing.
-- Prototype UI may guide frontend layout and visual system, but mock data/actions in prototype must not become product contracts.
+- Git checkout is dirty before this planning work:
+  - `.context/design.md`
+  - `.context/plan.md`
+  - `.context/research.md`
+  - `.context/review-code-openai.md`
+  - `.context/review-code-resolution.md`
+  - `.context/review-plan-claude.md`
+  - `.context/review-plan-resolution.md`
+  - `.context/status.md`
+  - `docs/phase.md`
+- Frontend stack exists under `frontend/` with React 19, TypeScript, Vite, Tailwind CSS v3, shadcn baseline, React Router, TanStack Query, Recharts, and Radix icons.
+- `@radix-ui/react-icons` is installed. `@phosphor-icons/react` and `framer-motion` are not installed.
+- Tailwind config already uses dashboard-appropriate fonts: `Space Grotesk`, `DM Sans`, and `JetBrains Mono`.
+- `frontend/src/index.css` already uses dark dashboard tokens aligned with prototype colors: off-black background, dark surfaces, muted borders, green accent, mono numeric styling.
+- Existing frontend implements Phase 24 auth/routing scaffold:
+  - `frontend/src/App.tsx`
+  - `frontend/src/layout/AppShell.tsx`
+  - auth context/provider/guards
+  - login/register pages
+  - placeholder protected pages
+  - frontend auth/route tests
+- Current `AppShell` already has a compact desktop sidebar, mobile top bar/drawer, user email display, logout, and admin-only nav visibility.
+- Current dashboard route is a placeholder in `frontend/src/pages/placeholders.tsx`.
+- Existing backend exposes the API needed for this phase:
+  - `GET /api/jobs`
+  - `GET /api/models`
+  - `GET /api/admin/stats`
+  - `GET /api/admin/jobs`
+- `GET /api/jobs` returns user-visible jobs for regular users and broader jobs for admins where permissions allow; response includes media/model references, `summary_json`, status/progress, timestamps, and download refs.
+- `GET /api/models?is_active=true` can identify the active model.
+- `GET /api/admin/stats` gives exact global admin count stats for users, media, jobs by status, detections, tracks, models, and experiments. It does not expose average confidence or average FPS.
+- `GET /api/admin/jobs` returns recent/detail job rows, but a limited recent list must not be used to invent global dashboard averages.
+- `GET /api/models` responses include `weights_path`; the dashboard must not display this storage path.
+- No dedicated user-scoped dashboard stats endpoint was found.
+- Prototype is static UI reference only. It uses React UMD, Babel JSX, mock data, and CSS, not production contracts.
 
-## Unknowns and assumptions
+## Existing Implementation State
 
-- Risk level was not filled in by user. Assumption: `MEDIUM`.
-- Package manager is not established by repo files. Assumption: implementation may choose a standard Vite-compatible npm setup unless user or repo later provides another package manager.
-- shadcn/ui setup details are absent because `components.json` does not exist yet. Assumption: Phase 24 must initialize baseline shadcn/ui config in `frontend/`.
-- Icon package is not established because no `package.json` exists. Assumption from `$design-taste-frontend`: after package creation, use one approved icon import family such as `@radix-ui/react-icons` or `@phosphor-icons/react`, not emoji or ad hoc text symbols.
-- Backend does not expose a public registration-settings endpoint in the docs or code. Assumption: disabled registration handling can be based on `POST /api/auth/register` returning `403`, and the register page can show a Ukrainian notice/error after that response.
-- The prototype contains demo credential hints and mock route behavior. Assumption: production UI must not hard-code prototype credentials or mock login shortcuts.
-- The prototype text appears mojibake in terminal output due encoding display, but docs require Ukrainian visible UI text.
-- Planning review resolution keeps the risk assumption as `MEDIUM`; no user instruction or product doc requires treating this phase as `HIGH`.
+- Phase 24 frontend foundation is present.
+- Auth state is token-backed and calls `GET /api/auth/me`.
+- Protected route guard redirects guests to login.
+- Admin route guard rejects non-admin users.
+- Navigation already exists but route labels differ slightly from prototype/docs and may need Phase 25 polish.
+- Dashboard content is not implemented yet.
+- Shared dashboard primitives exist only partly:
+  - `Button`
+  - `Input`
+  - `Alert`
+  - `SkeletonPage`
+  - `RoutePlaceholder`
+  - `Logo`
+- No production dashboard API wrapper exists yet for jobs/models/admin stats.
+- No production reusable status badge/metric card/table empty state exists yet beyond prototype-only code.
 
-## Files likely relevant for implementation
+## Unknowns And Assumptions
 
-- `frontend/package.json`
-- `frontend/package-lock.json` or chosen lockfile
-- `frontend/vite.config.ts`
-- `frontend/tsconfig.json`
-- `frontend/tsconfig.node.json`
-- `frontend/index.html`
-- `frontend/src/main.tsx`
+Confirmed facts:
+
+- Frontend must call only backend REST API.
+- Visible UI text must be Ukrainian.
+- Admin nav must be visible only for admins.
+- Guests must not see authenticated navigation.
+- Dashboard must show processed files, detections, average confidence, average FPS, active model, recent jobs, and quick upload action.
+- Missing values must not render raw `null`.
+- Prototype visual language should drive production frontend UI.
+
+Assumptions:
+
+- Phase 25 must not add backend endpoints. Dashboard should use existing backend APIs only.
+- For regular users, exact aggregate dashboard stats are limited by available job-list data because no user aggregate endpoint exists. The implementation should derive best available user-scoped metrics from visible jobs and clearly render placeholders when data is incomplete.
+- For admins, global count stats can use `GET /api/admin/stats`; recent global jobs can use `GET /api/admin/jobs`.
+- Total processed files must mean completed jobs when the available data can identify that status; it must not use total media or total jobs as a substitute.
+- Total detections may use admin stats for admins and completed-job summaries for regular users when available.
+- Average confidence and average FPS must be derived only from available completed-job `summary_json` numeric values; otherwise render Ukrainian unavailable placeholders.
+- Active model can use `GET /api/models?is_active=true&limit=1`.
+- The implementation can add frontend-only types/components under existing `frontend/src` structure as needed, but must not add new product routes or backend behavior.
+- Prototype mock-only data values must not be copied as product behavior.
+- Prototype visual verification is required during implementation unless dev-server or browser tooling is genuinely unavailable; record the exact blocker if skipped.
+
+## Files Likely Relevant For Implementation
+
+Existing files likely to modify:
+
 - `frontend/src/App.tsx`
-- `frontend/src/index.css`
-- `frontend/src/router/*`
-- `frontend/src/api/client.ts`
+- `frontend/src/layout/AppShell.tsx`
+- `frontend/src/pages/placeholders.tsx`
 - `frontend/src/api/types.ts`
-- `frontend/src/api/auth.ts`
+- `frontend/src/api/client.ts`
+- `frontend/src/index.css`
+- `frontend/src/test/auth-routes.test.tsx`
+
+Existing files likely to read/reference:
+
+- `frontend/src/auth/useAuth.ts`
 - `frontend/src/auth/AuthProvider.tsx`
 - `frontend/src/auth/ProtectedRoute.tsx`
 - `frontend/src/auth/AdminRoute.tsx`
-- `frontend/src/pages/LoginPage.tsx`
-- `frontend/src/pages/RegisterPage.tsx`
-- `frontend/src/pages/*Placeholder*.tsx`
-- `frontend/src/components/*`
-- `frontend/src/lib/utils.ts`
-- `frontend/components.json`
-- `frontend/Dockerfile`
-- `frontend/index.md`
-- `docker-compose.yml`
-- Prototype references:
-  - `prototype/index.md`
-  - `prototype/styles.css`
-  - `prototype/ui.jsx`
-  - `prototype/auth.jsx`
-  - `prototype/sidebar.jsx`
+- `frontend/src/components/ui/button.tsx`
+- `frontend/src/components/Logo.tsx`
+- `frontend/tailwind.config.ts`
+- `frontend/package.json`
+- `prototype/dashboard.jsx`
+- `prototype/sidebar.jsx`
+- `prototype/ui.jsx`
+- `prototype/styles.css`
+
+Potential new frontend-only files under existing `frontend/src`:
+
+- dashboard page module
+- dashboard API/query helper module
+- reusable dashboard/status/empty/skeleton components
+- dashboard-focused frontend tests
+
+These are implementation decomposition candidates, not product-contract sources.

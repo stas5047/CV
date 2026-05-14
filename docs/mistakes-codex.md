@@ -1,5 +1,19 @@
 # Codex Mistake Log
 
+## 2026-05-14 - Phase 25 Playwright storage state written with BOM
+
+- Mistake: Wrote temporary Playwright storage-state JSON with PowerShell `Set-Content -Encoding UTF8`, which produced a BOM.
+- Impact: First dashboard browser-smoke attempt failed with `Unexpected token` while reading storage state and produced no screenshots.
+- Fix: Rewrote the temp storage-state file with BOM-free `System.Text.UTF8Encoding(false)` and reran the smoke successfully.
+- Prevention: For Playwright JSON artifacts on Windows, write temp JSON with BOM-free UTF-8.
+
+## 2026-05-14 - Phase 25 frontend test command used unsupported Vitest option
+
+- Mistake: Ran `npm test -- --runInBand`, which is a Jest option and is not supported by this project's Vitest version.
+- Impact: First test attempt failed before running tests with `Unknown option --runInBand`.
+- Fix: Reran the documented command `npm test`.
+- Prevention: Use project-documented frontend test command unless `package.json` confirms additional runner options.
+
 ## 2026-05-14 - Phase 24 dev server start used `npm` instead of `npm.cmd` on Windows
 
 - Mistake: Started the Vite dev server with `Start-Process -FilePath npm`, which followed Windows file association behavior and launched `notepad` instead of the npm CLI.

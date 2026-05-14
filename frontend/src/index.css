@@ -60,11 +60,24 @@
   }
 
   .av-skeleton {
-    @apply animate-pulse rounded bg-muted;
+    @apply rounded bg-muted;
+    background-image: linear-gradient(90deg, hsl(var(--muted)) 0%, hsl(var(--secondary)) 50%, hsl(var(--muted)) 100%);
+    background-size: 200% 100%;
+    animation: av-shimmer 1.8s ease infinite;
   }
 
   .animate-auth-slide-up {
     animation: auth-slide-up 0.25s ease;
+  }
+}
+
+@keyframes av-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
   }
 }
 

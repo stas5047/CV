@@ -18,10 +18,10 @@ According to `../docs/`, this frontend will provide a Ukrainian-language dashboa
 | `tailwind.config.ts` / `postcss.config.js` | Tailwind CSS v3 and PostCSS configuration. |
 | `eslint.config.js` | ESLint flat config for TypeScript and React hooks. |
 | `components.json` | shadcn/ui baseline configuration. |
-| `src/` | React app source: API client, auth state, protected/admin routing, auth pages, shell, UI primitives, tests, and styles. |
+| `src/` | React app source: API client, auth state, protected/admin routing, auth pages, authenticated shell, dashboard page, UI primitives, tests, and styles. |
 | `index.md` | Frontend folder summary, current contents, and frontend-local commands. |
 
-The frontend currently implements Phase 24 only: Vite/React/TypeScript scaffold, Tailwind/shadcn baseline, typed auth API client, token-backed auth state, `/login`, `/register`, protected route wrapper, admin guard, authenticated shell, and placeholder protected routes for later phases.
+The frontend currently implements Phase 25: Vite/React/TypeScript scaffold, Tailwind/shadcn baseline, typed auth API client, token-backed auth state, `/login`, `/register`, protected route wrapper, admin guard, authenticated shell, `/dashboard` metrics/recent-jobs page, and placeholder protected routes for later phases.
 
 ## Commands
 

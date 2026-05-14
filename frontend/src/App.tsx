@@ -5,12 +5,12 @@ import { AdminRoute } from "./auth/AdminRoute";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import type { AuthApi } from "./api/auth";
 import { AppShell } from "./layout/AppShell";
+import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import {
   AdminPage,
-  DashboardPage,
   ExperimentsPage,
   JobDetailsPage,
   JobsPage,

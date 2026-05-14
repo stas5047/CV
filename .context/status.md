@@ -1,56 +1,46 @@
-# Status - Phase 24 Code Review Resolution + Final Fix
+# Phase 25 Status
 
-## Current state
+## Implementation
 
-- OpenAI code review resolved in `.context/review-code-resolution.md`.
-- No Claude code-review items existed; `.context/review-code-claude.md` is empty.
-- Accepted important fixes were applied.
-- No item needed user decision.
+- Implemented `/dashboard` as protected frontend page using existing backend REST routes only.
+- Added dashboard API helpers for:
+  - `GET /api/jobs?limit=100`
+  - `GET /api/admin/stats`
+  - `GET /api/admin/jobs?limit=5`
+  - `GET /api/models?is_active=true&limit=1`
+- Added typed frontend models for jobs, active model data, and admin stats.
+- Polished authenticated shell active states and kept admin navigation role-gated.
+- Added Ukrainian dashboard loading, error, empty, metric, active-model, activity, and recent-jobs states.
+- Updated frontend tests for dashboard data, empty/error states, admin visibility, no raw `null`, no `weights_path` display, and regular-user no-admin-fetch behavior.
+- Updated `frontend/index.md` for current Phase 25 frontend state.
+- `frontend/src/pages/DashboardPage.tsx` is 490 LOC. Kept as one cohesive page module for Phase 25 because helper/view-model logic, dashboard-only primitives, and page composition are tightly coupled; split can happen when later dashboard widgets become shared.
+- Final fix changed admin average confidence/FPS to unavailable placeholders because current backend admin stats do not provide global aggregate values.
 
-## Fixes applied
+## Quality Gates
 
-- Removed trailing whitespace from `docs/phase.md`.
-- Updated `docs/index.md` Current Implementation State for the Phase 24 frontend scaffold.
-- Moved `/api/auth/me` unauthorized cleanup from render into `AuthProvider` effect handling for 401/403.
-- Moved inactive/missing-user cleanup in `ProtectedRoute` into an effect instead of calling logout during render.
-- Added route/auth tests for unauthorized current-user cleanup and inactive-user cleanup.
-- Aligned `/login` and `/register` layout with `prototype/auth.jsx`: centered auth card, centered AV mark, AeroVision heading, compact stacked form, matching card width/spacing, and no split hero.
-- Kept prototype demo credentials/mock login behavior out of production frontend.
-
-## Quality gates
-
-- `npm test -- src/test/auth-routes.test.tsx` from `frontend/`: PASS, 8 tests.
+- `cd frontend; npm test`: PASS.
+- `cd frontend; npm run lint`: PASS.
+- `cd frontend; npm run build`: PASS.
 - `git diff --check`: PASS, line-ending warnings only.
-- `npm test` from `frontend/`: PASS, 8 tests.
-- `npm run lint` from `frontend/`: PASS.
-- `npm run build` from `frontend/`: PASS.
-- `Invoke-WebRequest http://localhost:8000/api/health`: BLOCKED, backend unavailable (`Unable to connect to the remote server`).
-- Browser plugin path: unavailable as callable tool in this turn despite plugin/skill listing; Playwright CLI fallback used.
-- `npx playwright --version` from `frontend/`: PASS, version 1.60.0.
-- `npx playwright screenshot --viewport-size=1280,800 http://localhost:5173/login $env:TEMP\aerovision-login-final.png`: PASS.
-- `npx playwright screenshot --viewport-size=390,844 http://localhost:5173/register $env:TEMP\aerovision-register-final-mobile.png`: PASS.
-- Playwright deeper console/interaction script: not available because `playwright` is not installed as a project importable package; route interaction coverage is provided by Vitest.
+- Browser plugin path: BLOCKED because the Node REPL JavaScript tool required by the Browser plugin is not exposed in this session.
+- `cd frontend; npx playwright --version`: PASS, version 1.60.0.
+- `cd frontend; npx playwright screenshot` with mock API, token storage state, `1440x900` dashboard: PASS, screenshot written to temp.
+- `cd frontend; npx playwright screenshot` with mock API, token storage state, `390x844` dashboard: PASS, screenshot written to temp.
 
-## Security/privacy review
+## Security / Privacy
 
-- No token/password logging added.
-- No prototype demo credentials copied into production frontend.
-- No undocumented logout API call added; logout remains client-side token deletion.
-- Admin route/navigation remain frontend-guarded while backend stays source of truth.
-- Text search found no `frame_stride`, unsafe storage path display, prototype credentials, emoji, or forbidden CV-boundary wording in production frontend source. Benign matches were only test names mentioning admin navigation.
+- Regular dashboard uses only user-visible `/api/jobs`; it does not call `/api/admin/*`.
+- Admin dashboard uses admin endpoints only after authenticated role is `admin`.
+- Dashboard does not display `weights_path`, raw storage paths, tokens, secrets, `null`, or `undefined`.
+- Admin dashboard no longer presents recent-job confidence/FPS as global average metrics.
+- Frontend remains display-only for Phase 25; no backend authorization assumptions were changed.
 
-## Index/docs
+## Deviations
 
-- Updated `docs/index.md` because root documentation index had stale frontend implementation state.
-- `frontend/index.md` already described current Phase 24 scaffold and commands; no command/file list change required.
-- No mistake-log update made; no new source-affecting mistake or near-miss occurred.
+- No backend aggregate endpoint was added; metric derivation follows approved plan and renders Ukrainian placeholders when values are not available.
+- Browser plugin could not be used because its required Node REPL JavaScript tool is unavailable; Playwright CLI fallback verified rendered dashboard desktop and mobile states with mocked API.
 
-## Remaining risks
+## Remaining Risks
 
-- Backend-backed auth smoke still needs a running backend and seeded/test credentials.
-- Later frontend product pages remain placeholders by Phase 24 scope.
-- Playwright CLI screenshots verified rendered layout, but console-health automation was limited by absent project Playwright dependency and absent callable Browser tool.
-
-## Final verdict
-
-Accepted source/doc fixes are applied and frontend verification passes. Backend-backed auth smoke remains blocked by unavailable backend.
+- Regular-user dashboard aggregates are based on visible job-list data because no user dashboard stats endpoint exists.
+- Admin average confidence/FPS remain unavailable until a backend global aggregate source exists.

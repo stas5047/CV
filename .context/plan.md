@@ -1,47 +1,122 @@
-# Plan - Phase 24 Frontend scaffold, API client, auth, and protected routing
+# Phase 25 Plan
 
-1. `@role/developer-frontend` Verify no existing frontend scaffold files beyond `frontend/Dockerfile` and `frontend/index.md`; record any new user changes before editing. Verifiable by `git status --short` and `rg --files frontend`.
+## Scope
 
-2. `@role/developer-frontend` Scaffold a Vite React TypeScript app under `frontend/` with package manifest, TypeScript config, Vite config, `index.html`, and `src/` entrypoint. Verifiable by expected scaffold files existing and no source files outside `frontend/` changed except documented Docker/index updates if needed.
+Phase 25 only: frontend dashboard and authenticated shell. No backend, database, CV worker, training, product-doc, Docker, or route-contract changes.
 
-3. `@role/developer-frontend` Add required frontend dependencies for this phase: React, React DOM, Vite, TypeScript, Tailwind CSS, shadcn/ui baseline dependencies, React Router, TanStack Query, form validation tooling if used, and exactly one approved icon import family after dependency verification. Verifiable by `frontend/package.json`.
+## Ordered Atomic Steps
 
-4. `@role/developer-frontend` Configure Tailwind and shadcn/ui baseline to match prototype visual direction: dark charcoal/slate surfaces, green accent, compact radius, dashboard typography, no emoji, responsive layout tokens. Verifiable by Tailwind/shadcn config and CSS variables/classes.
+1. `@role/developer-frontend` Re-read `docs/FRONTEND_UX.md`, `docs/API.md`, `docs/AUTH_SECURITY.md`, `docs/TESTING_QA.md`, and prototype dashboard/shell files before source edits.
+   - Verify: notes in implementation status reference only Phase 25 docs and prototype files.
 
-5. `@role/developer-frontend` Build shared UI primitives needed for Phase 24 only: button, input/form field, alert/error block, skeleton/loading state, app logo mark, and route placeholder shell. Verifiable by components imported by auth pages and route guards.
+2. `@role/developer-frontend` Inspect current frontend route/auth structure.
+   - Files: `frontend/src/App.tsx`, `frontend/src/layout/AppShell.tsx`, `frontend/src/pages/placeholders.tsx`, `frontend/src/auth/*`.
+   - Verify: `/dashboard` remains protected and admin guard remains only on `/admin`.
 
-6. `@role/developer-frontend` Implement API base client using `VITE_API_BASE_URL`, JSON request/response handling, bearer token injection, typed normalized errors, and no logging of tokens or passwords. Verifiable by `frontend/src/api/*` and tests or typecheck.
+3. `@role/developer-frontend` Add frontend API types for dashboard-consumed existing backend responses.
+   - Surface: `frontend/src/api/types.ts` or adjacent frontend API module.
+   - Include only fields returned by existing schemas and needed by dashboard.
+   - Verify: types match backend schemas for jobs, models, and admin stats; no new endpoint or field names.
 
-7. `@role/developer-frontend` Add auth API wrappers matching current backend schemas only: `login(email,password)`, `register(email,password)`, `getCurrentUser()`. Do not add logout API call because current backend has no `POST /api/auth/logout`. Verifiable by route strings and request/response types.
+4. `@role/developer-frontend` Add dashboard API/query helpers using existing routes only.
+   - Regular user calls:
+     - `GET /api/jobs?limit=100`
+     - `GET /api/models?is_active=true&limit=1`
+   - Admin calls:
+     - `GET /api/admin/stats`
+     - `GET /api/admin/jobs?limit=5`
+     - `GET /api/models?is_active=true&limit=1`
+   - Verify: helpers use `apiRequest`, send JWT through existing client behavior, do not call nonexistent routes, and regular-user fetch logic never calls `/api/admin/*`.
 
-8. `@role/developer-frontend` Implement auth token storage, logout token deletion, current-user query, invalid-token cleanup, and authenticated-user context/provider. Verifiable by auth provider tests or route smoke.
+5. `@role/developer-frontend` Add dashboard formatting helpers.
+   - Format dates with `uk-UA`.
+   - Format duration, confidence percent, FPS, counts, media type, and status text.
+   - Map missing values to Ukrainian placeholders.
+   - Derive `total processed files` from completed jobs only; do not substitute total media or total jobs.
+   - Derive total detections from admin stats for admins or completed-job summaries for regular users when numeric data exists.
+   - Derive average confidence and average FPS only from available completed-job `summary_json` numeric values.
+   - Show Ukrainian unavailable placeholders when a metric cannot be derived; do not calculate global averages from only `GET /api/admin/jobs?limit=5`.
+   - Verify: helper tests or component tests prove raw `null` is not rendered.
 
-9. `@role/developer-frontend` Implement React Router route tree for `/login`, `/register`, `/dashboard`, `/upload`, `/jobs`, `/jobs/:jobId`, `/models`, `/experiments`, and `/admin`. Later-phase routes get minimal Ukrainian placeholders only. Verifiable by route tests/build.
+6. `@role/developer-frontend` Add reusable UI primitives needed by dashboard.
+   - Needed primitives: status badge, metric card, empty state, dashboard skeleton, section header, mini progress/metric bar.
+   - Match prototype visual language with Tailwind v3 and existing CSS tokens.
+   - Use `@radix-ui/react-icons` only.
+   - Verify: no new third-party dependency, no emoji, no pure black, no purple/blue glow, no `h-screen`.
 
-10. `@role/developer-frontend` Implement `ProtectedRoute` for authenticated routes: guests redirect to `/login`; token-present state waits for `/api/auth/me`; inactive/unauthorized responses clear token and redirect. Verifiable by route tests.
+7. `@role/developer-frontend` Polish authenticated shell to match prototype within existing behavior.
+   - Keep compact desktop sidebar.
+   - Keep mobile top bar/drawer.
+   - Add/keep active styling for `/jobs/:jobId`.
+   - Keep admin item hidden unless `user.role === "admin"`.
+   - Keep logout behavior.
+   - Verify: route tests still prove admin nav hidden for regular users and visible for admins.
 
-11. `@role/developer-frontend` Implement `AdminRoute` and admin navigation visibility: users cannot see admin nav and cannot access `/admin`; admins can see admin nav. Verifiable by route tests.
+8. `@role/developer-frontend` Implement `/dashboard` page.
+   - Replace only dashboard placeholder, leaving later phase routes as placeholders.
+   - Add page header, quick upload action to `/upload`, four metric cards, active model panel, activity/summary panel, recent jobs table.
+   - Use user-scoped data for regular users and global admin data only where existing admin endpoints support it.
+   - Do not display `weights_path` or any storage-like path from model API responses.
+   - Verify: dashboard renders required docs content and no later-phase upload/jobs/model mutation behavior.
 
-12. `@role/developer-frontend` Implement `/login` page based on prototype visual style and docs: email, password, submit, registration link, loading, Ukrainian validation/errors, and no hard-coded demo credentials. Verifiable by component tests and manual render.
+9. `@role/developer-frontend` Implement dashboard loading, error, and empty states.
+   - Loading: skeletons shaped like metric cards/table.
+   - Error: safe Ukrainian message and retry affordance.
+   - Empty: Ukrainian state for no jobs and missing active model.
+   - Verify: no blank table/chart, no raw API error dump, no raw `null`.
 
-13. `@role/developer-frontend` Implement `/register` page based on prototype visual style and docs: email, password, confirm password, minimum 8-character rule, login link, Ukrainian validation/errors, role fixed by backend, and `403` disabled-registration notice. Verifiable by component tests.
+10. `@role/developer-frontend` Add or update frontend tests for Phase 25.
+    - Cover regular dashboard render with mocked jobs/model data.
+    - Cover admin dashboard render with mocked admin stats/jobs/model data.
+    - Cover empty dashboard state.
+    - Cover failed dashboard request.
+    - Cover admin nav role visibility remains correct.
+    - Verify: tests assert Ukrainian visible text where practical, no raw `null`, active model UI does not show `weights_path`, and regular-user dashboard mocks fail if `/api/admin/*` is called.
 
-14. `@role/developer-frontend` Implement authenticated shell based on prototype: compact desktop icon sidebar, mobile top bar/drawer, Ukrainian nav labels, admin item conditional on role, logout action. Verifiable by route tests and manual responsive smoke.
+11. `@role/tester` Run frontend lint.
+    - Command: `cd frontend; npm run lint`
+    - Expected: PASS.
 
-15. `@role/developer-auth-security` Review frontend auth/security behavior: no password/token logging, no prototype demo credentials, no frontend-only authorization claims, no absolute paths, no CV targeting/navigation/interception wording. Verifiable by code review and text search.
+12. `@role/tester` Run frontend tests.
+    - Command: `cd frontend; npm test`
+    - Expected: PASS.
 
-16. `@role/tester` Run frontend install from `frontend/`. Verifiable command: chosen install command returns `PASS`; if package manager cannot run, record exact blocker.
+13. `@role/tester` Run frontend production build.
+    - Command: `cd frontend; npm run build`
+    - Expected: PASS.
 
-17. `@role/tester` Run frontend lint/typecheck/build from `frontend/`. Verifiable commands must be exact package scripts and return `PASS`.
+14. `@role/tester` Manual browser check, required unless dev-server or browser tooling is genuinely unavailable during implementation.
+    - Command: `cd frontend; npm run dev -- --port 5173`
+    - Check `/dashboard` as regular user and admin with mocked or local backend data.
+    - Check desktop and narrow viewport.
+    - Verify: layout resembles `prototype/AeroVision.html` dashboard/shell and no admin controls leak to regular user.
+    - If skipped: record exact unavailable tool, startup failure, or environment blocker.
 
-18. `@role/tester` Run route/component tests if configured. Verifiable tests cover login, register, protected redirect, admin guard, admin nav visibility, logout token cleanup, `/api/auth/me` current-user handling through mocked client behavior, disabled-registration `403`, and Ukrainian auth error states.
+15. `@role/code-reviewer` Review changed frontend files against Phase 25 docs and prototype.
+    - Check: Ukrainian UI, protected route, admin nav visibility, no raw `null`, no absolute paths, no nonexistent API calls, no source-scope creep into later phases.
+    - Verify: findings resolved or documented before completion.
 
-19. `@role/tester` Run mandatory manual browser smoke after the Vite dev server starts: `/login`, `/register`, guest protected redirect, user shell, admin route guard, mobile width shell. If the dev server cannot start, record the exact failing command as a blocker.
+16. `@role/docs-maintainer` Decide docs/index updates.
+    - Expected: no product docs update for Phase 25 unless implementation changes frontend commands or index-worthy file inventory.
+    - Verify: if no command/structure changes requiring docs, report docs update skipped.
 
-20. `@role/tester` Run backend-backed auth smoke when backend is available: submit login with seeded admin or a test user, verify token storage, verify `/api/auth/me` loads current user, verify protected route renders after auth, verify logout clears token, and verify disabled registration `403` shows a Ukrainian notice. If backend is unavailable, record the exact blocker rather than treating route-only tests as sufficient.
+## Phase 25 Quality Gates
 
-21. `@role/tester` Run text-search review gates for Ukrainian visible UI coverage, forbidden prototype mock credentials/actions, emoji, `frame_stride`, absolute-path display, and targeting/navigation/interception wording. Verifiable by exact search commands and review notes.
+- `cd frontend; npm run lint`
+- `cd frontend; npm test`
+- `cd frontend; npm run build`
+- Manual browser smoke for `/dashboard` compared against prototype, required unless exact tooling/startup blocker is recorded.
 
-22. `@role/docs-maintainer` Update only frontend-local implementation docs if commands/files changed: `frontend/index.md` and root README command status if required by repo conventions. Do not modify product docs. `frontend/Dockerfile` replacement is deferred to Phase 32 unless a direct Phase 24 scaffold need is discovered and documented. Verifiable by diff limited to implementation docs, not `docs/*.md`.
+## Out Of Scope
 
-23. `@role/code-reviewer` Review implementation against this contract, `docs/FRONTEND_UX.md`, `docs/API.md`, `docs/AUTH_SECURITY.md`, and `docs/TESTING_QA.md`. Verifiable by findings resolved before final output.
+- `/upload` implementation.
+- `/jobs` implementation beyond recent-job links.
+- `/jobs/:jobId` implementation.
+- `/models` admin forms or activation UI.
+- `/experiments` charts.
+- `/admin` page implementation.
+- Backend dashboard aggregate endpoint.
+- Database schema changes.
+- Worker changes.
+- Docker runtime changes.
+- Product docs changes unless command/index facts change during implementation.

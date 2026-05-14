@@ -9,7 +9,7 @@ import {
   RocketIcon,
   UploadIcon,
 } from "@radix-ui/react-icons";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/ui/button";
 import { Logo } from "../components/Logo";
@@ -27,7 +27,10 @@ const adminItem = { path: "/admin", label: "Адмін", Icon: LockClosedIcon };
 
 function NavItems({ close }: { close?: () => void }) {
   const { user } = useAuth();
+  const location = useLocation();
   const items = user?.role === "admin" ? [...navItems, adminItem] : navItems;
+  const isRouteActive = (path: string) =>
+    path === "/jobs" ? location.pathname === "/jobs" || location.pathname.startsWith("/jobs/") : location.pathname === path;
 
   return (
     <>
@@ -36,14 +39,18 @@ function NavItems({ close }: { close?: () => void }) {
           key={path}
           to={path}
           aria-label={label}
+          title={label}
           onClick={close}
           className={({ isActive }) =>
             cn(
-              "group relative flex h-10 items-center gap-3 rounded-md px-3 text-sm text-muted-foreground transition hover:bg-secondary hover:text-foreground md:w-10 md:justify-center md:px-0",
-              isActive && "bg-primary/10 text-accent-foreground",
+              "group relative flex h-10 items-center gap-3 rounded-md px-3 text-sm text-muted-foreground transition duration-300 hover:bg-secondary hover:text-foreground active:translate-y-px md:w-10 md:justify-center md:px-0",
+              (isActive || isRouteActive(path)) && "bg-primary/10 text-accent-foreground",
             )
           }
         >
+          {isRouteActive(path) ? (
+            <span className="absolute left-0 hidden h-5 w-0.5 rounded-r bg-primary md:block" />
+          ) : null}
           <Icon className="h-4 w-4 shrink-0" />
           <span className="md:sr-only">{label}</span>
         </NavLink>

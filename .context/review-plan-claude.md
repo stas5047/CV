@@ -1,12 +1,10 @@
-# Independent Planning Review - Phase 24
-
-## Verdict: APPROVED_WITH_CHANGES
+# Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Plan matches Phase 24 scope: React/Vite/TypeScript scaffold, Tailwind/shadcn baseline, API client, auth state, protected routes, admin guard, `/login`, `/register`, and minimal Ukrainian placeholders for later routes.
+Plan matches Phase 25 scope: frontend-only dashboard and authenticated shell, existing REST API only, Ukrainian UI, role-safe admin nav, loading/error/empty states, and prototype-based visual direction.
 
-No product-doc mismatch, architecture mistake, backend/frontend boundary violation, CV-safety issue, or security blocker found. One important validation gap should be fixed before implementation: backend-backed auth smoke is required by phase validation but not made explicit enough in the plan.
+No blocking product-doc conflict found. Two changes should be made before implementation to reduce real risk: define dashboard metric derivation precisely, and make prototype browser verification non-optional unless blocked.
 
 ## Blocking issues
 
@@ -14,42 +12,24 @@ None.
 
 ## Important issues
 
-1. Backend-backed auth smoke is missing as a required validation step.
+1. Dashboard metric derivation is under-specified and can misrepresent required stats.
+   - Evidence: `docs/phase.md:20-23` and `docs/FRONTEND_UX.md:146-149` require total processed files, total detections, average confidence, and average FPS. Plan uses `GET /api/admin/stats` and `GET /api/admin/jobs?limit=5` for admins (`.context/plan.md:25-27`) and says to render four metric cards (`.context/plan.md:51-54`), but current admin stats only exposes job counts/status counts, detection total, model counts, etc. (`backend/app/schemas/admin.py:21-47`; `backend/app/services/admin.py:36-58`). It does not expose average confidence or average FPS.
+   - Risk: implementation may show `jobs.total` as "processed files" or calculate admin averages from only 5 recent jobs, producing misleading dashboard values.
+   - Required change: add plan note that `total processed files` must come from completed jobs only when available, total detections from documented summary/admin data, and average confidence/FPS must be derived only from available completed job `summary_json` values or shown as Ukrainian unavailable placeholders. Do not invent global averages from limited recent rows.
 
-   Evidence:
-   - `docs/phase.md:28-35` requires auth smoke flow against backend: frontend install, lint/typecheck/build, Ukrainian login/register, protected redirects, non-admin `/admin` rejection, and "Auth smoke flow works against backend."
-   - `.context/plan.md:35-39` runs route/component tests "if configured" and manual browser smoke "if dev server exists", but does not require submitting login/register against the real backend or verifying `/api/auth/me` after token storage.
-   - `docs/API.md:98-100` defines the auth contract this phase must consume: register conditional, login guest-only, `/api/auth/me` protected.
-
-   Required change: make implementation validation explicitly include a backend-backed auth smoke when backend is available: login with seeded/admin or test user, token stored, `/api/auth/me` loads current user, protected route renders after auth, logout clears token, and disabled registration `403` shows Ukrainian notice. If backend is unavailable, record exact blocker rather than treating route-only tests as sufficient.
-
-2. Manual browser smoke is too conditional for a newly scaffolded Vite app.
-
-   Evidence:
-   - Phase 24 creates the frontend scaffold and validation requires rendered pages (`docs/phase.md:6-19`, `docs/phase.md:28-35`).
-   - `.context/plan.md:39` says "Run manual browser smoke if dev server exists"; after successful scaffold/install, a dev server should exist.
-
-   Required change: make manual browser smoke mandatory after `npm run dev`/equivalent starts, covering `/login`, `/register`, guest protected redirect, user shell, admin guard, and mobile shell. If the dev server cannot start, record the failing command as a blocker.
+2. Prototype visual verification is conditional even though phase is prototype-driven.
+   - Evidence: current user instruction says frontend must be built entirely from `@prototype`; plan says manual browser check only "if dev server/browser available" (`.context/plan.md:83-87`) and quality gates say browser smoke "when available" (`.context/plan.md:99-102`). `docs/FRONTEND_UX.md:158` and `docs/TESTING_QA.md:371-385` require graceful dashboard states and frontend API error handling; visual/state issues are hard to catch with build/tests only.
+   - Risk: implementation can pass unit/build gates while drifting from prototype shell/dashboard layout or breaking narrow viewport state.
+   - Required change: make browser smoke against `/dashboard` required for implementation unless tooling is genuinely unavailable, in which case record exact blocker. Check desktop and narrow viewport against prototype dashboard/shell.
 
 ## Optional improvements
 
-1. Explicitly state whether `frontend/Dockerfile` remains placeholder for Phase 32 or is updated in Phase 24.
-
-   Evidence:
-   - `.context/research.md:29-33` notes `frontend/Dockerfile` is currently a placeholder.
-   - Phase 24 validation does not require Compose/frontend container launch, so deferring Dockerfile work is acceptable if documented.
-
-2. Add a quick text-search review gate for Ukrainian UI and forbidden prototype carryover.
-
-   Evidence:
-   - `docs/FRONTEND_UX.md:29-47` requires Ukrainian visible text.
-   - `.context/design.md:34-41` says prototype is visual reference only and mock credentials/actions must not be copied.
+- Add one explicit test/review assertion that active model UI does not display `weights_path` or any storage-like path. API model responses include `weights_path`, but `docs/FRONTEND_UX.md:475` forbids exposing absolute filesystem paths and dashboard only needs model name/family/variant/active state.
+- Add test assertion that regular-user dashboard code does not call `/api/admin/*`; this would make backend-authority boundary easier to verify.
 
 ## Questions for resolution
 
-1. Risk level was provided as placeholder `<MEDIUM | HIGH>` in the prompt. `.context/research.md` assumes `MEDIUM`; confirm if this should be treated as `HIGH` before implementation.
-
-2. Should Phase 24 update `frontend/Dockerfile`, or explicitly defer Dockerfile replacement to Phase 32 runtime finalization?
+None.
 
 ## Files consulted
 
@@ -65,3 +45,15 @@ None.
 - `docs/API.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
+- `backend/app/schemas/admin.py`
+- `backend/app/services/admin.py`
+- `backend/app/schemas/jobs.py`
+- `backend/app/schemas/models.py`
+- `backend/app/api/admin.py`
+- `backend/app/api/jobs.py`
+- `backend/app/api/models.py`
+- `frontend/package.json`
+- `frontend/src/App.tsx`
+- `frontend/src/layout/AppShell.tsx`
+- `C:/Users/Kotletka/.codex/skills/taste-skill/SKILL.md`
+- `C:/Users/Kotletka/.codex/plugins/cache/openai-curated/superpowers/1b89ff49/skills/using-superpowers/SKILL.md`

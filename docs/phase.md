@@ -1,22 +1,32 @@
-## Phase 24 - Frontend scaffold, API client, auth, and protected routing
+## Phase 25 - Frontend dashboard and authenticated shell
 
 **Direction:** Frontend
-**Goal:** Create the React frontend foundation after backend contracts are stable.
+**Goal:** Implement the dashboard-style authenticated layout and main dashboard.
 
 ### Scope
 
-- Scaffold `frontend/` with Vite, React, TypeScript.
-- Add Tailwind CSS and shadcn/ui baseline.
-- Add React Router, TanStack Query, React Hook Form/Zod if used for forms, Recharts, and supporting UI libraries.
-- Add frontend folder structure for app shell, routes, features, shared components, API client, and utilities.
-- Add typed API client for `/api` endpoints.
-- Add auth token storage strategy and logout behavior.
-- Implement current-user query and auth state.
-- Implement protected route wrapper.
-- Implement admin route guard.
-- Implement `/login` and `/register` pages.
-- Map backend errors to Ukrainian UI messages.
-- Ensure public registration disabled state redirects or shows Ukrainian notice.
+- Implement responsive authenticated shell/navigation.
+- Add navigation items:
+  - Dashboard;
+  - Upload;
+  - Jobs;
+  - Models;
+  - Experiments;
+  - Admin only for admins.
+- Hide authenticated navigation from guests.
+- Hide admin navigation from regular users.
+- Implement `/dashboard`.
+- Display:
+  - total processed files;
+  - total detections;
+  - average confidence;
+  - average FPS;
+  - active model;
+  - recent processing jobs;
+  - quick upload action.
+- Use cards, badges, tables, skeletons, and polished dashboard components.
+- Handle missing data gracefully and never show raw `null`.
+- Keep all visible UI text Ukrainian.
 
 ### Relevant docs
 
@@ -27,14 +37,13 @@
 
 ### Validation
 
-- Frontend install succeeds.
-- Frontend lint/typecheck/build pass.
-- Login page renders in Ukrainian.
-- Registration page renders in Ukrainian and handles disabled-registration behavior.
-- Protected routes redirect guests to login.
-- Non-admin users cannot access `/admin` route.
-- Auth smoke flow works against backend.
+- Dashboard route is protected.
+- Regular user dashboard shows user-scoped data.
+- Admin dashboard can show global statistics where backend supports it.
+- Missing data renders Ukrainian empty/placeholder states.
+- Admin navigation is visible only to admins.
+- Frontend build passes.
 
 ### Commit
 
-`feat(frontend): scaffold React app auth and protected routing`
+`feat(frontend-dashboard): add Ukrainian shell navigation and dashboard`

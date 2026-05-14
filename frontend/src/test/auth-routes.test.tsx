@@ -26,6 +26,56 @@ function authApi(overrides: Partial<AuthApi> = {}): AuthApi {
 describe("Phase 24 auth routes", () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname === "/api/jobs") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ items: [], total: 0, limit: 100, offset: 0 }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        if (url.pathname === "/api/models") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ items: [], total: 0, limit: 1, offset: 0 }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        if (url.pathname === "/api/admin/stats") {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                users: { total: 0, active: 0, admins: 0 },
+                media: { total: 0, images: 0, videos: 0 },
+                jobs: { total: 0, by_status: {} },
+                detections: { total: 0 },
+                tracks: { total: 0 },
+                models: { total: 0, active: 0 },
+                experiments: { total: 0, published: 0 },
+              }),
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              },
+            ),
+          );
+        }
+        if (url.pathname === "/api/admin/jobs") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ items: [], total: 0, limit: 5, offset: 0 }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        return Promise.resolve(new Response(JSON.stringify({ detail: "unexpected route" }), { status: 500 }));
+      }),
+    );
   });
 
   it("renders login page in Ukrainian and shows Ukrainian failed-login error", async () => {
@@ -113,7 +163,7 @@ describe("Phase 24 auth routes", () => {
     render(<App authApi={api} initialEntries={["/dashboard"]} />);
 
     expect(await screen.findByRole("link", { name: "Адмін" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Огляд" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Огляд" })).toBeInTheDocument();
   });
 
   it("clears token on logout", async () => {
