@@ -2,9 +2,11 @@
 
 ## Summary
 
-Phase 15 plan matches main product boundary: worker-only PostgreSQL queue work, no backend API, no frontend, no model loading, no inference, no tracking/export implementation. Architecture direction is correct: `FOR UPDATE SKIP LOCKED`, short claim transaction, PostgreSQL/shared-storage boundary preserved, no Celery/Redis, no backend-worker HTTP job loop.
+Phase 16 plan matches current phase scope: CV worker model resolution, YOLO model loading, device behavior, cache, safe missing-weight failure, and no backend/frontend/schema work.
 
-Plan needs tightening before implementation on three real risks: stale recovery must ignore soft-deleted jobs, heartbeat/progress writes must be scoped to the claiming worker, and PostgreSQL concurrency validation must not be treated as optional if phase claims queue reliability.
+Plan preserves main architecture boundaries: worker reads PostgreSQL and shared storage, backend remains API authority, model weights stay filesystem-only, and no training/inference/export later-phase work is added.
+
+Approval depends on resolving one implementation risk before coding path logic.
 
 ## Blocking issues
 
@@ -12,25 +14,21 @@ None.
 
 ## Important issues
 
-1. Stale recovery plan does not explicitly exclude soft-deleted jobs.
-   - Evidence: `.context/plan.md` step 3 filters queued claims to non-deleted jobs, but step 6 only says "Find stale `processing` jobs older than configured threshold." `docs/DATA_MODEL.md` requires `processing_jobs.deleted_at` soft deletion and says soft-deleted records are hidden from normal user lists and should not be physically removed. A stale-recovery update that resets or fails soft-deleted processing rows could mutate deleted/audit records and potentially resurrect queue work. Add `deleted_at IS NULL` to stale recovery selection/update criteria.
-
-2. Heartbeat/progress helper lacks explicit lock-owner guard.
-   - Evidence: `.context/plan.md` step 5 updates progress and heartbeat for a "currently claimed processing job" but does not require matching `locked_by`. `docs/ARCHITECTURE.md` requires claimed jobs to set `locked_by`, `locked_at`, and heartbeat fields. Without `job_id + locked_by + status = processing` conditions, an old worker instance can update a job after stale recovery requeues it or another worker claims it, weakening queue ownership and stale detection.
-
-3. PostgreSQL concurrency test is too easy to skip.
-   - Evidence: `.context/plan.md` step 10 says add PostgreSQL-specific concurrency coverage "when available" and otherwise report `not available yet`. `docs/phase.md` validation requires "Two workers do not claim the same job" and `docs/TESTING_QA.md` requires proving PostgreSQL row-level locking and short claim transactions. Because `FOR UPDATE SKIP LOCKED` behavior cannot be proven with SQLite/unit tests, implementation plan should define a concrete PostgreSQL integration command or explicitly mark lack of PostgreSQL as a phase blocker, not a routine `not available yet`.
+1. Model weights path root behavior is still ambiguous and can break documented records.
+   - Evidence: `docs/ARCHITECTURE.md` recommends stored model paths like `models/{model_version_id}/weights.pt` as paths relative to `STORAGE_ROOT`.
+   - Evidence: `docs/DATA_MODEL.md` says `model_versions.weights_path` stores relative paths only and first implementation should register paths under `STORAGE_ROOT/models`.
+   - Evidence: `.context/design.md` says to prefer existing `MODELS_ROOT` for `model_versions.weights_path`, while also noting records may store `models/...` and must not be double-prefixed.
+   - Risk: implementation could resolve `models/{id}/weights.pt` under `MODELS_ROOT` and produce `.../models/models/{id}/weights.pt`, causing valid documented model registrations to fail.
+   - Required change: implementation/tests must lock expected behavior for documented `models/{model_version_id}/weights.pt` relative to `STORAGE_ROOT`. If bare `weights.pt` or `{id}/weights.pt` under `MODELS_ROOT` is supported, treat it as compatibility behavior, not replacement for documented path form.
 
 ## Optional improvements
 
-- Add explicit status transition guards for stale recovery updates, for example update only rows still `status = 'processing'` at update time. This reduces race risk between recovery and worker heartbeats.
-- Make timeout `error_message` stable and safe, e.g. short worker-timeout text without paths, DB URLs, secrets, tokens, or stack traces. Plan already says safe error, but exact invariant helps review.
-- Clarify placeholder processing behavior in Phase 15 main loop. If loop claims real jobs before Phase 16 processing exists, define whether placeholder handler fails safely, leaves job for stale recovery, or is test-only. Avoid accidental permanent `processing` rows in local/demo runs.
+- Add one explicit test that safe missing-weight error and model-loading log do not include absolute storage paths. Plan mentions safe logging, but explicit assertion would cover phase validation from `docs/phase.md`.
+- Add one test for YOLO11 metadata pass-through: worker may load a row whose `model_family = YOLO11`, but must not silently substitute YOLO11 when metadata says `YOLO26`.
 
 ## Questions for resolution
 
-- Risk level was left as literal `<MEDIUM | HIGH>` in the prompt. Planning artifacts assume `MEDIUM`. Confirm if this phase should be treated as `HIGH` because it touches DB concurrency.
-- What PostgreSQL integration path should implementation use for the two-worker claim test: existing Docker Compose database, a testcontainer-style harness, or a documented manual command?
+- Risk level in prompt is still literal `<MEDIUM | HIGH>`. Review assumes MEDIUM because phase loads external model artifacts and can fail queued jobs, but does not change API/schema or run inference.
 
 ## Files consulted
 
@@ -42,8 +40,9 @@ None.
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
-- `docs/ARCHITECTURE.md`
 - `docs/CV_PIPELINE.md`
+- `docs/TRAINING_EXPERIMENTS.md`
 - `docs/DATA_MODEL.md`
+- `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`
-- `git status --short` output
+- `git status --short`

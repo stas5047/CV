@@ -1,17 +1,12 @@
-# Phase 15 Code Review Resolution
+# Phase 16 Code Review Resolution
 
 ## Verdict: FIXED
 
-Code reviews found no critical, important, or optional defects. No user decision is needed. No source fixes are accepted or applied.
-
 ## Resolution table
 
-| ID | Source | Priority | Review item | Resolution | Reason | Fix status |
-|---|---|---:|---|---|---|---|
-| OAI-1 | `.context/review-code-openai.md` | critical | No critical issues found. | rejected | No actionable issue exists. | No source change |
-| OAI-2 | `.context/review-code-openai.md` | important | No important issues found. | rejected | No actionable issue exists. | No source change |
-| OAI-3 | `.context/review-code-openai.md` | optional | No optional issues found. | rejected | No actionable issue exists. | No source change |
-| CL-1 | `.context/review-code-claude.md` | critical | Review file not present or empty. | rejected | No actionable issue exists. | No source change |
+| ID | Source | Priority | Review item | Resolution | Reason |
+|---|---|---|---|---|---|
+| OAI-I-1 | `.context/review-code-openai.md` | important | `git diff --check` fails on `docs/phase.md:3` trailing whitespace. | accepted | Whitespace cleanup is doc-consistent, low-risk, and required to make repo diff gate clean for touched files. |
 
 ## Accepted critical fixes
 
@@ -19,7 +14,7 @@ None.
 
 ## Accepted important fixes
 
-None.
+- Remove trailing whitespace from `docs/phase.md:3`.
 
 ## Accepted optional fixes
 
@@ -27,10 +22,7 @@ None.
 
 ## Rejected items
 
-- OAI-1: no critical issue was reported.
-- OAI-2: no important issue was reported.
-- OAI-3: no optional issue was reported.
-- CL-1: no Claude code review issue was available.
+None.
 
 ## Duplicate items
 
@@ -42,14 +34,11 @@ None.
 
 ## Fixes applied
 
-None. Review verdict was approved and no accepted code changes existed.
+- Removed trailing whitespace from `docs/phase.md:3`.
 
 ## Final verification
 
-- `python -m ruff check .` from `cv/`: PASS, `All checks passed!`
-- `python -m pytest` from `cv/`: PASS, 44 passed, 46 SQLite datetime adapter warnings.
-- `docker compose --env-file .env.example up -d postgres` from repo root: PASS, `aerovision-postgres-1` running.
-- `python -m pytest -m postgres` from `cv/`: PASS, 3 passed, 41 deselected.
-- `git diff --check` from repo root: FAIL, pre-existing/worktree `docs/phase.md:3` trailing whitespace plus line-ending warnings. No fix applied because code reviews accepted no source/doc cleanup item.
-
-Final result: no accepted fixes were required after code review; final verification passed.
+- `git diff --check` from repo root: PASS; no whitespace errors. Git printed CRLF normalization warnings for existing dirty files.
+- `python -m pytest tests/test_device.py tests/test_storage_paths.py tests/test_startup.py tests/test_model_runtime.py` from `cv/`: PASS, 35 passed, 18 SQLite datetime adapter warnings.
+- `python -m pytest` from `cv/`: PASS, 59 passed, 64 SQLite datetime adapter warnings.
+- `python -m ruff check .` from `cv/`: PASS, `All checks passed!`.

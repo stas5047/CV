@@ -1,39 +1,40 @@
-## Phase 15 - PostgreSQL queue claiming, heartbeat, and stale job recovery
+## Phase 16 - CV model loading, device selection, and model cache
 
-**Direction:** CV Worker / Queue  
-**Goal:** Implement reliable PostgreSQL job queue behavior before media processing.
+**Direction:** CV Worker / CV Runtime
+**Goal:** Implement model selection, model loading, device selection, and safe fallback/error behavior.
 
 ### Scope
 
-- Implement polling loop for queued jobs.
-- Implement job claiming with `FOR UPDATE SKIP LOCKED`.
-- Keep claim transaction short.
-- Set `status = processing`, `locked_by`, `locked_at`, `started_at`, and `last_heartbeat_at` during claim.
-- Ensure processing happens outside the claim transaction.
-- Implement heartbeat/progress update helpers.
-- Implement stale job recovery:
-  - detect stale `processing` jobs;
-  - reset to `queued` and increment `retry_count` when retry count is below max;
-  - mark as `failed` when retry count reaches max.
-- Add tests or integration tests showing two workers cannot claim the same job.
-- Add worker shutdown behavior as practical.
+- Implement runtime model selection using the resolved `processing_jobs.model_version_id`.
+- Load weights from relative model storage paths.
+- Implement in-memory model cache when practical.
+- Reload or switch models when a job requires a different model version.
+- Implement `CV_DEVICE` handling:
+  - `auto` uses CUDA when available, otherwise CPU;
+  - `cpu` forces CPU;
+  - `cuda` fails clearly when CUDA is unavailable.
+- Log model loading and selected runtime device.
+- Fail jobs safely when weights file is missing.
+- Preserve YOLO26 as primary and YOLO11 as documented fallback only.
+- Add tests for path validation, missing weights, device selection, and model priority assumptions.
 
 ### Relevant docs
 
-- `docs/ARCHITECTURE.md`
 - `docs/CV_PIPELINE.md`
+- `docs/TRAINING_EXPERIMENTS.md`
 - `docs/DATA_MODEL.md`
+- `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Worker claims oldest queued job.
-- Two workers do not claim the same job.
-- Claim transaction is not held during simulated processing.
-- Heartbeat/progress updates work.
-- Stale jobs reset or fail according to retry count.
-- Worker restart does not leave jobs permanently stuck in `processing`.
+- Worker loads a configured model from a relative path when weights exist.
+- Missing model file marks job failed with safe error message.
+- `CV_DEVICE=cpu` works.
+- `CV_DEVICE=auto` falls back to CPU if CUDA is unavailable.
+- `CV_DEVICE=cuda` fails clearly if CUDA is unavailable.
+- Model loading logs do not expose unsafe paths or secrets.
 
 ### Commit
 
-`feat(worker-queue): add Postgres job claiming heartbeat and stale recovery`
+`feat(worker-models): add model loading device selection and cache`

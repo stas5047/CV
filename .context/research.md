@@ -1,28 +1,28 @@
-# Phase 15 Research - PostgreSQL queue claiming, heartbeat, and stale job recovery
+# Phase 16 Research
 
-## Current phase
+## Current Phase
 
-- Confirmed current phase: `Phase 15 - PostgreSQL queue claiming, heartbeat, and stale job recovery`
-- Source: `docs/phase.md`
-- Direction: CV Worker / Queue
-- Goal from docs: reliable PostgreSQL job queue behavior before media processing
-- Risk level: assumed `MEDIUM` because current user prompt left risk placeholder unfilled and phase touches DB concurrency, worker state transitions, and stale-job recovery
+- Confirmed: `docs/phase.md` sets current phase to `Phase 16 - CV model loading, device selection, and model cache`.
+- Confirmed phase direction: CV Worker / CV Runtime.
+- Confirmed phase goal: implement model selection, model loading, device selection, cache, and safe fallback/error behavior.
+- Assumption: user-supplied phase/risk placeholders are unresolved. Treat phase risk as `MEDIUM` because worker runtime will load external model artifacts and mark jobs failed on missing/unusable weights.
 
-## Docs consulted
+## Docs Consulted
 
 - `AGENTS.md`
 - `CLAUDE.md`
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- `docs/ARCHITECTURE.md`
 - `docs/CV_PIPELINE.md`
+- `docs/TRAINING_EXPERIMENTS.md`
 - `docs/DATA_MODEL.md`
+- `docs/ARCHITECTURE.md`
 - `docs/TESTING_QA.md`
 
-## Confirmed repository facts
+## Confirmed Repository Facts
 
-- Git checkout is dirty before this planning work:
+- `git status --short` reports existing modified files:
   - `.context/design.md`
   - `.context/plan.md`
   - `.context/research.md`
@@ -32,68 +32,63 @@
   - `.context/review-plan-resolution.md`
   - `.context/status.md`
   - `docs/phase.md`
-- Existing `.context/research.md`, `.context/design.md`, `.context/plan.md`, `.context/status.md`, and review artifacts are empty at read time.
-- `cv/index.md` says current worker has settings, secret-safe logging, device selection, database helpers, storage path safety, startup checks, Docker entrypoint, and tests.
-- `cv/index.md` also says queue claiming, inference, tracking, exports, and result writes are not implemented yet.
-- `cv/aerovision_worker/settings.py` already defines:
-  - `WORKER_POLL_INTERVAL_SECONDS`, default `2`
-  - `WORKER_HEARTBEAT_FRAMES`, default `30`
-  - `WORKER_HEARTBEAT_SECONDS`, default `2`
-  - `WORKER_STALE_JOB_MINUTES`, default `10`
-  - `WORKER_MAX_RETRIES`, default `2`
-- `cv/aerovision_worker/database.py` already provides SQLAlchemy engine/session factory helpers and DB availability checks.
-- `cv/aerovision_worker/main.py` currently runs startup checks, logs selected device, checks DB, then idles forever with `worker_idle processing_not_implemented_in_phase_14`.
-- `backend/app/db/models.py` already has `processing_jobs` fields required by Phase 15:
-  - `status`
-  - `progress_percent`
-  - `last_heartbeat_at`
-  - `locked_by`
-  - `locked_at`
-  - `retry_count`
-  - `started_at`
-  - `completed_at`
-  - `deleted_at`
-  - `created_at`
-  - `updated_at`
-- Initial migration already creates those fields and `ix_processing_jobs_status_created_at`.
-- `backend/app/services/jobs.py` already creates jobs with `status="queued"`, `progress_percent=0`, and `retry_count=0`.
-- `cv/pyproject.toml` already includes SQLAlchemy, psycopg, pytest, and ruff.
+- Existing `.context/research.md`, `.context/design.md`, `.context/plan.md`, `.context/status.md`, `.context/review-plan-claude.md`, `.context/review-plan-resolution.md`, and `.context/review-code-resolution.md` were empty when read.
+- `cv/pyproject.toml` already includes `torch`, `ultralytics`, `opencv-python-headless`, `numpy`, `pandas`, SQLAlchemy, psycopg, Pydantic, pytest, and Ruff.
+- `cv/aerovision_worker/settings.py` defines `DATABASE_URL`, `STORAGE_ROOT`, `MODELS_ROOT`, `CV_DEVICE`, `ACTIVE_MODEL_ID`, worker polling, heartbeat, stale-job, and retry settings.
+- `cv/aerovision_worker/device.py` already implements `CV_DEVICE` behavior for `auto`, `cpu`, and `cuda`, including clear failure for forced CUDA when unavailable.
+- `cv/aerovision_worker/storage_paths.py` already validates relative storage paths and safe joins under a configured root.
+- `cv/aerovision_worker/database.py` already creates SQLAlchemy engines/session factories and database readiness checks.
+- `cv/aerovision_worker/queue.py` already claims queued jobs, updates heartbeat, recovers stale jobs, and fails claimed jobs with a Phase 15 placeholder message.
+- `cv/aerovision_worker/main.py` already logs selected device during startup and fails claimed jobs with placeholder processing.
+- `backend/app/db/models.py` already contains `processing_jobs.model_version_id`, `model_versions.weights_path`, `model_versions.model_family`, and relative-path checks.
+- `backend/app/services/jobs.py` already resolves job model priority during job creation: explicit model, active DB model, then `ACTIVE_MODEL_ID` fallback.
 
-## Existing implementation state
+## Existing Implementation State
 
-- Worker can start and validate DB connectivity.
-- Worker has no queue claim function.
-- Worker has no polling loop that queries `processing_jobs`.
-- Worker has no heartbeat/progress update helper.
-- Worker has no stale recovery helper.
-- Worker has no two-worker concurrency test.
-- Worker has no actual image/video processing yet; that belongs to later phases.
-- Backend data model appears ready for this phase; no schema migration is expected for Phase 15.
-- Frontend is not relevant to this phase.
-- API route changes are not expected for this phase.
+- Worker foundation exists.
+- Queue claiming exists with PostgreSQL `FOR UPDATE SKIP LOCKED` when using PostgreSQL.
+- Device selection exists and has tests.
+- Storage path safety exists and has tests.
+- Worker startup logging redacts database URLs, secrets, tokens, and absolute paths.
+- Model loading does not exist yet.
+- Model cache does not exist yet.
+- Worker does not yet read the claimed job's resolved `model_version_id`.
+- Worker does not yet load `model_versions.weights_path`.
+- Worker does not yet check missing model weights and fail jobs with model-specific safe errors.
+- Worker still fails every claimed job with `Processing not implemented in this phase`.
+- Inference, tracking, exports, detection writes, and result writes remain later-phase work.
 
-## Unknowns and assumptions
+## Unknowns And Assumptions
 
-- Assumption: risk level is `MEDIUM`; user prompt did not replace `<LOW | MEDIUM | HIGH>`.
-- Assumption: Phase 15 implementation should keep the worker package independent from backend Python imports and interact with PostgreSQL through SQLAlchemy using worker-local query code.
-- Assumption: `locked_by` can be a generated per-process worker identifier; docs require the field to be set but do not define a specific format.
-- Assumption: stale `processing` jobs with `last_heartbeat_at IS NULL` should be recoverable to avoid permanent stuck jobs from older or partial runs.
-- Assumption: Phase 15 may use simulated processing in tests to prove claim transaction boundaries, but must not implement model loading, image processing, video processing, tracking, detections, or exports.
-- Unknown: whether the implementation environment will have a real PostgreSQL test service available for `FOR UPDATE SKIP LOCKED` concurrency tests.
-- Unknown: whether SQLite fallback tests are acceptable for non-locking helper behavior. PostgreSQL-specific behavior still needs a real PostgreSQL check when available.
+- Unknown: no actual model artifact is present or guaranteed under `storage/models/`.
+- Unknown: exact Ultralytics package support for YOLO26 in the local runtime is not proven in this phase.
+- Assumption: Phase 16 should not run inference; it should only prove model resolution/loading/cache behavior and safe failure.
+- Assumption: worker should use the `processing_jobs.model_version_id` already resolved by backend job creation and should not re-apply backend model priority unless a legacy/unexpected job has no model version.
+- Assumption: a missing `processing_jobs.model_version_id` can be handled by querying active DB model, then `ACTIVE_MODEL_ID`, to keep worker robust and consistent with documented priority.
+- Assumption: model loading logs may include model IDs/family/variant but must not expose absolute storage paths.
+- Assumption: YOLO11 fallback may be loaded only if DB metadata says `model_family = YOLO11`; worker must not silently relabel or substitute YOLO11 for YOLO26.
+- Assumption: tests should mock Ultralytics model construction rather than require real model weights.
+- Resolved after planning review: documented `model_versions.weights_path` values like `models/{model_version_id}/weights.pt` are primary and resolve relative to `STORAGE_ROOT`; bare values under `MODELS_ROOT` are compatibility behavior only.
+- Resolved after planning review: phase risk is `MEDIUM`; no user decision needed.
 
-## Files likely relevant for implementation
+## Files Likely Relevant For Implementation
 
 - `cv/aerovision_worker/main.py`
-- `cv/aerovision_worker/database.py`
+- `cv/aerovision_worker/device.py`
 - `cv/aerovision_worker/settings.py`
+- `cv/aerovision_worker/storage_paths.py`
+- `cv/aerovision_worker/database.py`
+- `cv/aerovision_worker/queue.py`
 - `cv/aerovision_worker/logging.py`
-- `cv/pyproject.toml`
-- `cv/tests/`
-- `cv/index.md`
-- `backend/app/db/models.py` for schema reference only
-- `backend/migrations/versions/20260513_0001_initial_schema.py` for migration/schema reference only
+- `cv/aerovision_worker/` internal model-loading/cache module to add during implementation
+- `cv/tests/test_device.py`
+- `cv/tests/test_storage_paths.py`
+- `cv/tests/test_startup.py`
+- `cv/tests/` model-loading/cache tests to add during implementation
+- `backend/app/db/models.py` for schema shape reference only
+- `backend/app/services/jobs.py` for confirmed model-priority behavior reference only
 
-## Conflicts
+## Conflict Check
 
-- No `WARNING: CONFLICT` found between `docs/phase.md`, `docs/ROADMAP.md`, and consulted phase-relevant docs.
+- No `WARNING: CONFLICT` found between phase docs and inspected implementation.
+- Existing code default `cv_device = "cpu"` differs from docs describing `auto` behavior, but docs do not require the default value for `CV_DEVICE`; no conflict recorded.

@@ -1,129 +1,113 @@
-# Phase 15 Design - PostgreSQL queue claiming, heartbeat, and stale job recovery
+# Phase 16 Design
 
-## Phase goal
+## Phase Goal
 
-Implement worker-side PostgreSQL queue reliability before any media processing work:
+Implement CV worker model selection, model loading, selected-device use, in-memory cache, and safe missing-weight/device errors for the current phase only.
 
-- poll for queued jobs;
-- claim one queued job safely with row-level locking;
-- update queue ownership fields;
-- expose heartbeat/progress helpers;
-- recover stale processing jobs;
-- keep actual CV inference/tracking/export work out of this phase.
+## Intended Behavior From Docs
 
-## Intended behavior from docs
+Confirmed facts:
 
-Confirmed:
-
-- Worker polls PostgreSQL for `queued` jobs.
-- Worker claims jobs with `FOR UPDATE SKIP LOCKED`.
-- Claim transaction is short.
-- During claim, worker sets:
-  - `status = processing`
-  - `locked_by`
-  - `locked_at`
-  - `started_at`
-  - `last_heartbeat_at`
-- Media processing happens after claim commit, outside the claim transaction.
-- Poll interval default is 2 seconds and comes from worker settings.
-- Heartbeat/progress updates write `progress_percent` and `last_heartbeat_at`.
-- Video heartbeat default rule is every 30 frames or 2 seconds, whichever comes first. Phase 15 should provide helper primitives; actual video loop belongs to later phases.
-- Stale threshold default is 10 minutes.
-- Max retries default is 2.
-- Stale recovery:
-  - reset stale `processing` jobs to `queued` and increment `retry_count` while retry count is below max;
-  - mark stale jobs as `failed` with worker-timeout error when retry count reached max.
-- Stale recovery must ignore soft-deleted jobs (`processing_jobs.deleted_at IS NULL`) and must update only rows that are still `status = 'processing'` at update time.
-- Worker restart must not leave jobs stuck in `processing`.
+- Worker processes the resolved model version stored on `processing_jobs.model_version_id`.
+- Model selection priority is job-specific model, then active DB model, then `ACTIVE_MODEL_ID` only when no DB active model exists.
+- Model weights paths are relative storage paths only.
+- Worker loads YOLO models only when needed.
+- Worker caches the active/selected model when practical and switches/reloads when a different job requires a different model.
+- `CV_DEVICE=auto` uses CUDA when available, otherwise CPU.
+- `CV_DEVICE=cpu` forces CPU.
+- `CV_DEVICE=cuda` fails clearly when CUDA is unavailable.
+- CPU inference must remain possible.
+- Missing weights should fail the job safely with a clear `error_message`.
+- YOLO26 remains primary. YOLO11 is allowed only when fallback is documented and reflected in model metadata.
+- Logs may report selected runtime device and model loading events, but must not leak secrets or unsafe absolute paths.
 
 Assumptions:
 
-- Stale rows with `status = processing` and missing `last_heartbeat_at` count as stale for recovery.
-- `completed_at` should remain unset when stale job is requeued and should be set when stale job is marked failed.
-- `error_message` for timeout should be short and safe, without paths, stack traces, secrets, or tokens.
+- Phase 16 should load a model but not run image/video inference, tracking, export generation, or result writes.
+- Phase 16 can replace the placeholder job failure with a model-loading preflight path: claim job, resolve/load model, then fail with the existing processing-placeholder message until processing phases exist.
+- Tests should mock Ultralytics `YOLO` and use temporary files for weights-path behavior.
 
-## Architecture decisions
+## Architecture Decisions
 
-- Keep queue logic inside `cv/`; do not add backend HTTP calls or worker-owned API routes.
-- Use existing `create_session_factory()` and worker settings.
-- Use PostgreSQL row-level locking for the claim query. SQLite-only behavior cannot prove `SKIP LOCKED`.
-- Keep claim and stale-recovery DB transactions short and explicit.
-- Do not import backend app modules into the worker package unless implementation discovers an existing supported shared contract. Current repo shape does not show a shared model package.
-- Add a worker-local job processing hook or equivalent seam so tests can simulate processing outside the claim transaction without implementing CV inference.
-- Main worker loop may recover stale jobs periodically and poll for queued jobs, but must not add Phase 16-18 behavior.
-- If the Phase 15 runtime loop claims a real job before media processing exists, placeholder handling must fail the job safely with a short safe error message rather than leaving it permanently `processing`. Test-only hooks may simulate processing without writing detections/results.
-- Logging should record claim/recovery/status events without DB URLs, secrets, tokens, absolute storage paths, or raw stack traces in API-visible data.
+- Add a CV-worker-only model runtime component responsible for:
+  - reading the claimed job's `model_version_id`;
+  - resolving fallback model metadata only when the job lacks a resolved model;
+  - validating relative `weights_path`;
+  - resolving documented `models/{model_version_id}/weights.pt` paths relative to `STORAGE_ROOT`;
+  - supporting bare model-storage paths such as `{model_version_id}/weights.pt` or `weights.pt` under `MODELS_ROOT` only as compatibility behavior;
+  - avoiding double-prefixing paths that already start with `models/`;
+  - checking file existence before constructing YOLO;
+  - constructing Ultralytics `YOLO` with selected weights;
+  - moving/using the selected device when supported by the Ultralytics API;
+  - caching loaded model by model version ID plus selected device.
+- Keep route/API/backend behavior unchanged.
+- Keep DB schema unchanged.
+- Keep long processing out of backend requests.
+- Keep backend-worker communication through PostgreSQL/shared storage only.
+- Keep all model artifacts in filesystem storage, never PostgreSQL.
 
-## Backend impact
+## Backend Impact
 
-- No backend route or service changes expected.
-- Backend schema is used as DB contract reference.
-- Existing job creation already creates queued jobs with needed defaults.
+- No backend source changes planned.
+- Backend remains source that resolves `processing_jobs.model_version_id` when creating jobs.
+- Backend DB model definitions are reference only for worker SQL queries.
 
-## Frontend impact
+## Frontend Impact
 
-- No frontend changes expected.
+- No frontend changes planned.
 
-## DB impact
+## DB Impact
 
-- No migration expected.
-- Phase uses existing `processing_jobs` fields and index:
-  - `status`
-  - `created_at`
-  - `locked_by`
-  - `locked_at`
-  - `started_at`
-  - `last_heartbeat_at`
-  - `retry_count`
-  - `progress_percent`
-  - `error_message`
-  - `completed_at`
-  - `updated_at`
+- No migration/schema changes planned.
+- Worker will read existing `processing_jobs` and `model_versions` fields.
+- Worker will update existing `processing_jobs.status`, `error_message`, heartbeat/lock fields through existing queue helpers.
 
-## API impact
+## API Impact
 
-- No public API contract changes expected.
-- Existing job status endpoints may reflect worker-updated fields through already implemented backend schemas.
+- No API contract changes planned.
 
-## Security/privacy impact
+## Security/Privacy Impact
 
-- Worker must not log secrets, raw tokens, DB passwords, or sensitive environment values.
-- Worker must not expose absolute host/container paths through DB fields or logs.
-- Failed stale jobs should store safe timeout errors only; timeout/placeholder error messages must be stable, short, and free of paths, DB URLs, secrets, tokens, and stack traces.
-- Phase produces queue state only, not detection outputs, tracking outputs, or any targeting/navigation/control data.
+- Validate all model weight paths as relative paths.
+- Reject missing/unsafe weight paths before model construction.
+- Do not log absolute filesystem paths, database URLs, secrets, tokens, or environment values.
+- Store only safe job `error_message` text.
+- Preserve CV-only boundary: no targeting, navigation, geospatial, or hardware-control output.
 
-## Test strategy
+## Test Strategy
 
-- Unit tests:
-  - settings already covered; add tests only if settings behavior changes;
-  - heartbeat/progress helper clamps or rejects invalid progress according to DB constraint expectations;
-  - heartbeat/progress helper updates only when `job_id`, `locked_by`, and `status = processing` match;
-  - stale recovery updates retry/failure fields correctly with controlled timestamps;
-  - stale recovery ignores soft-deleted processing jobs;
-  - stale recovery update statements guard on `status = processing` to avoid races.
-- PostgreSQL integration tests when available:
-  - oldest queued job is claimed first;
-  - two worker sessions cannot claim the same job;
-  - claim sets required fields;
-  - transaction used for claim is not held during simulated processing;
-  - stale job below retry limit resets to queued and increments retry count;
-  - stale job at retry limit becomes failed.
-- Main-loop tests:
-  - `--check-once` still performs startup checks and exits;
-  - worker loop can be exercised with injected stop condition or single-iteration helper without infinite test hangs;
-  - shutdown behavior exits cleanly where practical.
-- Relevant gates:
-  - from `cv/`: `python -m ruff check .`
-  - from `cv/`: `python -m pytest`
-  - PostgreSQL queue integration command: start the Compose Postgres service and run the PostgreSQL-marked worker queue tests against `DATABASE_URL`:
-    - root: `docker compose --env-file .env.example up -d postgres`
-    - `cv/`: `python -m pytest -m postgres`
-  - If this PostgreSQL gate is not available or cannot run in the implementation environment, Phase 15 must report it as a blocker for queue-reliability completion rather than a routine `not available yet`.
+- Unit-test model path validation with safe relative paths, absolute paths, traversal paths, and missing files.
+- Unit-test documented model path behavior:
+  - `models/{model_version_id}/weights.pt` resolves under `STORAGE_ROOT`;
+  - this documented path must not become `models/models/...`;
+  - bare model-storage paths under `MODELS_ROOT` are compatibility behavior only.
+- Unit-test model selection priority for:
+  - job-specific model ID;
+  - DB active model when job model is absent;
+  - `ACTIVE_MODEL_ID` only when no active DB model exists;
+  - missing fallback model failure.
+- Unit-test cache behavior:
+  - same model ID and device reuses cached object;
+  - different model ID loads a different object;
+  - different device loads or applies device selection separately.
+- Unit-test `CV_DEVICE` behavior through existing `test_device.py`.
+- Unit-test worker poll iteration behavior:
+  - claimed job with existing weights attempts model load before placeholder processing failure;
+  - missing weights marks job failed with safe error;
+  - forced CUDA unavailable still fails clearly before database processing.
+- Unit-test safe logging:
+  - missing-weight error messages do not include absolute storage paths;
+  - model-loading log records do not include absolute storage paths.
+- Unit-test YOLO family metadata pass-through:
+  - a row with `model_family = YOLO11` can be loaded as metadata states;
+  - a row with `model_family = YOLO26` is not silently substituted or relabeled as YOLO11.
+- Run focused CV worker tests and Ruff:
+  - `python -m pytest tests/test_device.py tests/test_storage_paths.py tests/test_startup.py tests/test_model_runtime.py`
+  - `python -m ruff check .`
+  - `python -m pytest`
 
-## Ambiguities or conflicts
+## Ambiguities Or Conflicts
 
 - No `WARNING: CONFLICT` found.
-- Ambiguity: prompt risk placeholder was not filled; design assumes `MEDIUM`.
-- Ambiguity: docs do not define exact `locked_by` format.
-- Ambiguity: docs do not require a specific stale-recovery trigger cadence beyond startup, periodic timer, or admin action. Worker startup plus periodic worker loop recovery is acceptable.
-- Ambiguity: docs do not say whether `retry_count == max_retries` should fail before or after one more processing attempt. Architecture wording supports fail when retry count has reached max.
+- Resolved path rule: documented `model_versions.weights_path` values such as `models/{model_version_id}/weights.pt` are relative to `STORAGE_ROOT` and are primary. `MODELS_ROOT` may support bare compatibility values, but must not replace or double-prefix documented `models/...` records.
+- Ambiguity: YOLO26 availability in Ultralytics is environment-dependent. This phase must not switch to YOLO11 unless DB metadata already says `YOLO11` and prior documentation records fallback.

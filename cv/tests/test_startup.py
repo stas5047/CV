@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from aerovision_worker import main as worker_main
 from aerovision_worker.device import DeviceUnavailableError
 from aerovision_worker.main import run_poll_iteration, run_startup_checks
+from aerovision_worker.model_runtime import ModelLoadingError
 from aerovision_worker.settings import WorkerSettings
 
 
@@ -67,7 +68,7 @@ def test_run_worker_reports_forced_cuda_failure_without_database_retry(monkeypat
         raise AssertionError("forced CUDA should fail with device-specific error")
 
 
-def test_run_poll_iteration_recovers_stale_jobs_and_fails_placeholder_claim(monkeypatch) -> None:
+def test_run_poll_iteration_loads_model_then_fails_placeholder_claim(monkeypatch) -> None:
     settings = WorkerSettings(
         database_url="sqlite+pysqlite:///:memory:",
         stale_job_minutes=10,
@@ -93,12 +94,69 @@ def test_run_poll_iteration_recovers_stale_jobs_and_fails_placeholder_claim(monk
         "fail_processing_job",
         lambda *args, **kwargs: calls.append(("fail", kwargs)) or True,
     )
+    model_runtime = SimpleNamespace(
+        load_for_job=lambda *args, **kwargs: calls.append(("load_model", kwargs)) or object()
+    )
 
-    claimed = run_poll_iteration(settings, object(), worker_id="worker-a")
+    claimed = run_poll_iteration(
+        settings,
+        object(),
+        worker_id="worker-a",
+        model_runtime=model_runtime,
+    )
 
     assert claimed is True
-    assert [name for name, _payload in calls] == ["recover", "claim", "fail"]
-    assert calls[2][1]["error_message"] == worker_main.PLACEHOLDER_PROCESSING_ERROR
+    assert [name for name, _payload in calls] == ["recover", "claim", "load_model", "fail"]
+    assert calls[2][1]["job_id"] == "job-1"
+    assert calls[3][1]["error_message"] == worker_main.PLACEHOLDER_PROCESSING_ERROR
+
+
+def test_run_poll_iteration_marks_missing_model_failed_with_safe_error(monkeypatch) -> None:
+    settings = WorkerSettings(database_url="sqlite+pysqlite:///:memory:")
+    calls: list[tuple[str, object]] = []
+    now = datetime(2026, 5, 14, 12, 0, tzinfo=UTC)
+
+    monkeypatch.setattr(worker_main, "utc_now", lambda: now)
+    monkeypatch.setattr(
+        worker_main,
+        "recover_stale_jobs",
+        lambda *args, **kwargs: SimpleNamespace(requeued=0, failed=0),
+    )
+    monkeypatch.setattr(
+        worker_main,
+        "claim_next_job",
+        lambda *args, **kwargs: SimpleNamespace(id="job-1"),
+    )
+    monkeypatch.setattr(
+        worker_main,
+        "fail_processing_job",
+        lambda *args, **kwargs: calls.append(("fail", kwargs)) or True,
+    )
+    model_runtime = SimpleNamespace(
+        load_for_job=lambda *args, **kwargs: (_ for _ in ()).throw(
+            ModelLoadingError("Model weights file is missing")
+        )
+    )
+
+    claimed = run_poll_iteration(
+        settings,
+        object(),
+        worker_id="worker-a",
+        model_runtime=model_runtime,
+    )
+
+    assert claimed is True
+    assert calls == [
+        (
+            "fail",
+            {
+                "job_id": "job-1",
+                "worker_id": "worker-a",
+                "error_message": "Model weights file is missing",
+                "now": now,
+            },
+        )
+    ]
 
 
 def test_run_poll_iteration_returns_false_when_no_job_claimed(monkeypatch) -> None:

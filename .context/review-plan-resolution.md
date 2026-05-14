@@ -1,48 +1,42 @@
-# Phase 15 Planning Review Resolution
+# Phase 16 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude review verdict was `APPROVED_WITH_CHANGES`. No blocking source-of-truth conflict found. Accepted changes were applied only to `.context/design.md` and `.context/plan.md`. `.context/research.md` did not require contract changes.
+Claude review verdict was `APPROVED_WITH_CHANGES`. All review items were resolved. Accepted items are doc-consistent and applied only to the Phase 16 implementation contract.
 
 ## Resolution table
 
-| ID | Claude item | Resolution | Reason | Applied to |
+| ID | Claude item | Resolution | Reason | Applied files |
 |---|---|---|---|---|
-| I1 | Stale recovery must explicitly exclude soft-deleted jobs. | accepted | `docs/DATA_MODEL.md` requires `processing_jobs.deleted_at` soft deletion; queue recovery should not mutate deleted/audit rows. | `.context/design.md`, `.context/plan.md` |
-| I2 | Heartbeat/progress helper needs explicit lock-owner guard. | accepted | `locked_by` is part of queue ownership; updates must be scoped to `job_id + locked_by + status = processing` to avoid stale worker writes. | `.context/design.md`, `.context/plan.md` |
-| I3 | PostgreSQL concurrency test is too easy to skip. | accepted | `docs/phase.md` and `docs/TESTING_QA.md` require proving two workers cannot claim the same job; SQLite/unit tests cannot prove `FOR UPDATE SKIP LOCKED`. | `.context/design.md`, `.context/plan.md` |
-| O1 | Add explicit status transition guards for stale recovery updates. | accepted | Race guard aligns with queue reliability and does not conflict with docs. | `.context/design.md`, `.context/plan.md` |
-| O2 | Make timeout `error_message` stable and safe. | accepted | Matches security/logging and safe API error requirements. | `.context/design.md`, `.context/plan.md` |
-| O3 | Clarify placeholder processing behavior in Phase 15 main loop. | accepted | Prevents real claimed jobs from remaining permanently `processing` before Phase 16 processing exists. Scope remains queue-only. | `.context/design.md`, `.context/plan.md` |
-| Q1 | Confirm whether phase risk should be `HIGH` instead of assumed `MEDIUM`. | rejected | Risk label is not a product-doc contract and does not change required implementation or gates. Phase remains governed by `docs/phase.md` and accepted queue-reliability gates. | none |
-| Q2 | Choose PostgreSQL integration path. | accepted | Use existing Docker Compose Postgres as concrete path unless implementation discovers an existing better harness. Lack of runnable PostgreSQL gate is blocker for queue-reliability completion. | `.context/design.md`, `.context/plan.md` |
+| I-1 | Model weights path root behavior ambiguous; documented `models/{model_version_id}/weights.pt` must resolve relative to `STORAGE_ROOT`, with bare `MODELS_ROOT` paths only compatibility behavior. | accepted | Matches `docs/ARCHITECTURE.md` relative storage examples and `docs/DATA_MODEL.md` path-field rules. Prevents valid documented records from resolving as `models/models/...`. | `.context/design.md`, `.context/plan.md`, `.context/research.md` |
+| O-1 | Add explicit test that missing-weight errors and model-loading logs do not include absolute storage paths. | accepted | Matches Phase 16 validation and project security/logging rules. | `.context/design.md`, `.context/plan.md` |
+| O-2 | Add test for YOLO11 metadata pass-through and no silent YOLO11 substitution when metadata says YOLO26. | accepted | Matches `docs/CV_PIPELINE.md` and `docs/TRAINING_EXPERIMENTS.md` YOLO26-primary / YOLO11-documented-fallback policy. | `.context/design.md`, `.context/plan.md` |
+| Q-1 | Prompt risk level placeholder remains literal; reviewer assumed MEDIUM. | accepted | `.context/research.md` already treats Phase 16 as MEDIUM because model artifacts are loaded and jobs may fail safely. No product-doc conflict and no user decision needed. | `.context/research.md` |
 
 ## Accepted changes applied
 
-- Stale recovery selection/update must include `deleted_at IS NULL`.
-- Stale recovery updates must guard on rows still being `status = 'processing'`.
-- Heartbeat/progress updates must match `job_id`, current worker `locked_by`, and `status = 'processing'`.
-- Timeout and placeholder failure messages must be short, stable, and free of paths, DB URLs, secrets, tokens, and stack traces.
-- Phase 15 runtime placeholder for real claimed jobs must fail safely instead of leaving jobs permanently `processing`.
-- PostgreSQL queue validation uses:
-  - root: `docker compose --env-file .env.example up -d postgres`
-  - `cv/`: `python -m pytest -m postgres`
-- If PostgreSQL queue validation cannot run, Phase 15 queue-reliability completion is blocked; SQLite/unit tests alone are insufficient.
+- Locked model weights path behavior: documented `models/{model_version_id}/weights.pt` resolves under `STORAGE_ROOT`.
+- Added contract that `MODELS_ROOT` support is compatibility-only for bare model-storage paths and must not double-prefix `models/...`.
+- Added required tests for documented path resolution and no `models/models/...` regression.
+- Added required tests/assertions for safe missing-weight errors and model-loading logs with no absolute paths.
+- Added required tests for YOLO11 metadata pass-through and no silent fallback/substitution.
+- Recorded Phase 16 risk as `MEDIUM`.
 
 ## Rejected items
 
-- Q1 risk-level confirmation rejected as implementation-contract change. Source docs define phase scope and gates; no user decision needed.
+None.
 
 ## Duplicate items
 
-- None.
+None.
 
 ## Items needing user decision
 
-- None.
+None.
 
 ## Final contract status
 
-- Final Phase 15 contract is ready for implementation.
-- Scope remains worker queue claiming, heartbeat/progress helpers, stale recovery, polling/shutdown behavior, and tests only.
-- No backend API, frontend, DB migration, inference, tracking, exports, detections, result media, or training work added.
+- Scope remains Phase 16 only: CV worker model selection, model loading, device use, cache, and safe fallback/error behavior.
+- No source code changes authorized or made in this resolution step.
+- No backend API, database migration, frontend, training, inference, tracking, export, or result-writing work added.
+- Implementation may proceed against updated `.context/research.md`, `.context/design.md`, and `.context/plan.md`.

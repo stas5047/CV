@@ -10,8 +10,9 @@ from datetime import timedelta
 from uuid import uuid4
 
 from aerovision_worker.database import check_database, create_session_factory, wait_for_database
-from aerovision_worker.device import select_device
+from aerovision_worker.device import DeviceSelection, select_device
 from aerovision_worker.logging import configure_logging
+from aerovision_worker.model_runtime import ModelLoadingError, ModelRuntime
 from aerovision_worker.queue import (
     PLACEHOLDER_PROCESSING_ERROR,
     claim_next_job,
@@ -29,7 +30,7 @@ def run_startup_checks(
     *,
     check_database: Callable[[], None],
     cuda_available: Callable[[], bool] | None = None,
-) -> None:
+) -> DeviceSelection:
     LOGGER.info("worker_start settings=%s", settings.safe_log_payload())
     device = select_device(settings.cv_device, cuda_available=cuda_available)
     LOGGER.info(
@@ -39,13 +40,20 @@ def run_startup_checks(
     )
     check_database()
     LOGGER.info("database_ready")
+    return device
 
 
 def build_worker_id() -> str:
     return f"{socket.gethostname()}-{os.getpid()}-{uuid4().hex[:12]}"
 
 
-def run_poll_iteration(settings: WorkerSettings, session_factory, *, worker_id: str) -> bool:
+def run_poll_iteration(
+    settings: WorkerSettings,
+    session_factory,
+    *,
+    worker_id: str,
+    model_runtime: ModelRuntime | None = None,
+) -> bool:
     now = utc_now()
     summary = recover_stale_jobs(
         session_factory,
@@ -65,6 +73,21 @@ def run_poll_iteration(settings: WorkerSettings, session_factory, *, worker_id: 
         return False
 
     LOGGER.info("job_claimed job_id=%s worker_id=%s", claimed.id, worker_id)
+    if model_runtime is not None:
+        try:
+            model_runtime.load_for_job(session_factory, job_id=claimed.id)
+        except ModelLoadingError as exc:
+            failed = fail_processing_job(
+                session_factory,
+                job_id=claimed.id,
+                worker_id=worker_id,
+                error_message=str(exc),
+                now=utc_now(),
+            )
+            if failed:
+                LOGGER.info("job_failed_model_load job_id=%s worker_id=%s", claimed.id, worker_id)
+            return True
+
     failed = fail_processing_job(
         session_factory,
         job_id=claimed.id,
@@ -82,7 +105,7 @@ def run_worker(*, check_once: bool = False) -> None:
     settings = get_settings()
     session_factory = create_session_factory(settings.database_url)
     worker_id = build_worker_id()
-    run_startup_checks(
+    device = run_startup_checks(
         settings,
         check_database=lambda: wait_for_database(
             lambda: check_database(session_factory),
@@ -94,9 +117,15 @@ def run_worker(*, check_once: bool = False) -> None:
         return
 
     LOGGER.info("worker_polling_started worker_id=%s", worker_id)
+    model_runtime = ModelRuntime(settings=settings, selected_device=device.selected)
     try:
         while True:
-            claimed = run_poll_iteration(settings, session_factory, worker_id=worker_id)
+            claimed = run_poll_iteration(
+                settings,
+                session_factory,
+                worker_id=worker_id,
+                model_runtime=model_runtime,
+            )
             if not claimed:
                 time.sleep(settings.poll_interval_seconds)
     except KeyboardInterrupt:
