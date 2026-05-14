@@ -1,48 +1,39 @@
-# Phase 18 Status
+# Phase 19 Status - Worker CSV/JSON exports and no-detection contracts
 
-## Implemented
+## Current state
 
-- Updated CV worker queue claiming to include image and video jobs, with claimed media type returned for dispatch.
-- Added worker dispatch so image jobs still use image processing and video jobs use the new video processor.
-- Added video processing pipeline:
-  - reads uploaded video through safe shared-storage relative paths;
-  - validates missing/corrupt/unreadable video cases safely;
-  - processes frames in order with job-scoped Ultralytics tracker persistence;
-  - uses ByteTrack by default and passes BoT-SORT when selected;
-  - fails safely when tracker runtime support is unavailable;
-  - writes annotated MP4 output under `results/{job_id}/annotated.mp4`;
-  - updates progress/heartbeat during processing;
-  - stores video detection rows with frame index, timestamp, bbox, confidence, model, tracker, and nullable track IDs;
-  - writes track summaries for non-null track IDs;
-  - writes CSV/JSON exports including top-level `tracks`;
-  - completes no-detection video jobs successfully.
-- Split video implementation across focused worker modules to avoid a large mixed-responsibility file.
-- Updated CV worker index for current video-processing capability.
+- Phase 19 implementation complete.
+- Worker export implementation already matched required CSV/JSON behavior.
+- Tightened worker export tests for no-detection summaries, derived CSV values, track-summary scope, and forbidden CV-boundary terms.
+- Code review resolution complete. OpenAI review reported no critical, important, or optional issues; Claude review file had no findings. No source fixes were required.
 
-## Code Review Final Fix
+## Files changed
 
-- Resolved `.context/review-code-openai.md` review items in `.context/review-code-resolution.md`.
-- Accepted important fix: added regression coverage for intermediate video heartbeat/progress updates before final completion.
-- Accepted optional fix: added no-detection video assertion that annotated MP4 result media is recorded and exists.
-- No source behavior changes were needed; fixes are test-only.
+- `cv/tests/test_image_processing.py`
+- `cv/tests/test_video_processing.py`
+- `.context/review-code-resolution.md`
+- `.context/status.md`
 
-## Validation
+## Quality gates
 
-- `cd cv; python -m ruff check .` -> PASS
-- `cd cv; python -m pytest` -> PASS (`81 passed`)
-- `cd cv; python -m pytest -m postgres` -> PASS (`3 passed`)
-- `cd cv; python -m pytest tests\test_video_processing.py` -> PASS (`8 passed`)
-- `git diff --check` -> FAIL, unrelated existing trailing whitespace in `docs/phase.md:3`; left untouched because it is outside accepted review fixes.
+- `cd cv; python -m pytest tests/test_image_processing.py tests/test_video_processing.py -q` - PASS (`19 passed`, warnings only from SQLite datetime adapter plus expected corrupt-video OpenCV stderr)
+- `cd cv; python -m ruff check aerovision_worker tests` - PASS
 
-## Security and Safety
+## Security/privacy
 
-- DB result paths remain relative.
-- Video source/result paths use existing safe storage join/validation.
-- Worker failure messages avoid absolute paths, tracebacks, tokens, secrets, and DB URLs.
-- JSON exports remain limited to CV/image-space detections, model data, parameters, summaries, and track summaries.
-- No backend API, frontend, DB migration, training, Docker, or product-doc changes were made.
+- Export tests now assert JSON output omits absolute `storage_root` and forbidden boundary terms: targeting, navigation, interception, geospatial, engagement, payload, weapon, motor, autopilot.
+- No secrets, tokens, passwords, or absolute filesystem paths were added.
 
-## Remaining Risks
+## Index/docs
 
-- Unit tests use generated tiny videos and fake tracker outputs; real YOLO/Ultralytics tracker behavior still needs runtime smoke with actual model artifacts in later integration/QA.
-- OpenCV MP4 encoding depends on available codec support; implementation fails safely if writer cannot open.
+- No index updates needed. No files were created, renamed, or deleted; commands and documented paths did not change.
+- Checked touched folders after final verification: no `cv/tests/index.md` or `.context/index.md` exists; `cv/index.md` is already current.
+- Product docs were not modified.
+
+## Deviations
+
+- No deviations from `.context/design.md`, `.context/plan.md`, or `.context/review-plan-resolution.md`.
+
+## Remaining risks
+
+- Focused export tests use SQLite fixtures; PostgreSQL integration coverage remains outside Phase 19 scope unless queue/persistence behavior changes.

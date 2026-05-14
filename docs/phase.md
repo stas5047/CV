@@ -1,46 +1,52 @@
-## Phase 18 - Video processing and tracking pipeline
+## Phase 19 - Worker CSV/JSON exports and no-detection contracts
 
-**Direction:** CV Worker / Video Processing  
-**Goal:** Implement end-to-end video job processing with progress updates and tracking.
+**Direction:** CV Worker / Exports  
+**Goal:** Generate CSV and JSON exports exactly according to API/export contracts.
 
 ### Scope
 
-- Read uploaded video from shared storage.
-- Validate readable video/decode result at worker level.
-- Read or verify video metadata: frame count, FPS, width, height, duration when available.
-- Process frames in order.
-- Run YOLO detection frame by frame.
-- Apply ByteTrack by default for video tracking.
-- Support BoT-SORT as an alternative when runtime support is available.
-- Write annotated frames to output video, preferably MP4.
-- Update progress and heartbeat every configured frame/time interval.
-- Store detection rows with frame indices and timestamps in milliseconds.
-- Store track IDs when the tracker provides them.
-- Create track summary rows per job/track ID.
-- Calculate average FPS, processing duration, confidence summaries, and video metrics.
-- Handle missing/corrupted videos and failed output media creation safely.
-- Complete no-detection video jobs successfully.
-- Add video processing tests using small fixtures, mocks, or smoke assets.
+- Generate CSV export with one row per detection.
+- Include required CSV columns:
+  - job/media/frame/timestamp fields;
+  - class/confidence fields;
+  - bounding box corner fields;
+  - derived center-size fields;
+  - frame dimensions;
+  - track ID;
+  - model version;
+  - tracker type.
+- Generate JSON export with top-level:
+  - `job`;
+  - `media`;
+  - `model`;
+  - `parameters`;
+  - `summary`;
+  - `detections`;
+  - `tracks`.
+- Generate headers-only CSV for no-detection jobs.
+- Generate JSON with empty `detections` array for no-detection jobs.
+- Store `csv_path` and `json_path` as relative paths.
+- Keep exports inside allowed CV output boundary only.
+- Add export contract tests.
 
 ### Relevant docs
 
-- `docs/CV_PIPELINE.md`
-- `docs/ARCHITECTURE.md`
-- `docs/DATA_MODEL.md`
 - `docs/API.md`
+- `docs/CV_PIPELINE.md`
+- `docs/DATA_MODEL.md`
+- `docs/PROJECT_CONTEXT.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Video job completes successfully.
-- Progress and heartbeat update during processing.
-- Annotated video is created or a safe downloadable result is available.
-- Detections include frame indices and timestamps.
-- Track IDs are stored when available and may be null when not associated.
-- Track summaries are created for video jobs with tracks.
-- Average FPS and processing duration are calculated.
-- No-detection video job completes successfully.
+- CSV export contains all required columns.
+- JSON export contains all required top-level objects/arrays.
+- Derived values are computed correctly from corner coordinates.
+- No-detection CSV has headers only.
+- No-detection JSON has empty `detections` array.
+- Exports do not include forbidden physical-control, targeting, geolocation, or engagement fields.
+- Export tests pass.
 
 ### Commit
 
-`feat(worker-video): add video detection tracking and progress pipeline`
+`feat(worker-exports): add CSV JSON exports and no-detection contracts`

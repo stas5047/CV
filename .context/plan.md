@@ -1,143 +1,110 @@
-# Phase 18 Implementation Plan
+# Phase 19 Implementation Plan - Worker CSV/JSON exports and no-detection contracts
 
 ## Scope
 
-Implement only `Phase 18 - Video processing and tracking pipeline`.
-
-Do not implement frontend pages, backend API changes, database migrations, training utilities, Docker runtime changes, RTSP/live input, cancellation, or later-phase polish.
+Only Phase 19 worker export behavior. Do not modify product docs. Do not modify frontend, training, auth, upload, model registry, admin, Docker, or unrelated backend code.
 
 ## Ordered atomic plan
 
-1. `@role/developer-cv-worker` Update queue contract to claim supported media jobs.
-   - Modify `cv/aerovision_worker/queue.py` so `ClaimedJob` includes `media_type`.
-   - Remove image-only claim filter while keeping soft-delete checks, oldest-first ordering, and PostgreSQL `FOR UPDATE SKIP LOCKED`.
-   - Verify with queue tests that image and video jobs can be claimed and deleted media/jobs are skipped.
+1. `@role/developer-cv-worker` Re-read Phase 19 relevant docs before source edits.
+   - Files: `docs/API.md`, `docs/CV_PIPELINE.md`, `docs/DATA_MODEL.md`, `docs/PROJECT_CONTEXT.md`, and `docs/TESTING_QA.md`.
+   - Verify: required CSV columns, required JSON top-level keys, no-detection rules, relative path rules, CV-only boundary are listed in notes before editing.
 
-2. `@role/tester` Update queue tests for Phase 18 behavior.
-   - Modify `cv/tests/test_queue.py` to replace "video jobs remain queued" with "oldest supported queued job is claimed, including video".
-   - Update `cv/tests/test_queue_postgres.py` fixture/query expectations if `ClaimedJob.media_type` affects assertions.
-   - Verify queue helpers still keep claim transaction short.
+2. `@role/tester` Run current focused export tests to establish baseline.
+   - Command: `cd cv; python -m pytest tests/test_image_processing.py tests/test_video_processing.py -q`
+   - Verify: PASS means implementation may only need contract hardening; FAIL means preserve failing output for fix.
 
-3. `@role/developer-cv-worker` Add worker dispatch by media type.
-   - Modify `cv/aerovision_worker/main.py` so claimed image jobs call `process_image_job` and claimed video jobs call video processing.
-   - Unknown media type must fail the claimed job with a safe error.
-   - Preserve model loading before processing and existing model-load failure handling.
+3. `@role/developer-cv-worker` Audit `cv/aerovision_worker/image_processing.py`.
+   - Verify `CSV_COLUMNS` exactly equals documented column list and order.
+   - Verify `_export_detection` computes `center_x`, `center_y`, `bbox_width`, `bbox_height` from bbox corners.
+   - Verify `_write_csv_export` writes headers before rows.
+   - Verify `_write_json_export` includes only top-level `job`, `media`, `model`, `parameters`, `summary`, `detections`, `tracks`.
+   - Verify no-detection path writes CSV/JSON before completion update.
 
-4. `@role/tester` Add dispatcher tests.
-   - Update `cv/tests/test_startup.py` to cover image dispatch, video dispatch, unsupported media failure, and model-load failure.
-   - Verify no job processing runs inside queue claim transaction.
+4. `@role/developer-cv-worker` Audit `cv/aerovision_worker/video_exports.py`.
+   - Verify video CSV uses same `CSV_COLUMNS`.
+   - Verify `write_json_export` includes required top-level objects/arrays.
+   - Verify `build_track_summaries` excludes null `track_id` and summarizes video tracking only.
+   - Verify `result_paths` stores relative `results/{job_id}/...` paths.
 
-5. `@role/developer-cv-worker` Add video job metadata loading and path validation.
-   - Create worker-local video processing code.
-   - Load job/media fields from existing `processing_jobs` and `media_files`.
-   - Require `media_type = 'video'`.
-   - Validate `stored_path` with existing storage path helpers.
-   - Fail safely for missing metadata, unsafe path, missing file, unreadable video, or failed decode.
+5. `@role/developer-cv-worker` Audit `cv/aerovision_worker/video_processing.py` and `cv/aerovision_worker/video_persistence.py`.
+   - Verify CSV/JSON exports are generated for completed video jobs before DB completion update.
+   - Verify no-detection videos still produce annotated MP4 when possible.
+   - Verify completed DB update stores `csv_path` and `json_path` as relative values.
+   - Verify export write failures call `fail_processing_job` with safe generic errors.
 
-6. `@role/tester` Add metadata and decode tests.
-   - Add `cv/tests/test_video_processing.py`.
-   - Generate tiny test videos in temp storage at runtime.
-   - Cover missing source, corrupt source, unsafe source path, zero-frame/unreadable capture, and safe error messages with no absolute paths.
+6. `@role/developer-cv-worker` If audit finds missing export contract behavior, patch only affected worker modules.
+   - Allowed files:
+     - `cv/aerovision_worker/image_processing.py`
+     - `cv/aerovision_worker/video_exports.py`
+     - `cv/aerovision_worker/video_processing.py`
+     - `cv/aerovision_worker/video_persistence.py`
+     - `cv/aerovision_worker/video_types.py`
+   - Verify: no backend/frontend/docs files changed for worker-only fixes.
 
-7. `@role/developer-cv-worker` Implement frame processing loop.
-   - Read frames in order with OpenCV.
-   - Use stored/captured FPS, width, height, frame count when available.
-   - Compute timestamp as milliseconds from frame index and FPS when FPS is available.
-   - Run YOLO detection/tracking per frame using confidence, IoU, image size, selected device, and tracker type from `input_params_json`, while preserving job-scoped tracker state across sequential frames.
-   - Keep `frame_stride` internal and default to `1`.
+7. `@role/developer-cv-worker` Add or tighten image export tests only if needed.
+   - File: `cv/tests/test_image_processing.py`
+   - Required assertions:
+     - CSV fieldnames exactly match docs.
+     - CSV row count equals detection count.
+     - Derived center-size values match bbox corners.
+     - JSON top-level keys match docs.
+     - No-detection CSV rows list is empty after header.
+     - No-detection JSON `detections` equals `[]`.
+     - No-detection JSON `summary` has `total_detections = 0`, `frames_with_detections = 0`, `average_confidence = null`, and `maximum_confidence = null`.
+     - Persisted no-detection job `summary_json` has the same zero/null summary values where available in the test fixture.
+     - JSON/export text omits absolute `storage_root` and forbidden boundary terms.
+   - Verify: tests fail before missing fix when behavior is absent, then pass after fix.
 
-8. `@role/developer-cv-worker` Implement tracker behavior.
-   - Use ByteTrack as default tracker.
-   - Support BoT-SORT only through runtime-supported tracker configuration.
-   - Keep tracker state/configuration alive for the whole video job so repeated track IDs can persist across frames.
-   - Store `track_id` when runtime result provides one; allow null when unassociated.
-   - If requested tracker runtime support is unavailable, fail the job safely instead of silently falling back or reporting unsupported tracking as successful.
-   - Do not compute physical trajectories or real-world coordinates.
+8. `@role/developer-cv-worker` Add or tighten video export tests only if needed.
+   - File: `cv/tests/test_video_processing.py`
+   - Required assertions:
+     - CSV fieldnames exactly match docs.
+     - CSV row count equals detection count.
+     - JSON top-level keys match docs.
+     - JSON `tracks` includes only summarized non-null track IDs.
+     - No-detection CSV rows list is empty after header.
+     - No-detection JSON has `detections: []` and `tracks: []`.
+     - No-detection JSON `summary` has `total_detections = 0`, `frames_with_detections = 0`, `average_confidence = null`, and `maximum_confidence = null`.
+     - Persisted no-detection job `summary_json` has the same zero/null summary values where available in the test fixture.
+     - Export paths are relative and files exist.
+     - JSON/export text omits absolute `storage_root` and forbidden boundary terms.
+   - Verify: tests fail before missing fix when behavior is absent, then pass after fix.
 
-9. `@role/tester` Add detection/tracking tests.
-   - Fake model/tracker outputs for frames with and without IDs.
-   - Verify frame index, timestamp, original pixel bbox coordinates, confidence, class `drone`, tracker type, and nullable track IDs.
-   - Verify one fake track persists across multiple frames and creates one summary row with correct first frame, last frame, and frame count.
-   - Verify requested `botsort` is passed to runtime when configured.
-   - Verify unsupported tracker runtime behavior marks the job failed with a safe error.
+9. `@role/tester` Run focused worker export tests.
+   - Command: `cd cv; python -m pytest tests/test_image_processing.py tests/test_video_processing.py -q`
+   - Expected: PASS.
 
-10. `@role/developer-cv-worker` Write annotated MP4 output.
-    - Write `results/{job_id}/annotated.mp4`.
-    - Draw bounding boxes and labels on frames.
-    - Fail safely if output directory or video writer creation/write fails.
-    - Keep output path relative in DB.
+10. `@role/tester` Run worker lint for touched worker/test surface.
+    - Command: `cd cv; python -m ruff check aerovision_worker tests`
+    - Expected: PASS.
 
-11. `@role/tester` Add annotated output tests.
-    - Verify completed video job creates a file at relative path `results/{job_id}/annotated.mp4`.
-    - Verify writer failure marks job failed with safe error and no absolute path.
+11. `@role/code-reviewer` Review changed files against `docs/API.md`, `docs/CV_PIPELINE.md`, `docs/DATA_MODEL.md`, `docs/PROJECT_CONTEXT.md`, and `docs/TESTING_QA.md`.
+    - Verify no API/schema/UI/docs/runtime-service scope creep.
+    - Verify CSV/JSON export contracts.
+    - Verify no-detection success behavior.
+    - Verify relative path storage.
+    - Verify CV-only output boundary.
+    - Verify no secrets or absolute paths in export/error output.
 
-12. `@role/developer-cv-worker` Add heartbeat and progress updates.
-    - During video processing, call existing heartbeat helper every configured frame interval or configured seconds, whichever comes first.
-    - Calculate progress from processed frames and total frame count when total is known.
-    - Ensure final completion sets progress to `100`.
+12. `@role/docs-maintainer` Decide docs/index updates.
+    - Expected: skipped unless implementation changes commands, structure, env variables, artifact layout, or documented file paths.
+    - Verify: if skipped, final report says docs/index updates skipped because no documented paths/commands changed.
 
-13. `@role/tester` Add heartbeat/progress tests.
-    - Use multi-frame generated video and monkeypatched time/settings.
-    - Verify at least one mid-processing heartbeat/progress update before completion.
-    - Verify final job progress is `100`.
+## Relevant quality gates
 
-14. `@role/developer-cv-worker` Persist detections and track summaries.
-    - Delete prior `detections` and `tracks` for the job before final inserts.
-    - Insert one detection row per detection.
-    - Aggregate `tracks` by non-null track ID with first frame, last frame, frames count, average confidence, and max confidence.
-    - Do not insert track summaries when no track IDs exist.
+- `cd cv; python -m pytest tests/test_image_processing.py tests/test_video_processing.py -q`
+- `cd cv; python -m ruff check aerovision_worker tests`
 
-15. `@role/tester` Add DB persistence tests.
-    - Verify detection rows and track rows are inserted correctly.
-    - Verify no-detection videos have zero detections and zero tracks.
-    - Verify reprocessing/finalization does not leave stale rows.
+Not in scope:
 
-16. `@role/developer-cv-worker` Generate CSV and JSON exports.
-    - CSV must use documented columns and one row per detection; no-detection CSV has headers only.
-    - JSON must include `job`, `media`, `model`, `parameters`, `summary`, `detections`, and `tracks`.
-    - Include only CV/image-space fields and no forbidden boundary fields.
+- Backend full suite unless backend files change.
+- PostgreSQL queue integration unless queue/persistence semantics change.
+- Frontend checks.
+- Docker Compose smoke.
 
-17. `@role/tester` Add export contract tests.
-    - Verify CSV columns match `docs/API.md`.
-    - Verify JSON top-level keys match `docs/API.md`.
-    - Verify exported `tracks` content matches persisted track summary rows.
-    - Verify no-detection JSON has empty `detections`.
-    - Verify exports contain no absolute paths and no forbidden safety-boundary terms.
+## Stop conditions
 
-18. `@role/developer-cv-worker` Complete successful and failed jobs safely.
-    - On success, update `processing_jobs` to `completed`, set summary, result paths, `completed_at`, heartbeat, progress `100`, and clear lock fields.
-    - On failure, use existing failure helper and safe messages.
-    - Ensure no-detection is success, not failure.
-
-19. `@role/tester` Add end-to-end worker video tests.
-    - Verify successful detection video job completes.
-    - Verify no-detection video job completes.
-    - Verify missing/corrupt/output-failure cases fail with clear safe errors.
-
-20. `@role/code-reviewer` Review Phase 18 scope and safety.
-    - Check no frontend/backend/API/migration/training work was added unless required by direct test failure.
-    - Check no Celery/Redis, REST worker loop, live camera/RTSP, geospatial/targeting/navigation/control output, absolute paths, raw secrets, or committed media artifacts.
-    - Check file sizes; keep video code out of oversized image module.
-
-21. `@role/tester` Run relevant quality gates.
-    - Run `cd cv; python -m ruff check .`.
-    - Run `cd cv; python -m pytest`.
-    - Run `cd cv; python -m pytest -m postgres` when PostgreSQL is reachable.
-    - If backend files are changed unexpectedly, run targeted backend tests for jobs/results contracts.
-
-22. `@role/docs-maintainer` Update implementation index only if implementation files or current CV worker capabilities changed.
-    - Update `cv/index.md` to say video processing/tracking is now implemented if Phase 18 implementation succeeds.
-    - Do not modify product docs such as `docs/API.md`, `docs/CV_PIPELINE.md`, `docs/ROADMAP.md`, or `docs/phase.md` during implementation unless user explicitly requests a docs update.
-
-## Verification checklist
-
-- Video jobs are claimable and dispatched.
-- Image job behavior remains passing.
-- Video job completes with annotated MP4, CSV, JSON, detection rows, summaries, and track rows when tracks exist.
-- Tracker state persists across sequential video frames so stable runtime track IDs produce meaningful summaries.
-- Progress and heartbeat update during video processing.
-- No-detection video completes successfully with empty detection exports.
-- Missing/corrupt video and writer failures mark job failed safely.
-- DB stores only relative paths.
-- Exports and logs stay inside CV-only boundary.
-- Relevant CV worker gates pass or blockers are documented with exact command output.
+- Stop and report `WARNING: CONFLICT` if implementation, `.context`, or docs disagree on export fields, no-detection success, relative paths, or CV-only boundary.
+- Stop before source edits if a required JSON nested field is unclear and cannot be inferred from docs without inventing behavior.
+- Do not mark complete with failing focused gates unless exact failing command/output is documented as blocker.

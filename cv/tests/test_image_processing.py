@@ -17,6 +17,18 @@ from aerovision_worker.image_processing import process_image_job
 from aerovision_worker.model_runtime import LoadedModel, ModelMetadata
 from aerovision_worker.settings import WorkerSettings
 
+FORBIDDEN_EXPORT_TERMS = [
+    "targeting",
+    "navigation",
+    "interception",
+    "geospatial",
+    "engagement",
+    "payload",
+    "weapon",
+    "motor",
+    "autopilot",
+]
+
 
 def session_factory() -> sessionmaker[Session]:
     engine = create_engine("sqlite+pysqlite:///:memory:")
@@ -361,6 +373,10 @@ def test_process_image_job_completes_no_detection_with_empty_exports(tmp_path: P
     assert summary["average_confidence"] is None
     assert summary["maximum_confidence"] is None
     assert rows == []
+    assert export["summary"]["total_detections"] == 0
+    assert export["summary"]["frames_with_detections"] == 0
+    assert export["summary"]["average_confidence"] is None
+    assert export["summary"]["maximum_confidence"] is None
     assert export["detections"] == []
 
 
@@ -583,10 +599,16 @@ def test_process_image_job_writes_csv_and_json_contract(tmp_path: Path) -> None:
             "model_version",
             "tracker_type",
         ]
+        rows = list(reader)
+    assert len(rows) == 1
+    assert float(rows[0]["center_x"]) == 10.0
+    assert float(rows[0]["center_y"]) == 8.5
+    assert float(rows[0]["bbox_width"]) == 16.0
+    assert float(rows[0]["bbox_height"]) == 11.0
     export = json.loads((storage_root / job["json_path"]).read_text(encoding="utf-8"))
     assert set(export) == {"job", "media", "model", "parameters", "summary", "detections", "tracks"}
     assert export["tracks"] == []
     forbidden = json.dumps(export).lower()
-    assert "targeting" not in forbidden
-    assert "navigation" not in forbidden
+    for term in FORBIDDEN_EXPORT_TERMS:
+        assert term not in forbidden
     assert str(storage_root).lower() not in forbidden

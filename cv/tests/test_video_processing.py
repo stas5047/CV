@@ -18,6 +18,18 @@ from aerovision_worker.model_runtime import LoadedModel, ModelMetadata
 from aerovision_worker.settings import WorkerSettings
 from aerovision_worker.video_processing import process_video_job
 
+FORBIDDEN_EXPORT_TERMS = [
+    "targeting",
+    "navigation",
+    "interception",
+    "geospatial",
+    "engagement",
+    "payload",
+    "weapon",
+    "motor",
+    "autopilot",
+]
+
 
 def session_factory() -> sessionmaker[Session]:
     engine = create_engine("sqlite+pysqlite:///:memory:")
@@ -337,11 +349,16 @@ def test_process_video_job_completes_with_detections_tracks_exports_and_progress
     export = json.loads((storage_root / job["json_path"]).read_text(encoding="utf-8"))
     assert set(export) == {"job", "media", "model", "parameters", "summary", "detections", "tracks"}
     assert len(rows) == 3
+    assert float(rows[0]["center_x"]) == 10.0
+    assert float(rows[0]["center_y"]) == 8.5
+    assert float(rows[0]["bbox_width"]) == 16.0
+    assert float(rows[0]["bbox_height"]) == 11.0
     assert export["tracks"][0]["track_id"] == tracks[0]["track_id"]
+    assert len(export["tracks"]) == 1
     forbidden = json.dumps(export).lower()
     assert str(storage_root).lower() not in forbidden
-    assert "targeting" not in forbidden
-    assert "navigation" not in forbidden
+    for term in FORBIDDEN_EXPORT_TERMS:
+        assert term not in forbidden
 
 
 def test_process_video_job_completes_no_detection_with_empty_exports(tmp_path: Path) -> None:
@@ -367,8 +384,14 @@ def test_process_video_job_completes_no_detection_with_empty_exports(tmp_path: P
     assert fetch_rows(factory, "detections") == []
     assert fetch_rows(factory, "tracks") == []
     assert job["summary_json"]["total_detections"] == 0
+    assert job["summary_json"]["frames_with_detections"] == 0
     assert job["summary_json"]["average_confidence"] is None
+    assert job["summary_json"]["maximum_confidence"] is None
     assert rows == []
+    assert export["summary"]["total_detections"] == 0
+    assert export["summary"]["frames_with_detections"] == 0
+    assert export["summary"]["average_confidence"] is None
+    assert export["summary"]["maximum_confidence"] is None
     assert export["detections"] == []
     assert export["tracks"] == []
     assert job["result_media_path"] == "results/job-1/annotated.mp4"

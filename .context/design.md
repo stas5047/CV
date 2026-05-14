@@ -1,138 +1,154 @@
-# Phase 18 Design Contract
+# Phase 19 Design - Worker CSV/JSON exports and no-detection contracts
 
 ## Phase goal
 
-Implement Phase 18 only: video job processing in the CV worker, including readable video validation, frame-by-frame inference, ByteTrack default tracking, optional BoT-SORT when runtime support exists, progress/heartbeat updates, annotated MP4 result output, detection rows, track summary rows, CSV/JSON exports, summary metrics, safe errors, and no-detection success.
+Generate and persist worker CSV/JSON exports for completed image and video jobs according to documented export contracts, including no-detection jobs.
 
 ## Intended behavior from docs
 
-Confirmed:
+Confirmed facts:
 
-- Worker reads uploaded video from shared storage using relative DB paths only.
-- Worker must handle missing, corrupted, unreadable, or decode-failing videos as failed jobs with safe `error_message`.
-- Worker reads or verifies frame count, FPS, width, height, and duration when available.
-- Worker processes frames in order.
-- Worker uses YOLO detection frame by frame.
-- ByteTrack is default for video.
-- BoT-SORT is supported only when runtime support is available.
-- Tracking must preserve tracker state across frames for each video job so stable IDs can produce meaningful track summaries.
-- Annotated video should be MP4 when possible.
-- Progress and heartbeat update every configured 30 frames or 2 seconds by default, whichever comes first.
-- Video detections include frame index, timestamp in milliseconds, bbox in original frame pixel coordinates, class `drone`, confidence, model data, tracker type, and `track_id` when available.
-- Track IDs may be null when the tracker does not associate an ID.
-- Worker creates one `tracks` summary row per job/track ID when tracks exist.
-- No-detection video jobs complete successfully and still create annotated output when possible, CSV headers, JSON with empty `detections`, zero summaries, and no error.
-- Worker writes only CV/image-space data. No targeting, navigation, geospatial, interception, or hardware-control outputs.
+- CSV export contains one row per detection.
+- CSV required columns:
+  - `job_id`
+  - `media_id`
+  - `frame_index`
+  - `timestamp_ms`
+  - `class_id`
+  - `class_name`
+  - `confidence`
+  - `bbox_x1`
+  - `bbox_y1`
+  - `bbox_x2`
+  - `bbox_y2`
+  - `center_x`
+  - `center_y`
+  - `bbox_width`
+  - `bbox_height`
+  - `frame_width`
+  - `frame_height`
+  - `track_id`
+  - `model_version`
+  - `tracker_type`
+- Derived export values come from corner coordinates:
+  - `center_x = bbox_x1 + bbox_width / 2`
+  - `center_y = bbox_y1 + bbox_height / 2`
+  - `bbox_width = bbox_x2 - bbox_x1`
+  - `bbox_height = bbox_y2 - bbox_y1`
+- JSON export contains top-level:
+  - `job`
+  - `media`
+  - `model`
+  - `parameters`
+  - `summary`
+  - `detections`
+  - `tracks`
+- No-detection jobs are successful completed jobs.
+- No-detection CSV exists with headers only.
+- No-detection JSON has `detections: []`.
+- No-detection summary has `total_detections = 0`, `frames_with_detections = 0`, `average_confidence = null`, `maximum_confidence = null`.
+- `processing_jobs.csv_path` and `processing_jobs.json_path` store relative paths only.
+- Exports must remain CV-only: image-space detections, confidence, class label, timestamps, track IDs, model data, and performance metrics.
+- Exports must not include targeting, navigation, geospatial, physical-control, payload, weapon, or engagement data.
 
 Assumptions:
 
-- Use OpenCV for video decode/encode because dependency already exists and docs require `opencv-python-headless`.
-- Use generated test videos rather than committed fixtures.
-- Use worker-local fakes for model/tracking tests; do not require real model weights in unit tests.
+- Existing `results/{job_id}/detections.csv` and `results/{job_id}/detections.json` path pattern remains.
+- Export helper functions may be shared/refined only inside `cv/aerovision_worker/`; no new top-level folders needed.
+- Internal `frame_stride` may remain in worker JSON `parameters` because docs only forbid standard UI exposure; do not add any frontend exposure.
 
 ## Architecture decisions
 
-- Add media-type dispatch in the worker after job claim. The queue should claim queued jobs for supported media, then `main.py` dispatches images to existing image processor and videos to the new video processor.
-- Keep video processing out of `image_processing.py` because that file is already over 500 lines and image/video processing have separate responsibilities.
-- Reuse existing model loading, safe path, heartbeat, and job failure helpers.
-- Keep all processing outside the claim transaction. Existing `claim_next_job` already commits before processing; Phase 18 must preserve this.
-- Write result paths under `results/{job_id}/`: `annotated.mp4`, `detections.csv`, `detections.json`.
-- Initialize and keep tracker runtime/configuration for the whole video job, not as independent per-frame stateless calls.
-- Use a small internal representation for video detections and track summaries so CSV/JSON exports and DB inserts use one consistent source.
-- Clear stale detection/track rows for the job before inserting final rows, matching image reprocessing behavior.
-- Do not add Celery, Redis, REST worker polling, frontend changes, API changes, training changes, or live/RTSP input.
+- Keep export generation in CV worker, not backend, because `docs/CV_PIPELINE.md` says worker generates CSV/JSON exports.
+- Keep PostgreSQL as metadata store only; export files stay in shared filesystem storage.
+- Keep DB writes atomic at job completion: detections/tracks and `processing_jobs` result paths update in completion persistence.
+- Keep image and video export behavior aligned through same CSV column order and same detection export field names.
+- Keep video track summaries in `tracks` only for detections with tracker-provided IDs.
+- Keep path safety through existing storage path helpers before file writes.
+- Keep failures secret-safe: failed export writes mark job failed with generic worker error message, not absolute path.
 
 ## Backend impact
 
-Confirmed no backend product behavior change is intended.
+Touched only if worker contract reveals backend result/download mismatch.
 
-Backend may be inspected because:
+Current expected backend impact:
 
-- Existing schema and result endpoints are the contract for detection/track rows and download paths.
-- Existing job creation already stores video tracker parameters.
-
-No backend route/schema change should be part of this phase unless implementation discovers a direct contract mismatch. If such mismatch appears, stop and report `WARNING: CONFLICT`.
+- None for Phase 19 implementation.
+- Backend result/download endpoints consume `csv_path` and `json_path` already stored by worker.
 
 ## Frontend impact
 
-No frontend code is touched in this phase.
+Current expected frontend impact:
+
+- None. Frontend phases happen later.
+- No Ukrainian UI work in Phase 19.
 
 ## DB impact
 
-No migration is intended.
+Current expected DB impact:
 
-Worker writes existing tables only:
-
-- `processing_jobs`
-- `detections`
-- `tracks`
-
-Required DB invariants:
-
-- Result paths remain relative.
-- `detections` rows use original frame pixel coordinates.
-- `tracks` rows summarize video tracker IDs only and do not represent physical trajectories.
-- No binary video/export data is stored in PostgreSQL.
+- No schema changes.
+- Worker updates existing `processing_jobs.csv_path`, `processing_jobs.json_path`, `summary_json`, status/progress/completion fields.
+- Worker inserts/clears existing `detections` and `tracks` rows as needed.
+- Relative path invariant must remain intact.
 
 ## API impact
 
-No API route or response schema change is intended.
+Current expected API impact:
 
-Existing results endpoints should begin returning real video detections/tracks/download availability once worker writes documented rows and artifacts.
+- No route or schema changes.
+- Exports must match API contract so existing download endpoints can serve files safely.
 
 ## Security/privacy impact
 
-Touched:
+Touched security/privacy surfaces:
 
-- Shared-storage reads/writes.
-- DB path fields.
-- Worker logs/errors.
-- JSON/CSV exports.
+- Export contents must omit absolute host/container paths.
+- Export contents must omit forbidden CV-boundary fields.
+- Worker error messages must not include `STORAGE_ROOT`, model paths, secrets, tokens, or DB credentials.
+- Relative `csv_path` and `json_path` only.
 
-Rules:
+Not touched:
 
-- Reject unsafe source/result paths.
-- Never store or expose absolute host/container paths.
-- Safe job errors must not include storage root, model path, raw traceback, secrets, tokens, or DB URL.
-- JSON exports must not include forbidden external fields such as targeting, navigation, interception, geospatial data, motor/payload/flight-control commands, or engagement decisions.
-- User-uploaded media is decoded only, never executed.
+- Auth, role checks, ownership checks, CORS, upload validation, seeded admin.
 
 ## Test strategy
 
-Worker tests:
+Focused required checks:
 
-- Update queue tests so video jobs are claimable in Phase 18.
-- Add dispatcher tests that image jobs still call image processor and video jobs call video processor.
-- Add video unit tests with generated tiny videos and fake model/tracker outputs:
-  - successful video job writes annotated MP4, CSV, JSON, detections, tracks, summary, progress 100;
-  - detections include frame indices and millisecond timestamps;
-  - track IDs are stored when provided and may be null;
-  - one fake track persists across multiple frames and produces one summary row with correct first frame, last frame, and frame count;
-  - track summary rows aggregate first/last frame, frame count, average confidence, max confidence;
-  - no-detection video completes with empty exports and zero summaries;
-  - missing/corrupt/unreadable video fails safely;
-  - output writer failure fails safely;
-  - unsupported tracker runtime behavior fails safely and does not silently claim BoT-SORT ran;
-  - progress/heartbeat updates during multi-frame processing;
-  - JSON export `tracks` content matches persisted track summaries;
-  - exports contain only API contract keys and no absolute paths or forbidden safety-boundary text.
+- Run image export contract tests:
+  - `python -m pytest tests/test_image_processing.py -q`
+- Run video export contract tests:
+  - `python -m pytest tests/test_video_processing.py -q`
+- Run worker lint for changed worker/test files:
+  - `python -m ruff check aerovision_worker tests`
 
-Relevant gates:
+Targeted assertions to keep/add:
 
-- `cd cv; python -m ruff check .`
-- `cd cv; python -m pytest`
-- `cd cv; python -m pytest -m postgres` when PostgreSQL is reachable, because queue claiming changes.
+- CSV fieldnames exactly match documented required columns.
+- CSV has one row per detection.
+- No-detection CSV has headers only.
+- JSON top-level keys exactly include documented objects/arrays.
+- No-detection JSON has empty `detections`.
+- Video JSON has `tracks`, image JSON has `tracks: []`.
+- Derived center-size values are correct.
+- Export paths are relative and under `results/{job_id}/`.
+- Export JSON text does not contain forbidden terms such as `targeting`, `navigation`, `interception`, `geospatial`, `engagement`, `payload`, `weapon`, `motor`, `autopilot`, or absolute `storage_root`.
+- Export write failures mark job failed with safe generic message.
 
-Not planned:
+Broader checks not required for this phase:
 
-- Frontend build/tests.
-- Backend full suite unless implementation changes backend files.
-- Docker Compose smoke unless runtime/dependency/container files change.
+- Full backend suite, unless backend result/download code changes.
+- PostgreSQL queue integration tests, unless queue claim/persistence semantics change.
+- Docker Compose smoke, unless runtime service config changes.
+- Frontend build/tests, because frontend untouched.
 
 ## Ambiguities or conflicts
 
-- No doc conflict found.
-- Risk level was not supplied in prompt; assumed `HIGH`.
-- Docs do not define exact internal file names. Proposed new worker module names are implementation-owned, not product/API contracts.
-- Docs do not define exact MP4 codec. Implementation should try a broadly available OpenCV codec and fail safely if writer cannot open.
-- Docs allow BoT-SORT only when supported. Implementation should not silently claim BoT-SORT worked when runtime support is absent.
+No `WARNING: CONFLICT` found.
+
+Ambiguities:
+
+- Docs define JSON top-level keys but do not enumerate all nested JSON fields. Implementation should avoid expanding nested fields beyond already available documented CV metadata.
+- Docs forbid `frame_stride` in standard UI, but Phase 19 JSON `parameters` may include actual processing parameters. If reviewers decide export JSON is also user-facing enough to hide `frame_stride`, that needs explicit decision because API docs list `parameters` broadly.
+- Current implementation appears to already include Phase 19 behavior. Implementation should verify first, then only patch proven gaps.

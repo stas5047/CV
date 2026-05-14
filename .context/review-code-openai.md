@@ -1,12 +1,12 @@
-# OpenAI Code Review - Phase 18 Video Processing and Tracking Pipeline
+# OpenAI Code Review - Phase 19 Worker CSV/JSON exports and no-detection contracts
 
-## Verdict: APPROVED_WITH_CHANGES
+## Verdict: APPROVED
 
 ## Summary
 
-Phase 18 implementation stays in CV worker scope. It adds video job claiming/dispatch, per-frame YOLO tracking with ByteTrack default and BoT-SORT selection, annotated MP4 output, detections, track summaries, CSV/JSON exports, no-detection success, and relative storage paths. Relevant CV worker gates pass.
+Phase 19 change is test hardening only. Worker source behavior remains unchanged. Added assertions cover documented CSV/JSON export contract gaps: derived center-size fields, no-detection summary values, track export scope, annotated no-detection video artifact, and forbidden CV-boundary terms.
 
-One important gap remains: tests do not prove the documented mid-processing heartbeat/progress behavior. Current assertions would still pass if the per-frame heartbeat call were removed, because final completion overwrites progress and heartbeat.
+No correctness, product-doc, architecture, privacy, or quality-gate defect found.
 
 ## Critical issues
 
@@ -14,42 +14,34 @@ None.
 
 ## Important issues
 
-1. Missing regression coverage for video heartbeat/progress updates during processing.
-   - Evidence: `docs/phase.md:16`, `docs/CV_PIPELINE.md:217`, `docs/CV_PIPELINE.md:380`, and `docs/TESTING_QA.md:223` require progress and heartbeat updates during video processing.
-   - Evidence: implementation calls `_heartbeat_if_needed(...)` inside the frame loop at `cv/aerovision_worker/video_processing.py:195`, and `_heartbeat_if_needed()` calls `update_job_heartbeat(...)` at `cv/aerovision_worker/video_processing.py:338`.
-   - Evidence: `cv/tests/test_video_processing.py:290` configures `heartbeat_frames=1`, but the test only asserts final `job["progress_percent"] == 100` at `cv/tests/test_video_processing.py:305`.
-   - Evidence: final completion sets `progress_percent = 100` and `last_heartbeat_at = :completed_at` at `cv/aerovision_worker/video_persistence.py:137-139`, so the current test would pass even if the frame-loop heartbeat update at `cv/aerovision_worker/video_processing.py:195` were deleted.
-   - Impact: required in-progress UI/status behavior can regress without test failure.
-   - Needed change: add a video test that monkeypatches `update_job_heartbeat` or otherwise captures intermediate DB updates and asserts at least one heartbeat/progress update before final completion, with a progress value below 100.
+None.
 
 ## Optional issues
 
-1. No-detection video test does not assert annotated output media exists.
-   - Evidence: `docs/CV_PIPELINE.md:306` says the worker must still create annotated output media when possible for no-detection jobs.
-   - Evidence: `cv/tests/test_video_processing.py:336-362` verifies completed status, empty DB rows, and empty exports, but does not assert `result_media_path` or file existence. Positive-detection coverage does assert this at `cv/tests/test_video_processing.py:306-307`.
-   - Impact: no-detection artifact regression could slip through while CSV/JSON assertions still pass.
+None.
 
 ## Quality gate assessment
 
-- `rtk git status --short`: PASS for review input; shows Phase 18 worker/context changes plus untracked video modules/tests.
-- `rtk git diff --stat`: PASS for review input; note untracked video files are not represented in that stat.
-- `rtk git diff`: PASS for review input; changed tracked files reviewed. Untracked video files inspected directly.
-- `cd cv; python -m ruff check .`: PASS.
-- `cd cv; python -m pytest -p no:cacheprovider`: PASS, 81 passed.
-- `cd cv; python -m pytest -p no:cacheprovider -m postgres`: PASS, 3 passed, 78 deselected.
+- `cd cv; python -m pytest tests/test_image_processing.py tests/test_video_processing.py -q` - PASS (`19 passed`, 176 warnings; warnings are SQLite datetime deprecation plus expected corrupt-video OpenCV stderr).
+- `cd cv; python -m ruff check aerovision_worker tests` - PASS.
+
+Assessment: focused Phase 19 gates are sufficient because only worker export tests changed. Backend, frontend, Docker, and PostgreSQL integration gates not required for this test-only phase.
 
 ## Security/privacy assessment
 
-Applicable because Phase 18 touches shared-storage reads/writes and exports. No concrete security/privacy issue found. Source paths use relative-path validation and safe storage joins; result paths are generated under `results/{job_id}/`; exported JSON/CSV content stays within CV/image-space data; safe failure messages avoid absolute storage paths in covered cases.
+Applicable because exports are user-downloadable artifacts.
+
+- Added image/video export tests assert JSON does not contain absolute `storage_root`.
+- Added image/video export tests assert forbidden boundary terms are absent: targeting, navigation, interception, geospatial, engagement, payload, weapon, motor, autopilot.
+- No secrets, tokens, credentials, absolute filesystem paths, or out-of-scope control data found in changed tests or reviewed export code paths.
 
 ## Positive findings
 
-- Queue now claims both image and video jobs while preserving supported media filtering and PostgreSQL `FOR UPDATE SKIP LOCKED`.
-- Worker dispatch keeps image and video processing separated.
-- Video processing modules are split by responsibility instead of expanding the already large image module.
-- Tracking uses job-scoped model calls with `persist=True`, ByteTrack default, and BoT-SORT config when selected.
-- No-detection video path completes successfully with empty detections/tracks and exports.
-- No backend API, frontend, database migration, training, Docker, Celery/Redis, live-camera, or out-of-scope control/navigation behavior was added.
+- No-detection image test now checks persisted and exported zero/null summary values required by `docs/CV_PIPELINE.md` and `docs/TESTING_QA.md`.
+- No-detection video test now checks same summary values and confirms annotated MP4 result exists when possible.
+- Positive detection export tests now verify derived `center_x`, `center_y`, `bbox_width`, and `bbox_height`.
+- Video export test now verifies `tracks` contains only expected non-null track summary.
+- Focused gates pass after review.
 
 ## Files consulted
 
@@ -58,26 +50,22 @@ Applicable because Phase 18 touches shared-storage reads/writes and exports. No 
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- `docs/CV_PIPELINE.md`
-- `docs/ARCHITECTURE.md`
-- `docs/DATA_MODEL.md`
 - `docs/API.md`
+- `docs/CV_PIPELINE.md`
+- `docs/DATA_MODEL.md`
+- `docs/PROJECT_CONTEXT.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
-- `cv/aerovision_worker/main.py`
-- `cv/aerovision_worker/queue.py`
-- `cv/aerovision_worker/video_processing.py`
-- `cv/aerovision_worker/video_detection.py`
-- `cv/aerovision_worker/video_exports.py`
-- `cv/aerovision_worker/video_io.py`
-- `cv/aerovision_worker/video_persistence.py`
-- `cv/aerovision_worker/video_types.py`
-- `cv/aerovision_worker/model_runtime.py`
-- `cv/index.md`
-- `cv/tests/test_queue.py`
-- `cv/tests/test_startup.py`
+- `cv/tests/test_image_processing.py`
 - `cv/tests/test_video_processing.py`
+- `cv/aerovision_worker/image_processing.py`
+- `cv/aerovision_worker/video_exports.py`
+- `cv/aerovision_worker/video_processing.py`
+- `cv/aerovision_worker/video_persistence.py`
+- `rtk git status --short`
+- `rtk git diff --stat`
+- `rtk git diff`

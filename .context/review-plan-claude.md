@@ -2,9 +2,11 @@
 
 ## Summary
 
-Phase 18 plan matches documented scope: CV worker video processing only, no backend/API/frontend/schema/training expansion, PostgreSQL queue plus shared storage, relative paths, progress/heartbeat, ByteTrack default, BoT-SORT when supported, CSV/JSON exports, no-detection success, and CV-only output boundary.
+Phase 19 plan mostly matches docs. Scope stays worker-only. Export files stay filesystem artifacts. DB stores relative `csv_path` and `json_path`. Plan covers CSV columns, JSON top-level keys, no-detection CSV/JSON, CV-only boundary, and focused worker tests.
 
-One important gap remains: plan does not explicitly require persistent tracker state across sequential frames. Without that, per-frame calls can satisfy detection tests while producing unstable or missing track summaries.
+One important test gap remains: no-detection summary contract is documented but not explicit in ordered plan assertions.
+
+Risk level: MEDIUM.
 
 ## Blocking issues
 
@@ -12,24 +14,23 @@ None.
 
 ## Important issues
 
-1. Tracker lifecycle not explicit enough for video tracking.
-   - Evidence: `.context/plan.md` step 7 says "Run YOLO/tracking call per frame"; step 8 says "Use ByteTrack as default tracker"; no step requires preserving tracker state across frames or using runtime persistence/config so IDs can remain associated over time.
-   - Doc rule: `docs/CV_PIPELINE.md` requires video processing to "apply tracking with ByteTrack by default", store `track_id` when provided, and create per-job/track summaries. `docs/TESTING_QA.md` requires video tracking includes track IDs when available and track summaries are created.
-   - Risk: implementation may call detection/tracking independently per frame, causing no stable track IDs or fragmented summaries while still passing basic per-frame detection tests.
-   - Needed plan change: require persistent tracker state for each video job, and add test where same fake track appears across multiple frames and produces one summary row with correct first/last frame and frame count.
+1. No-detection summary values lack explicit test/verification in implementation plan.
+
+Evidence:
+- `docs/CV_PIPELINE.md:296-303` requires no-detection jobs to complete with `total_detections = 0`, `frames_with_detections = 0`, `average_confidence = null`, `maximum_confidence = null`, headers-only CSV, and JSON empty `detections`.
+- `docs/DATA_MODEL.md:402-412` repeats no-detection success rules and summary expectations.
+- `docs/TESTING_QA.md:263-271` requires no-detection tests for status, totals, confidence nulls, CSV, and JSON.
+- `.context/plan.md:46-66` lists image/video export assertions for CSV headers, JSON top-level keys, no-detection CSV rows, no-detection `detections: []`, relative paths, and forbidden terms, but does not require assertions for JSON `summary` values or DB `summary_json` values on no-detection jobs.
+
+Required change: add focused assertions during Phase 19 for no-detection image and video summary content, at least `total_detections = 0`, `frames_with_detections = 0`, `average_confidence = null`, and `maximum_confidence = null` in exported JSON `summary` and persisted job summary where available.
 
 ## Optional improvements
 
-1. Add one test for unknown or unsupported tracker runtime behavior.
-   - Evidence: `.context/design.md` says requested tracker failure should mark job failed safely, not silently fallback. `.context/plan.md` verifies `botsort` is passed but does not explicitly test unsupported runtime failure.
-   - Value: prevents false reporting that BoT-SORT ran when runtime support is absent.
-
-2. Add export test for `tracks` top-level array content, not only key existence.
-   - Evidence: `docs/API.md` requires JSON export top-level `tracks`; `docs/CV_PIPELINE.md` requires track summary rows. Plan step 17 checks top-level keys but not that exported track summaries match persisted rows.
+1. Implementation step 1 re-reads only `docs/API.md` and `docs/CV_PIPELINE.md` (`.context/plan.md:9-10`). Since this phase also depends on path-field and safety/test contracts, re-reading `docs/DATA_MODEL.md`, `docs/PROJECT_CONTEXT.md`, and `docs/TESTING_QA.md` before final review would reduce drift. This is optional because later plan review step already references all relevant docs (`.context/plan.md:77-84`).
 
 ## Questions for resolution
 
-None. Important issue can be resolved inside plan before implementation.
+None.
 
 ## Files consulted
 
@@ -41,10 +42,11 @@ None. Important issue can be resolved inside plan before implementation.
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
-- `.context/review-plan-claude.md`
-- `docs/CV_PIPELINE.md`
-- `docs/ARCHITECTURE.md`
-- `docs/DATA_MODEL.md`
 - `docs/API.md`
+- `docs/CV_PIPELINE.md`
+- `docs/DATA_MODEL.md`
+- `docs/PROJECT_CONTEXT.md`
 - `docs/TESTING_QA.md`
+
+Command context:
 - `git status --short`
