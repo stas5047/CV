@@ -1,53 +1,73 @@
-# Plan
+# Plan - Phase 30 Frontend admin page
 
-1. `@role/developer-frontend` Add experiment TypeScript contracts.
-   - Update `frontend/src/api/types.ts` with `ExperimentType`, `ExperimentMetric`, `ExperimentRun`, and `ExperimentListResponse`.
-   - Verifiable: types match current backend schema and do not invent fields.
+1. `@role/developer-frontend` Add typed admin API helpers for existing endpoints.
+   - Scope: frontend API layer only.
+   - Use `apiRequest`.
+   - Cover stats, admin jobs, users, and storage cleanup.
+   - Verify by tests/mocks expecting exact `/api/admin/*` calls.
 
-2. `@role/developer-frontend` Add experiment API client.
-   - Create `frontend/src/api/experiments.ts` with list helper for `GET /experiments?limit=100`.
-   - Verifiable: helper uses existing `apiRequest` and auth token flow.
+2. `@role/developer-frontend` Add missing frontend admin response types if needed.
+   - Scope: `AdminUserListResponse`, `AdminJobListResponse`, `StorageCleanupRequest`, `StorageCleanupResponse`.
+   - Keep shapes aligned with backend schemas already present.
+   - Do not add fields absent from backend schema.
 
-3. `@role/developer-frontend` Add experiment data utilities.
-   - Create helpers for safe text, percent/number/FPS/latency formatting, metric alias lookup, experiment grouping, and section-empty detection.
-   - Verifiable: helpers return Ukrainian placeholder/empty state for `null`, missing, or unknown values.
+3. `@role/developer-frontend` Replace placeholder `/admin` page with real admin page.
+   - Render global stats from `GET /admin/stats`.
+   - Render recent global jobs from `GET /admin/jobs`.
+   - Render basic users table from `GET /admin/users`.
+   - Render model/experiment shortcut buttons linking to existing `/models` and `/experiments`.
+   - Keep all visible text Ukrainian.
+   - Do not add user-management mutation controls.
 
-4. `@role/developer-frontend` Build page parts from prototype visual structure.
-   - Create reusable components for header, tabs, skeleton, error state, empty section, model comparison, threshold analysis, FPS/latency chart, tracker behavior comparison, false-positive summary, metric cards, and optional confusion matrix area.
-   - Render confusion matrix image only from a documented safe API-served URL or safe metadata field; otherwise show exact experiment empty state.
-   - Verifiable: visible text is Ukrainian except accepted technical labels; layout uses Tailwind/shadcn-style classes and Radix icons already installed.
+4. `@role/developer-frontend` Implement admin page states.
+   - Loading: skeletons sized like stats/cards/tables.
+   - Error: safe Ukrainian error message plus retry.
+   - Empty: Ukrainian empty states for no jobs and no users.
+   - Success: cleanup result summary after cleanup request.
+   - Verify no raw `null` or `undefined` renders.
 
-5. `@role/developer-frontend` Implement `ExperimentsPage`.
-   - Fetch experiments with TanStack Query.
-   - Render loading, error, empty, and data states.
-   - Render Recharts charts only when data exists.
-   - Keep section empty states instead of blank charts, including FPS/latency and confusion matrix sections.
-   - Verifiable: `/experiments` no longer renders placeholder.
+5. `@role/developer-frontend` Implement conservative cleanup UI.
+   - Use required two-step flow: preview first, then confirmed cleanup.
+   - Preview button sends `POST /api/admin/storage/cleanup` with `{ dry_run: true }`.
+   - Confirmed cleanup is enabled only after preview and explicit confirmation, then sends `{ dry_run: false }`.
+   - Show backend response counts only.
+   - Do not display storage paths.
+   - Do not claim active models/results are deleted.
 
-6. `@role/developer-frontend` Wire route import.
-   - Update `frontend/src/App.tsx` to import real `ExperimentsPage`.
-   - Remove only the experiments placeholder usage; do not implement admin page.
-   - Verifiable: `/experiments` route still stays inside `ProtectedRoute` and `AppShell`.
+6. `@role/developer-frontend` Match prototype-driven layout and existing design system.
+   - Use dark dashboard card/table style from `prototype/admin.jsx` and current `index.css`.
+   - Use installed Radix icons only.
+   - Use Tailwind CSS v3-compatible classes.
+   - Keep responsive grid collapse for laptop/narrow screens.
 
-7. `@role/developer-frontend` Preserve documented tracker boundary.
-   - Use behavior indicators from imported data such as FPS, unique track IDs, frames with detections, average confidence, fragmentation proxy, visual stability, and ID-switch examples when available.
-   - Do not render MOTA, IDF1, HOTA, tracking accuracy, targeting, navigation, interception wording, or Ukrainian equivalents for targeting/navigation/interception if new copy is introduced.
-   - Verifiable: tests and text search confirm forbidden terms are absent.
+7. `@role/developer-frontend` Wire route import.
+   - Point `frontend/src/App.tsx` at real admin page.
+   - Remove only obsolete placeholder export if no longer used.
+   - Preserve `AdminRoute` and `AppShell` behavior.
 
-8. `@role/tester` Add focused frontend tests.
-   - Create `frontend/src/test/experiments-page.test.tsx`.
-   - Cover guest redirect, loading, API error, empty data, null metrics, all section rendering, FPS/latency chart rendering, confusion matrix empty state when no safe URL exists, role-safe data assumptions, no raw unsafe values, and exact required empty text from `docs/FRONTEND_UX.md`.
-   - Assert no raw `artifacts_path`, storage-relative path, `/app/storage`, or `C:\` appears or is used as an image `src`.
-   - Verifiable: Vitest assertions pass.
+8. `@role/tester` Add focused frontend tests for Phase 30.
+   - Admin sees page data from admin APIs.
+   - Regular user is forbidden and admin nav stays hidden.
+   - Empty jobs/users render empty states.
+   - API failure shows safe Ukrainian error, not raw backend detail.
+   - Cleanup preview posts `{ dry_run: true }` and shows response summary.
+   - Confirmed cleanup posts `{ dry_run: false }` only after explicit confirmation and shows response summary.
+   - Cleanup API failure shows safe Ukrainian error.
+   - Container does not contain `null`, `undefined`, `C:\`, `/app/`, `/storage/`, or raw token-like values from mocks.
 
-9. `@role/tester` Run relevant gates.
-   - Run from `frontend/`:
-     - `npm run lint`
-     - `npm test`
-     - `npm run build`
-   - Verifiable: commands PASS or exact blocker captured.
+9. `@role/tester` Run relevant quality gates.
+   - `npm run test -- admin-page` or equivalent targeted Vitest command: expected PASS.
+   - `npm run lint`: expected PASS.
+   - `npm run build`: expected PASS.
+   - Manual browser smoke for `/admin` when app/browser tooling is available: expected PASS.
+   - If a command/tool is unavailable, report `not available yet` with reason.
+   - Backend tests: not run / not required unless frontend implementation reveals API mismatch.
 
-10. `@role/code-reviewer` Review Phase 29 scope.
-    - Check docs alignment, prototype conflict resolution, Ukrainian UI, Recharts use, FPS/latency chart presence, safe confusion matrix handling, no raw null/path display, no frontend auth overreach, no training launch, no forbidden tracker/targeting wording.
-    - Run a focused visual comparison against `prototype/experiments.jsx` after build for tabs, comparison split, threshold chart/table, tracker table, false-positive section, and empty state; do not treat prototype mock metrics as contract.
-    - Verifiable: review finds no blocking Phase 29 mismatch.
+10. `@role/code-reviewer` Review changed frontend files against docs.
+   - Check admin-only visibility, Ukrainian text, empty/loading/error states, no absolute paths, no raw nulls, no scope creep, no invented backend behavior, no out-of-scope CV wording.
+   - Verify design follows prototype and existing dashboard system.
+   - Compare `/admin` layout structure against `prototype/admin.jsx` and current `index.css` visual system without adding new dependencies.
+
+11. `@role/docs-maintainer` Skip product doc updates.
+   - No commands, env vars, routes, product docs, or source-of-truth docs should change in this phase.
+   - If implementation creates `frontend/src/pages/AdminPage.tsx`, `frontend/src/api/admin.ts`, or otherwise changes frontend folder contents tracked by `frontend/index.md`, update `frontend/index.md`; otherwise record index update skipped.

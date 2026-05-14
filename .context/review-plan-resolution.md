@@ -1,45 +1,49 @@
-# Phase 29 Planning Review Resolution
+# Planning Review Resolution - Phase 30 Frontend admin page
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude planning review is resolved. No item needs user decision because product docs already decide safe behavior for all blocking/important points.
+Claude review verdict was `APPROVED_WITH_CHANGES`. All review items were resolved. No item conflicts with product docs. No source code was modified.
 
 ## Resolution table
 
-| ID | Claude item | Resolution | Rationale | Contract update |
-|---|---|---|---|---|
-| I1 | Missing explicit FPS/latency chart implementation step | accepted | `docs/phase.md` and `docs/FRONTEND_UX.md` require FPS/latency chart for `/experiments`. | `.context/plan.md` now names FPS/latency chart component, empty-state behavior, tests, and review check. `.context/design.md` now includes FPS/latency visual structure and tests. |
-| I2 | Confusion matrix artifact handling under-specified | accepted | `docs/API.md` forbids unsafe path exposure; no documented safe experiment artifact image route exists. | `.context/plan.md` and `.context/design.md` now allow image rendering only from documented safe API-served URL/safe metadata field; otherwise required empty state. Tests must assert no raw path or unsafe image `src`. |
-| I3 | Empty-state literal differs between `.context/design.md` and docs | accepted | Product docs are authoritative and require exact text from `docs/FRONTEND_UX.md` / `docs/TESTING_QA.md`. | `.context/design.md` now uses exact `Дані експерименту ще не завантажено`; `.context/plan.md` points tests to product docs. |
-| O1 | Optional visual smoke against prototype layout | accepted | User explicitly requires frontend based on `@prototype`; smoke stays visual only and does not promote mock metrics to contract. | `.context/plan.md` review step now includes focused prototype layout comparison after build. |
-| O2 | Optional forbidden-term assertions, including tracker/targeting terms | accepted | Aligns with CV-only boundary and tracker metric restrictions in docs. | `.context/plan.md` now requires text search/test coverage for forbidden English terms and Ukrainian equivalents if introduced. |
-| Q1 | Should confusion matrix be deferred until backend/API exposes safe artifact URL? | duplicate | Same safe artifact policy as I2. Display is deferred unless safe documented URL/metadata exists; empty state is rendered meanwhile. | Same as I2. |
+| ID | Claude item | Resolution | Contract update |
+|---|---|---|---|
+| I1 | Frontend validation plan too narrow for route/page phase. | accepted | Added `npm run lint`, retained `npm run build` because it includes `tsc -b`, added manual browser smoke when tooling is available, and required `not available yet` reporting for unavailable gates. |
+| I2 | Storage cleanup behavior under-specified. | accepted | Contract now requires two-step cleanup: preview with `{ dry_run: true }`, then explicit confirmed cleanup with `{ dry_run: false }`; tests must assert payloads, counts, safe errors, and no storage paths. |
+| O1 | Make component-index update rule concrete. | accepted | Plan now says update `frontend/index.md` if new frontend page/API files or tracked folder contents change; otherwise record skipped. |
+| O2 | Add prototype conformance check. | accepted | Code-review step now requires comparing `/admin` structure against `prototype/admin.jsx` and current `index.css` visual system without new dependencies. |
+| Q1 | Should cleanup expose both preview and confirmed cleanup, or preview-only? | accepted | Resolved as preview plus confirmed cleanup because docs require a cleanup action and API supports safe `dry_run` control. |
 
 ## Accepted changes applied
 
-- Added explicit FPS/latency chart requirement to final implementation plan and design test strategy.
-- Tightened confusion matrix contract: no raw `artifacts_path`, no storage-relative image `src`, no absolute paths; render image only from documented safe API-served URL/safe metadata field.
-- Corrected exact experiment empty-state literal in `.context/design.md`.
-- Added test expectations for FPS/latency chart, confusion matrix empty state, unsafe path absence, and exact empty text.
-- Added review expectation for focused prototype visual comparison without accepting prototype mock metric semantics.
-- Expanded forbidden tracker/safety wording checks.
+- `.context/research.md`
+  - Added discovered frontend scripts: `npm run lint`, `npm run build`, `npm run test`.
+  - Replaced cleanup unknown with final two-step cleanup contract.
+- `.context/design.md`
+  - Made cleanup UX exact: dry-run preview first, confirmed cleanup second.
+  - Expanded cleanup test expectations for payloads, response counts, safe errors, and no storage paths.
+  - Added lint/build/manual browser smoke validation.
+- `.context/plan.md`
+  - Updated cleanup implementation and test steps with exact payloads.
+  - Added lint and manual browser smoke gates.
+  - Added unavailable-command reporting rule.
+  - Added prototype conformance review step.
+  - Made `frontend/index.md` update rule concrete.
 
 ## Rejected items
 
-- None.
+None.
 
 ## Duplicate items
 
-- Q1 duplicates I2 after resolution: both are same safe confusion matrix artifact policy.
+None.
 
 ## Items needing user decision
 
-- None.
+None.
 
 ## Final contract status
 
-- Implementation remains scoped to Phase 29 only.
-- No source code changes made.
-- Backend/API contract unchanged.
-- Frontend must consume existing `/api/experiments?limit=100`, use Recharts, preserve Ukrainian visible UI, and keep backend as visibility authority.
-- Final implementation may proceed using updated `.context/research.md`, `.context/design.md`, `.context/plan.md`, and this resolution file.
+- Scope remains Phase 30 only: frontend `/admin` page.
+- Backend, database, CV worker, training, product docs, and source code remain unchanged in this resolution step.
+- Implementation contract is ready for frontend implementation against current docs and prototype.

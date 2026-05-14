@@ -14,7 +14,7 @@ import { UploadPage } from "./pages/UploadPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
-import { AdminPage } from "./pages/placeholders";
+import { AdminPage } from "./pages/AdminPage";
 
 function AppRoutes() {
   return (

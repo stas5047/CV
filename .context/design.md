@@ -1,127 +1,122 @@
-# Design
+# Design - Phase 30 Frontend admin page
 
-## Phase Goal
+## Phase goal
 
-Implement Phase 29 frontend contract for `/experiments`: protected Ukrainian experiments and metrics page that displays imported experiment results, uses Recharts, handles missing/null data with required empty states, and follows prototype visual direction without treating prototype mock data as API contract.
+Implement the `/admin` frontend page only. Page must be admin-only, use existing backend REST admin endpoints, follow `@prototype` admin layout/style, show global stats, recent global jobs, model/experiment shortcuts, conservative storage cleanup UI, and basic users table.
 
-## Intended Behavior From Docs
+## Intended behavior from docs
 
-- `/experiments` remains protected for authenticated users.
-- Page displays:
-  - model comparison table
-  - confidence threshold analysis chart
-  - tracker behavior comparison table
-  - false-positive analysis summary
-  - precision/recall/mAP cards
-  - FPS/latency chart
-  - confusion matrix image if available
-- Charts use Recharts only.
-- Matplotlib is not used in frontend UI.
-- Missing section data shows exact text:
+Confirmed:
 
-```text
-Дані експерименту ще не завантажено
-```
+- `/admin` is required route and admin-only page.
+- Guests must be redirected by protected routing.
+- Regular users must not see admin navigation and must not access `/admin`.
+- Admin page content:
+  - global processing statistics;
+  - recent jobs from all users;
+  - model management shortcuts;
+  - storage cleanup action;
+  - basic users table.
+- Complex user management is out of scope.
+- Backend remains authorization source of truth.
+- Visible UI text must be Ukrainian.
+- Empty, loading, error, forbidden, and success states must be clear.
+- No raw `null`, `undefined`, unsafe absolute filesystem paths, secrets, or tokens should be shown.
+- UI must stay inside CV-only boundary and must not imply targeting, navigation, interception, or hardware control.
 
-- Blank charts are not rendered.
-- Raw `null`/`undefined` are not displayed.
-- Regular users see published experiments only through backend API.
-- Admins see all experiments where backend allows it.
-- Tracker copy uses `tracker behavior comparison`, not absolute tracking accuracy.
-- UI must not expose absolute filesystem paths or imply targeting/navigation/interception.
+Assumptions:
 
-## Architecture Decisions
+- Recent global jobs can use `GET /api/admin/jobs?limit=6` or similar small limit.
+- Basic users table can use `GET /api/admin/users?limit=50`.
+- Cleanup action uses existing `POST /api/admin/storage/cleanup` in an explicit two-step flow: preview sends `{ dry_run: true }`; confirmed cleanup sends `{ dry_run: false }`.
+- Cleanup UI should present counts from backend response, not invent file lists.
 
-- Add frontend-only API helper for experiments using existing `apiRequest`.
-- Add experiment response types to `frontend/src/api/types.ts` matching current backend schema.
-- Replace placeholder `ExperimentsPage` with real page module and import it from `App.tsx`.
-- Keep data fetching client-side with TanStack Query, consistent with existing frontend pages.
-- Request `GET /api/experiments?limit=100`; do not create new endpoints.
-- Group runs by documented `experiment_type`:
-  - `model_comparison`
-  - `threshold_analysis`
-  - `tracker_comparison`
-  - `false_positive_analysis`
-- Build small local mapping helpers for metric aliases and safe display formatting.
-- Use prototype as visual reference:
-  - tabbed sections
-  - dark dashboard cards
-  - compact metric strips
-  - model comparison chart/table split
-  - threshold chart with adjacent values
-  - FPS/latency chart with adjacent performance values
-  - tracker behavior notice
-  - false-positive summary blocks
-- Override prototype conflicts:
-  - use Recharts, not prototype SVG chart helpers
-  - avoid MOTA/IDF1/HOTA/absolute tracking accuracy labels
-  - avoid mock-only fake data unless tests inject it
-- Use Radix icons already installed; do not add new icon package.
-- Use Tailwind v3 syntax and existing `av-*` component classes.
-- Keep motion minimal and CSS-only because no motion dependency is installed.
+## Architecture decisions
 
-## Backend Impact
+- Keep implementation in frontend only.
+- Use TanStack Query for admin stats, jobs, and users, matching existing dashboard/jobs pages.
+- Use existing `apiRequest` so JWT header and API base URL handling stay centralized.
+- Add typed API wrappers for admin endpoints if needed, matching existing `frontend/src/api/*` pattern.
+- Reuse existing UI patterns:
+  - `av-card`, `av-label`, `av-skeleton`;
+  - shadcn-style `Button`;
+  - Radix icons from installed `@radix-ui/react-icons`;
+  - job `StatusBadge`, `MediaIcon`, and formatters where practical.
+- Base visual layout on `prototype/admin.jsx`:
+  - compact metric row;
+  - main grid with recent jobs and admin action rail;
+  - cleanup confirmation block;
+  - users table.
+- Respect design skill constraints:
+  - Tailwind v3 syntax only;
+  - no new dependency imports unless already installed;
+  - no emoji;
+  - no Framer Motion unless installed and needed, which it is not;
+  - avoid `h-screen`; existing shell uses `min-h-[100dvh]`;
+  - no purple/blue glow aesthetic; keep existing dark neutral + green accent.
 
-- No backend source change planned.
-- Frontend consumes existing experiment list endpoint and current schema.
+## Backend impact
 
-## Frontend Impact
+- No backend source changes planned.
+- Frontend consumes already implemented admin API routes only.
 
-- Add `frontend/src/api/experiments.ts`.
-- Extend `frontend/src/api/types.ts`.
-- Add `frontend/src/pages/ExperimentsPage.tsx`.
-- Likely add `frontend/src/pages/experiments/experimentPageUtils.ts`.
-- Likely add `frontend/src/pages/experiments/ExperimentPageParts.tsx`.
-- Update `frontend/src/App.tsx` import to use real page instead of placeholder.
-- Add `frontend/src/test/experiments-page.test.tsx`.
+## Frontend impact
 
-## DB Impact
+- Replace `/admin` placeholder with real admin page.
+- Add admin API client functions and missing frontend response types if needed.
+- Add admin page tests for data, empty/loading/error, cleanup interaction, and route visibility.
+- Keep admin navigation/guard behavior already implemented.
 
-- None.
+## DB impact
 
-## API Impact
+- No DB changes.
+- Cleanup semantics remain backend-owned.
 
-- None. Use existing `/api/experiments`.
+## API impact
 
-## Security/Privacy Impact
+- No API contract changes.
+- Consumed endpoints:
+  - `GET /api/admin/stats`
+  - `GET /api/admin/jobs`
+  - `GET /api/admin/users`
+  - `POST /api/admin/storage/cleanup`
 
-- Protected route remains behind `ProtectedRoute`.
-- Frontend does not enforce experiment visibility beyond display; backend remains authority.
-- Do not display `artifacts_path` raw.
-- Do not display absolute host/container paths.
-- Do not use `artifacts_path` or storage-relative paths as image `src`.
-- Render confusion matrix image only from a documented safe API-served URL or safe metadata field. Until that exists, render the required empty state for the confusion matrix section.
-- Do not surface raw backend errors directly; map to Ukrainian error message.
-- Do not expose admin-only import UI in this phase.
-- Do not add training launch controls.
-- Do not display forbidden output fields or CV claims beyond documented metrics.
+## Security/privacy impact
 
-## Test Strategy
+- Admin page must rely on backend authorization and not treat hidden UI as security.
+- Regular users must still be blocked by `AdminRoute`; backend still rejects direct API calls.
+- Cleanup action wording must be conservative and not claim deletion beyond backend response.
+- Cleanup UI must require preview before confirmed cleanup and must show only response counts/categories, not file names or storage paths.
+- Do not display internal storage paths, passwords, tokens, password hashes, DB passwords, JWT secrets, or raw backend error details.
+- Do not add user management controls.
 
-- Add frontend route/component tests for `/experiments`.
-- Mock `GET /api/experiments` responses for:
-  - loading skeleton
-  - API error
-  - empty list
-  - published/user-visible data
-  - null metric values
-  - all four experiment types
-  - FPS/latency chart renders when data exists
-  - confusion matrix section uses empty state when no safe URL exists
-  - tracker comparison without forbidden metric wording
-- Assert:
-  - route redirects guests through existing auth behavior
-  - required empty-state text appears for missing sections
-  - no raw `null`, `undefined`, `frame_stride`, `artifacts_path`, `/app/storage`, `storage/`, or `C:\` appears or is used as an image `src`
-  - Recharts-backed chart content renders when data exists
-  - regular UI text is Ukrainian except accepted technical labels
-- Relevant quality gates:
+## Test strategy
+
+Frontend checks relevant to touched surface:
+
+- Add focused admin page test(s):
+  - admin route renders global stats/jobs/users from `/api/admin/*`;
+  - regular user cannot access `/admin`;
+  - empty admin jobs/users render Ukrainian empty states;
+  - failed admin request shows safe Ukrainian error and retry;
+  - cleanup preview posts `{ dry_run: true }`;
+  - confirmed cleanup posts `{ dry_run: false }` only after explicit confirmation;
+  - cleanup response counts and success/error states render without storage paths;
+  - page does not render `null`, `undefined`, or absolute paths from mocked data.
+- Run:
+  - `npm run test -- admin-page`
   - `npm run lint`
-  - `npm test -- experiments-page.test.tsx` if Vitest target filtering works; otherwise `npm test`
   - `npm run build`
+- Manual browser smoke when app/browser tooling is available:
+  - admin can view `/admin`;
+  - regular user is blocked;
+  - responsive stats/table/action layout matches prototype structure;
+  - loading, error, empty, cleanup preview, and cleanup success states remain Ukrainian and do not show raw `null` or absolute paths.
+- If test name filtering is not supported by npm script, run targeted Vitest file directly or `npm run test`.
+- Backend tests not required because backend is not modified.
 
-## Ambiguities Or Conflicts
+## Ambiguities or conflicts
 
-- WARNING: CONFLICT: prototype `prototype/experiments.jsx` shows MOTA/custom SVG chart patterns that conflict with `docs/TRAINING_EXPERIMENTS.md`, `docs/FRONTEND_UX.md`, and backend metric safety. Implementation must follow docs and use prototype only for visual composition.
-- Confusion matrix display lacks documented safe frontend URL contract. Show it only from a documented safe API-served URL or safe metadata field; otherwise render required empty state.
-- Exact experiment metric names are flexible/import-dependent. Use alias mapping and empty states instead of hard failures.
+- No doc conflict found between `docs/phase.md`, `docs/ROADMAP.md`, `docs/FRONTEND_UX.md`, `docs/API.md`, `docs/AUTH_SECURITY.md`, and `docs/TESTING_QA.md` for Phase 30.
+- User prompt placeholders for phase title and risk are unresolved. Current phase is taken from `docs/phase.md`; risk treated as assumption.
+- Prototype text appears mojibake through terminal, but production frontend files already use same encoded Ukrainian convention. Implementation should preserve app-visible Ukrainian behavior and avoid changing encoding policy during this phase.

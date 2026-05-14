@@ -21,7 +21,7 @@ According to `../docs/`, this frontend will provide a Ukrainian-language dashboa
 | `src/` | React app source: API client, auth state, protected/admin routing, auth pages, authenticated shell, dashboard page, upload/jobs/models pages, UI primitives, tests, and styles. |
 | `index.md` | Frontend folder summary, current contents, and frontend-local commands. |
 
-The frontend currently implements Phase 29: Vite/React/TypeScript scaffold, Tailwind/shadcn baseline, typed auth API client, token-backed auth state, `/login`, `/register`, protected route wrapper, admin guard, authenticated shell, `/dashboard` metrics/recent-jobs page, `/upload` media upload and processing-job creation page, `/jobs` history/filter page, `/jobs/:jobId` details/results/download page, `/models` model registry page with admin registration/activation controls, `/experiments` experiment metrics page with Recharts charts and required empty states, and placeholder protected routes for later phases.
+The frontend currently implements Phase 30: Vite/React/TypeScript scaffold, Tailwind/shadcn baseline, typed auth API client, token-backed auth state, `/login`, `/register`, protected route wrapper, admin guard, authenticated shell, `/dashboard` metrics/recent-jobs page, `/upload` media upload and processing-job creation page, `/jobs` history/filter page, `/jobs/:jobId` details/results/download page, `/models` model registry page with admin registration/activation controls, `/experiments` experiment metrics page with Recharts charts and required empty states, and `/admin` admin-only page with global stats, recent global jobs, model/experiment shortcuts, conservative storage cleanup, and a basic users table.
 
 ## Commands
 

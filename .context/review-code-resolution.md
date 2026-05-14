@@ -1,51 +1,50 @@
-# Phase 29 Code Review Resolution
+# Code Review Resolution - Phase 30 Frontend admin page
 
 ## Verdict: FIXED
 
-One OpenAI code review item is resolved. No Claude code review file exists. No item needs user decision because `docs/FRONTEND_UX.md` and `docs/TESTING_QA.md` define the required Ukrainian text and exact experiment empty-state literal.
+OpenAI review verdict was `APPROVED_WITH_CHANGES`. Claude code review file is not present. One important issue is accepted. No critical, optional, duplicate, or user-decision items were found.
 
 ## Resolution table
 
-| ID | Source | Priority | Review item | Resolution | Rationale | Planned fix |
-|---|---|---:|---|---|---|---|
-| C1 | `.context/review-code-openai.md` | critical | `/experiments` renders mojibake instead of Ukrainian; empty-state tests assert implementation constant instead of docs literal. | accepted | Product docs require Ukrainian visible UI text and exact empty-state text: `Дані експерименту ще не завантажено`. Current source shows corrupted strings. | Replace Phase 29 visible strings and test expectations with real Ukrainian; make tests assert docs literal directly. |
+| ID | Source | Priority | Review item | Resolution | Fix decision |
+|---|---|---:|---|---|---|
+| I1 | `.context/review-code-openai.md` | important | Admin error state contains visible English text `backend API`, conflicting with Ukrainian UI rule. | accepted | Replace visible phrase with Ukrainian wording while keeping technical API meaning. |
 
 ## Accepted critical fixes
 
-- C1: Fix corrupted Ukrainian text across Phase 29 experiments page and tests, including exact empty-state literal.
+None.
 
 ## Accepted important fixes
 
-- None.
+- I1: Replace non-Ukrainian visible admin error copy in `frontend/src/pages/admin/AdminPageParts.tsx`.
 
 ## Accepted optional fixes
 
-- None.
+None.
 
 ## Rejected items
 
-- None.
+None.
 
 ## Duplicate items
 
-- None.
+None.
 
 ## Items needing user decision
 
-- None.
+None.
 
 ## Fixes applied
 
-- Replaced corrupted Phase 29 visible UI strings in `/experiments` with real Ukrainian text.
-- Set `EXPERIMENT_EMPTY_TEXT` to exact docs-required literal: `Дані експерименту ще не завантажено`.
-- Updated experiments-page tests to assert the docs-required literal directly instead of importing the implementation constant.
-- Replaced corrupted test fixture labels with real Ukrainian values.
-- Preserved documented `tracker behavior comparison` wording and forbidden tracker metric filtering.
+- Replaced `backend API` visible copy with `API бекенду` in `frontend/src/pages/admin/AdminPageParts.tsx`.
+- Left unrelated `frontend/src/pages/DashboardPage.tsx` wording unchanged because it was outside the accepted Phase 30 review item.
 
 ## Final verification
 
-- `cd frontend; npm test -- experiments-page.test.tsx`: PASS, 5 tests passed.
+- `rg "backend API" frontend/src/pages/admin frontend/src/pages/AdminPage.tsx`: PASS, no admin-page matches.
+- `rg "API бекенду" frontend/src/pages/admin/AdminPageParts.tsx`: PASS, fixed copy present.
+- `cd frontend; npm run test -- admin-page`: PASS, 5 tests passed.
+- `cd frontend; npm test`: PASS, 50 tests passed.
 - `cd frontend; npm run lint`: PASS.
-- `cd frontend; npm test`: PASS, 45 tests passed.
 - `cd frontend; npm run build`: PASS with Vite chunk-size warning only.
-- Phase 29 mojibake scan with `Select-String`: PASS, no corrupted `Р `/`РЎ`/`Ð`/`Ñ`/`вЂ` fragments found in touched experiments files.
+- Manual browser smoke: not run; no live backend/admin auth flow was available in this final-fix turn.

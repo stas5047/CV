@@ -1,49 +1,37 @@
-## Phase 29 - Frontend experiments and metrics page
+## Phase 30 - Frontend admin page
 
-**Direction:** Frontend  
-**Goal:** Implement experiment visualization with robust empty states.
+**Direction:** Frontend / Admin  
+**Goal:** Implement admin-only UI for global stats, global jobs, users, shortcuts, and cleanup.
 
 ### Scope
 
-- Implement `/experiments` page.
-- Display:
-  - model comparison table;
-  - confidence threshold analysis chart;
-  - tracker behavior comparison table;
-  - false-positive analysis summary;
-  - precision/recall/mAP cards;
-  - FPS/latency chart;
-  - confusion matrix image if available.
-- Use Recharts for frontend charts.
-- Do not use Matplotlib in frontend UI.
-- Use the exact Ukrainian empty-state text for missing experiment sections:
-
-```text
-Дані експерименту ще не завантажено
-```
-
-- Do not render blank chart canvases without explanation.
-- Do not show raw `null` values.
-- Regular users see published experiments only.
-- Admins can see all experiments where backend allows it.
-- Use wording `tracker behavior comparison`, not absolute tracking accuracy.
+- Implement `/admin` page.
+- Restrict route to admin users in frontend routing.
+- Display global processing statistics.
+- Display recent jobs from all users.
+- Display model management shortcuts.
+- Display safe storage cleanup action.
+- Display basic users table.
+- Do not implement complex user management unless explicitly approved later.
+- Add Ukrainian loading, error, empty, and success states.
+- Ensure backend remains the source of truth for authorization.
 
 ### Relevant docs
 
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
-- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Experiments route is protected.
-- Missing data shows required Ukrainian text.
-- Null metric values do not crash the UI.
-- Recharts render when data exists.
-- Regular user/admin visibility matches backend.
+- Admin navigation appears only for admins.
+- Regular users cannot access `/admin`.
+- Admin page loads global stats/jobs/users.
+- Cleanup action is clear and conservative in UI wording.
+- Empty lists show Ukrainian empty states.
 - Frontend build passes.
 
 ### Commit
 
-`feat(frontend-experiments): add experiment metrics and empty states`
+`feat(frontend-admin): add admin dashboard and cleanup UI`

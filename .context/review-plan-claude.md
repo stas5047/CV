@@ -1,10 +1,12 @@
-# Phase 29 Planning Review
+# Independent Planning Review - Phase 30 Frontend admin page
 
 ## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Plan matches main Phase 29 contract: protected `/experiments`, existing backend REST API, Recharts, Ukrainian UI, prototype used as visual reference only, backend remains visibility authority, no training launch, no forbidden tracker metrics. Changes needed before implementation: make FPS/latency chart explicit, tighten confusion-matrix artifact handling, and avoid copying wrong empty-state literal from `.context/design.md`.
+Plan matches Phase 30 scope: frontend-only `/admin` page, admin route guard, backend REST admin endpoints, Ukrainian UI states, prototype-driven dashboard layout, no complex user management, and backend authorization as source of truth.
+
+Changes needed before implementation are narrow: make cleanup flow semantics explicit, and broaden frontend validation to match project quality gates for route/page work.
 
 ## Blocking issues
 
@@ -12,33 +14,37 @@ None.
 
 ## Important issues
 
-1. Missing explicit FPS/latency chart implementation step.
-   - Evidence: `docs/phase.md` and `docs/FRONTEND_UX.md` require an FPS/latency chart for `/experiments`.
-   - Evidence: `.context/plan.md` step 4 names model comparison, threshold analysis, tracker behavior, false-positive summary, metric cards, and optional confusion matrix, but does not name an FPS/latency chart.
-   - Risk: implementation may satisfy metric cards/table only and miss required chart surface.
-   - Required change: add explicit FPS/latency chart component and test: chart renders when data exists; exact experiment empty state renders when data missing.
+1. Frontend validation plan is too narrow for this route/page phase.
 
-2. Confusion matrix artifact handling under-specified.
-   - Evidence: `docs/FRONTEND_UX.md` requires confusion matrix image if available.
-   - Evidence: `docs/API.md` requires no unsafe absolute paths in API responses/UI and file access through safe routes.
-   - Evidence: `.context/research.md` says current API exposes `artifacts_path`, but no documented safe frontend image/download URL exists for experiment artifacts.
-   - Risk: implementation may use or display `artifacts_path` directly, causing broken image src, internal path exposure, or path-bound frontend behavior.
-   - Required change: render confusion matrix only from a documented safe URL or safe metadata field; otherwise show required empty state. Test must assert no raw `artifacts_path`, `/app/storage`, `C:\`, or storage-relative path is shown or used as image src.
+   Evidence:
+   - `.context/plan.md` step 9 lists only `npm run test -- admin-page` or equivalent plus `npm run build`.
+   - `AGENTS.md` Quality Gate Selection for "Frontend route/page/control" requires typecheck, lint, build, route/component tests, and manual browser flow when available.
+   - `docs/TESTING_QA.md` frontend route and UI quality tests require `/admin` admin-only behavior, Ukrainian text, loading/error/empty states, layout quality, and absolute-path suppression.
 
-3. WARNING: CONFLICT: empty-state literal differs between `.context/design.md` and docs.
-   - Evidence: `docs/phase.md`, `docs/FRONTEND_UX.md`, and `docs/TESTING_QA.md` require exact text `Р”Р°РЅС– РµРєСЃРїРµСЂРёРјРµРЅС‚Сѓ С‰Рµ РЅРµ Р·Р°РІР°РЅС‚Р°Р¶РµРЅРѕ`.
-   - Evidence: `.context/design.md` quotes a different double-encoded string beginning `Р вЂќР В°...`.
-   - Risk: implementer copying from design will fail required exact-text checks.
-   - Required change: implementation and tests must copy empty-state literal from product docs, not from `.context/design.md`.
+   Required change:
+   - Add configured frontend lint/typecheck commands when available, or record `not available yet`.
+   - Add a manual browser smoke for `/admin` when app/browser tooling is available, focused on admin-only access, responsive table/card layout, loading/error/empty states, and no raw `null`/absolute paths.
+
+2. Storage cleanup behavior is under-specified.
+
+   Evidence:
+   - `docs/phase.md` requires a "storage cleanup action".
+   - `docs/API.md` defines `POST /api/admin/storage/cleanup` and requires safe cleanup that does not delete active model weights or recent user results accidentally.
+   - `docs/AUTH_SECURITY.md` says cleanup must be conservative and respect database references and soft deletion.
+   - `.context/plan.md` step 5 says "Prefer dry-run/preview before destructive cleanup if UI includes both", leaving open whether Phase 30 implements actual cleanup, dry-run only, or both.
+
+   Required change:
+   - Specify one exact UX path: recommended two-step flow is `dry_run: true` preview first, then explicit confirmation sends `dry_run: false`.
+   - Tests should assert the cleanup payload(s), response count rendering, success state, no storage paths displayed, and safe handling of API failure.
 
 ## Optional improvements
 
-- Add a focused visual smoke check against `prototype/experiments.jsx` after build, limited to layout structure: tabs, comparison split, threshold chart/table, tracker table, false-positive section, and empty state. Do not treat prototype mock metrics as contract.
-- Add case-insensitive text assertions for forbidden tracker terms: `MOTA`, `IDF1`, `HOTA`, `tracking accuracy`, `targeting`, `navigation`, `interception`, plus Ukrainian equivalents if implementation introduces them.
+- Make `.context/plan.md` step 11 concrete for component indexes: if implementation creates `frontend/src/pages/AdminPage.tsx` or a new admin API module and `frontend/index.md` tracks current contents, update that index; otherwise state no index update needed.
+- Add a lightweight prototype conformance check during code review: compare `/admin` against `prototype/admin.jsx` structure and current `index.css` visual system, without adding new dependencies.
 
 ## Questions for resolution
 
-- Should confusion matrix display be deferred until backend/API exposes a safe experiment artifact URL, with required empty state shown meanwhile?
+- Should Phase 30 expose both cleanup preview and confirmed cleanup, or should it intentionally ship preview-only with wording that does not claim files were deleted?
 
 ## Files consulted
 
@@ -52,7 +58,7 @@ None.
 - `.context/plan.md`
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
-- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
-- `prototype/index.md`
-- `prototype/experiments.jsx`
+- `C:/Users/Kotletka/.codex/skills/caveman/SKILL.md`
+- `C:/Users/Kotletka/.codex/skills/taste-skill/SKILL.md`

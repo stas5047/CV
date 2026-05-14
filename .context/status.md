@@ -1,33 +1,33 @@
-# Phase 29 Status
+# Status - Phase 30 Frontend admin page
 
-- Phase: Phase 29 - Frontend experiments and metrics page.
-- State: code review resolved and final-fix verified.
-- Scope: frontend only.
-- Implemented:
-  - typed experiment API response contracts and `GET /api/experiments?limit=100` client helper;
-  - protected `/experiments` page replacing placeholder route;
-  - Recharts model comparison, threshold analysis, and FPS/latency charts;
-  - tracker behavior comparison table without MOTA/IDF1/HOTA wording;
-  - false-positive analysis summary;
-  - exact required experiment empty state for missing/null sections;
-  - confusion matrix safe fallback empty state because no documented safe artifact image URL exists;
-  - focused Phase 29 frontend tests and shared `ResizeObserver` test polyfill for Recharts.
-- Quality gates:
-  - `npm test -- experiments-page.test.tsx` PASS.
-  - `npm test` PASS.
-  - `npm run lint` PASS.
-  - `npm run build` PASS with Vite chunk-size warning only.
-- Code review fixes:
-  - accepted and fixed critical mojibake defect on `/experiments`;
-  - Phase 29 tests now assert exact docs-required empty-state text directly;
-  - touched experiments files pass a focused corrupted-text scan.
-- Security/privacy:
-  - no raw `artifacts_path`, storage-relative path, `/app/storage`, Windows absolute path, `null`, `undefined`, or `frame_stride` displayed in tested states;
-  - backend remains experiment visibility authority;
-  - no training launch or import UI added.
-- Docs/index:
-  - `frontend/index.md` updated to current Phase 29 state.
-- Deviations:
-  - confusion matrix image display deferred to empty state until backend/API exposes a documented safe image URL.
-- Remaining risks:
-  - manual browser visual smoke was not run in this turn; automated route/component tests and build passed.
+## Current state
+
+- Implemented `/admin` frontend page only.
+- Added typed frontend admin API helpers for existing backend admin endpoints.
+- Added admin page tests for global stats, recent global jobs, shortcuts, users, route blocking, empty states, safe error state, and two-step cleanup.
+- Split admin page UI parts into `frontend/src/pages/admin/AdminPageParts.tsx` to keep the route module compact.
+- Updated `frontend/index.md` because frontend folder contents and current implementation summary changed.
+- Code review final fix applied: admin error-state copy no longer contains visible English `backend API`; it now says `API бекенду`.
+
+## Validation
+
+- `npm run test -- admin-page`: PASS
+- `npm test`: PASS
+- `npm run lint`: PASS
+- `npm run build`: PASS
+- `rg "backend API" frontend/src/pages/admin frontend/src/pages/AdminPage.tsx`: PASS
+- Manual browser smoke: not available. Browser plugin is listed, but Node REPL browser-control tool is not exposed in this session; backend API on `localhost:8000` is not running, so real `/admin` auth/admin flow cannot load.
+
+## Security/privacy
+
+- Admin route remains wrapped in `AdminRoute`.
+- Frontend still hides admin navigation for regular users.
+- Cleanup UI uses preview `{ dry_run: true }` before confirmed `{ dry_run: false }`.
+- Cleanup UI displays response counts only and no storage paths.
+- No user-management mutations added.
+- No backend, DB, CV worker, or training files changed.
+- Review fix is copy-only and does not change auth, tokens, storage paths, cleanup behavior, or API payloads.
+
+## Remaining risks
+
+- Rendered browser smoke against a live backend remains unverified in this phase because no backend was running and Browser control was unavailable.

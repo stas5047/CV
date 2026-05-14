@@ -292,3 +292,36 @@ export interface AdminStatsResponse {
     published: number;
   };
 }
+
+export interface AdminUserListResponse {
+  items: User[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AdminJobListResponse {
+  items: JobDetail[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface StorageCleanupRequest {
+  dry_run: boolean;
+}
+
+export interface StorageCleanupResponse {
+  dry_run: boolean;
+  scanned_files: number;
+  deleted_files: number;
+  would_delete_files: number;
+  protected_files: number;
+  reported_files: number;
+  skipped_files: number;
+  deleted_by_category: Record<string, number>;
+  would_delete_by_category: Record<string, number>;
+  protected_by_category: Record<string, number>;
+  reported_by_category: Record<string, number>;
+  skipped_by_category: Record<string, number>;
+}
