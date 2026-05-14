@@ -1,97 +1,258 @@
-# Plan - Phase 16 CV model loading, device selection, and model cache
+# Plan - Phase 17 Image Processing Pipeline
 
-## Scope
+## Scope lock
 
-Phase only: CV worker model selection, model loading, device selection, model cache, and safe failure behavior.
+Phase: **Phase 17 - Image processing pipeline**.
 
-Do not add inference, tracking, exports, result writes, frontend UI, backend API routes, database migrations, training launch, Celery, Redis, RTSP/live camera, or any CV output beyond model preflight state.
+In scope:
 
-## Ordered Atomic Steps
+- CV worker image-job processing.
+- Image decode/read from shared storage.
+- YOLO inference through existing loaded model runtime.
+- Detection DB rows for image jobs.
+- Annotated image output.
+- CSV/JSON exports for image jobs.
+- Summary metrics and final job status/progress.
+- Missing/corrupted/unreadable image failure handling.
+- No-detection image success handling.
+- Worker tests for this behavior.
 
-1. `@role/developer-cv-worker` Re-read Phase 16 docs before source edits.
-   - Verify `docs/phase.md` still names Phase 16.
-   - Verify `Relevant docs:` still match this contract.
-   - Verifiable: notes match `.context/research.md`.
+Out of scope:
 
-2. `@role/developer-cv-worker` Inspect current worker model/device implementation.
-   - Read `cv/aerovision_worker/device.py`, `settings.py`, `model_runtime.py`, `main.py`, `queue.py`, and `storage_paths.py`.
-   - Verifiable: list confirmed implemented behaviors and any missing Phase 16 requirements before editing.
+- Video processing.
+- ByteTrack/BoT-SORT tracking implementation.
+- Frontend UI.
+- Backend API contract changes.
+- Database schema changes/migrations.
+- Training utilities.
+- New runtime service, Celery, Redis, RTSP/live camera, Flask, Streamlit.
 
-3. `@role/developer-cv-worker` Confirm no backend/API/schema work is required.
-   - Read only `backend/app/services/jobs.py`, `backend/app/services/models.py`, and `backend/app/db/models.py` if model resolution or path validation looks inconsistent.
-   - Verifiable: either "no backend change" or exact doc-backed mismatch.
+## Ordered atomic steps
 
-4. `@role/developer-cv-worker` If model priority is missing or regressed, fix worker metadata resolution only.
-   - Required priority: job `model_version_id`, active DB model, then `ACTIVE_MODEL_ID` only when no active DB model exists.
-   - Verifiable: `cv/tests/test_model_runtime.py` has passing tests for all three priority levels and override prevention.
+1. `@role/developer-cv-worker` Re-read `docs/CV_PIPELINE.md`, `docs/DATA_MODEL.md`, `docs/API.md`, and `docs/TESTING_QA.md` before coding.
+   - Verify: implementation notes match Phase 17 only.
 
-5. `@role/developer-cv-worker` If weights path handling is missing or regressed, fix path resolution only.
-   - Documented `models/...` paths resolve under `STORAGE_ROOT`.
-   - Bare compatibility paths resolve under `MODELS_ROOT`.
-   - Unsafe, absolute, drive, traversal, or missing paths fail with safe `ModelLoadingError`.
-   - Verifiable: tests cover no `models/models/...`, unsafe path rejection, and missing file safe message.
-   - Verifiable: test names clearly separate documented `models/...` under `STORAGE_ROOT` from bare compatibility paths under `MODELS_ROOT`.
+2. `@role/developer-cv-worker` Inspect current worker entry path in `cv/aerovision_worker/main.py`, queue helpers in `cv/aerovision_worker/queue.py`, model runtime in `cv/aerovision_worker/model_runtime.py`, and storage path helpers in `cv/aerovision_worker/storage_paths.py`.
+   - Verify: current placeholder failure path and available helper contracts are understood.
 
-6. `@role/developer-cv-worker` If device handling is missing or regressed, fix device selection only.
-   - `auto`: CUDA if available else CPU.
-   - `cpu`: CPU.
-   - `cuda`: clear failure if CUDA unavailable.
-   - Verifiable: `cv/tests/test_device.py` passes.
+3. `@role/developer-cv-worker` Add failing worker test for successful image job using a tiny image fixture and mocked model output.
+   - Required assertions:
+     - job becomes `completed`;
+     - `progress_percent = 100`;
+     - annotated image file exists;
+     - CSV file exists;
+     - JSON file exists;
+     - result/export DB paths are relative;
+     - one or more `detections` rows inserted.
+   - Verify: targeted pytest fails before implementation for missing image processing behavior.
 
-7. `@role/developer-cv-worker` If model loading/cache is missing or regressed, fix `ModelRuntime` only.
-   - Lazy-load Ultralytics `YOLO`.
-   - Apply selected device with model `.to(device)` when supported.
-   - Cache by `(model_id, selected_device)`.
-   - Preserve `model_family` metadata without silent YOLO11 substitution.
-   - Verifiable: cache/device/metadata tests pass.
+4. `@role/developer-cv-worker` Add failing worker test for image detection row invariants.
+   - Required assertions:
+     - `frame_index = 0`;
+     - `timestamp_ms = 0`;
+     - `track_id is None`;
+     - `class_name = "drone"`;
+     - bbox coordinates are original image pixel coordinates;
+     - `frame_width` and `frame_height` match decoded image dimensions.
+   - Verify: targeted pytest fails before implementation.
 
-8. `@role/developer-cv-worker` If poll integration is missing or regressed, fix worker polling only.
-   - After claim, run model preflight.
-   - On model-load error, mark job `failed` with safe error.
-   - After successful preflight, keep existing later-phase placeholder failure.
-   - Verifiable: startup/poll tests prove load-before-placeholder and missing-model failure behavior.
+5. `@role/developer-cv-worker` Add failing worker test for no-detection image job.
+   - Required assertions:
+     - job becomes `completed`;
+     - zero detection rows;
+     - `summary_json.total_detections = 0`;
+     - `summary_json.frames_with_detections = 0`;
+     - `summary_json.average_confidence is None`;
+     - `summary_json.maximum_confidence is None`;
+     - CSV has headers only;
+     - JSON has empty `detections`.
+   - Verify: targeted pytest fails before implementation.
 
-9. `@role/developer-cv-worker` Review logs and stored errors.
-   - Confirm logs include selected device and model ID/family/variant/device.
-   - Confirm logs/errors omit absolute storage paths and secrets.
-   - Verifiable: `caplog` tests check no storage root in model logs and startup logs.
-   - Verifiable: tests/assertions cover absence of `STORAGE_ROOT`, `MODELS_ROOT`, database URLs, and env-derived secret values in model-load logs and stored job errors.
+6. `@role/developer-cv-worker` Add failing worker tests for missing/corrupted image input and artifact creation failures.
+   - Required failure cases:
+     - missing source file;
+     - corrupted/unreadable image;
+     - annotated output media write failure;
+     - CSV export write failure;
+     - JSON export write failure.
+   - Required assertions:
+     - job becomes `failed`;
+     - `error_message` is clear and safe;
+     - error text does not include absolute host/container paths;
+     - no partial success is reported when required completed-job artifacts cannot be created.
+   - If a specific artifact failure cannot be simulated cleanly, document exact reason before implementation continues.
+   - Verify: targeted pytest fails before implementation.
 
-10. `@role/tester` Run targeted worker gates.
-    - Command: `python -m pytest tests/test_device.py tests/test_storage_paths.py tests/test_model_runtime.py tests/test_startup.py`
-    - Working directory: `cv/`
+7. `@role/developer-cv-worker` Add failing export contract test for image CSV/JSON.
+   - CSV required columns:
+     - `job_id`
+     - `media_id`
+     - `frame_index`
+     - `timestamp_ms`
+     - `class_id`
+     - `class_name`
+     - `confidence`
+     - `bbox_x1`
+     - `bbox_y1`
+     - `bbox_x2`
+     - `bbox_y2`
+     - `center_x`
+     - `center_y`
+     - `bbox_width`
+     - `bbox_height`
+     - `frame_width`
+     - `frame_height`
+     - `track_id`
+     - `model_version`
+     - `tracker_type`
+   - JSON required top-level keys:
+     - `job`
+     - `media`
+     - `model`
+     - `parameters`
+     - `summary`
+     - `detections`
+     - `tracks`
+   - Verify: targeted pytest fails before implementation.
+
+8. `@role/developer-cv-worker` Implement image-job metadata load from existing database tables.
+   - Must read only needed fields from `processing_jobs`, `media_files`, and resolved model metadata.
+   - Must not mark valid video/non-image jobs failed only because Phase 17 is image-only.
+   - Prefer image-only queue claiming/filtering so video jobs remain queued for the later video-processing phase.
+   - If existing queue shape cannot cleanly filter by image media in this phase, use explicit non-failing deferral and document it before implementation continues.
+   - Verify: metadata tests pass and no schema changes are needed.
+
+9. `@role/developer-cv-worker` Implement safe source image path resolution.
+   - Use existing relative path validation/safe join behavior.
+   - Missing files fail job safely.
+   - Absolute paths are never read from DB or written back.
+   - Verify: missing-file test passes.
+
+10. `@role/developer-cv-worker` Implement image decode validation with `opencv-python-headless`.
+    - Decode must fail safely for unreadable/corrupted image.
+    - Width/height must come from decoded image or existing media metadata only when trustworthy.
+    - Verify: corrupted-image test passes.
+
+11. `@role/developer-cv-worker` Implement YOLO image inference adapter using existing `LoadedModel.model`.
+    - Must pass documented confidence, IoU, and image-size parameters from `processing_jobs.input_params_json`.
+    - Must keep model-selection behavior in `model_runtime.py`.
+    - Tests should mock output shape so real model weights are not required.
+    - Verify: mocked successful image test reaches detection conversion.
+
+12. `@role/developer-cv-worker` Implement conversion from model output to internal detection rows.
+    - Must preserve original image pixel coordinates.
+    - Must clamp or validate boxes to image bounds where needed.
+    - Must use `class_name = "drone"` for accepted detections.
+    - Must use `frame_index = 0`, `timestamp_ms = 0`, `track_id = null`.
+    - Verify: detection invariant test passes.
+
+13. `@role/developer-cv-worker` Implement annotated image output.
+    - Output path must be under `results/{job_id}/`.
+    - DB path must be relative.
+    - Use CV-only overlay: boxes/class/confidence only.
+    - No targeting/navigation/control wording or data.
+    - Verify: annotated output exists for detection and no-detection cases when decode succeeds.
+
+14. `@role/developer-cv-worker` Implement CSV export for image jobs.
+    - One row per detection.
+    - Headers-only for no-detection.
+    - Include derived `center_x`, `center_y`, `bbox_width`, and `bbox_height`.
+    - Verify: CSV export contract tests pass.
+
+15. `@role/developer-cv-worker` Implement JSON export for image jobs.
+    - Include required top-level keys only.
+    - Use empty `tracks` array for image jobs.
+    - Use empty `detections` array for no-detection.
+    - Do not include forbidden external output fields.
+    - Do not include absolute filesystem paths.
+    - Verify: JSON export contract and no-forbidden-fields tests pass.
+
+16. `@role/developer-cv-worker` Implement summary metric calculation for image jobs.
+    - Required values:
+      - media type;
+      - sanitized original filename;
+      - source file size;
+      - processing status;
+      - total frames processed = `1`;
+      - total detections;
+      - frames with detections = `0` or `1`;
+      - unique track IDs = `0`;
+      - average confidence or `null`;
+      - maximum confidence or `null`;
+      - inference latency per frame when available;
+      - total processing time;
+      - model size MB when available from model card/metadata or measured weights file;
+      - selected model version;
+      - confidence threshold;
+      - IoU threshold;
+      - tracker type from params/default where stored, without creating image track IDs.
+    - Verify: summary assertions pass for detection and no-detection tests.
+
+17. `@role/developer-cv-worker` Implement DB finalization for completed image jobs.
+    - Insert detection rows.
+    - Store result/export relative paths.
+    - Store summary JSON.
+    - Set `status = completed`, `progress_percent = 100`, `completed_at`, `last_heartbeat_at`, and clear lock fields if current worker still owns job.
+    - Ensure `updated_at` changes through existing DB behavior or explicit update; assert where practical.
+    - Ensure job-scoped retry cleanup prevents duplicate detections/result refs on reprocessed stale jobs.
+    - Verify: successful image/no-detection tests pass.
+
+18. `@role/developer-cv-worker` Wire image processing into `run_poll_iteration`.
+    - Preserve stale recovery and model-loading failure behavior.
+    - Replace Phase 14 placeholder failure for image jobs.
+    - Keep processing outside claim transaction.
+    - Verify: existing startup test updated to expect image processor call instead of placeholder failure.
+
+19. `@role/tester` Run targeted worker tests during implementation.
+    - Command: `cd cv; python -m pytest tests/test_startup.py tests/test_model_runtime.py tests/test_queue.py`
     - Expected: `PASS`.
 
-11. `@role/tester` Run worker regression gates.
-    - Command: `python -m pytest`
-    - Working directory: `cv/`
-    - Expected: `PASS`.
-    - Command: `python -m ruff check .`
-    - Working directory: `cv/`
+20. `@role/tester` Run new image-processing tests.
+    - Command: `cd cv; python -m pytest tests`
     - Expected: `PASS`.
 
-12. `@role/tester` Run environment-dependent checks only when prerequisites exist.
-   - Command: `python -m pytest -m postgres`
-   - Working directory: `cv/`
-   - Expected when PostgreSQL reachable: `PASS`; otherwise report `not available yet`.
-   - Command: `python -m aerovision_worker.main --check-once`
-   - Working directory: `cv/`
-   - Preconditions: run only against isolated disposable DB/test data, or after verifying queue is empty. Do not run against non-isolated configured DB with real queued jobs because Phase 16 placeholder can fail a successfully preflighted job.
-   - Expected when safe preconditions exist: selected device logged and DB check passes; if a queued test job exists, expected mutation is claim then safe Phase 16 placeholder failure. Otherwise report `not available yet` with missing precondition.
-   - Command: real Ultralytics model-load smoke using a documented local `.pt` artifact path.
-   - Working directory: `cv/`
-   - Expected when a documented local weights artifact exists: worker loads model from relative path and cache/device path succeeds; otherwise report `not available yet` with missing artifact reason.
+21. `@role/tester` Run lint.
+    - Command: `cd cv; python -m ruff check .`
+    - Expected: `PASS`.
 
-13. `@role/code-reviewer` Perform Phase 16 scope review.
-    - Check changed files against `docs/CV_PIPELINE.md`, `docs/TRAINING_EXPERIMENTS.md`, `docs/DATA_MODEL.md`, `docs/ARCHITECTURE.md`, and `docs/TESTING_QA.md`.
-    - Verifiable: no backend API/schema/frontend/training/inference/tracking/export scope creep.
+22. `@role/tester` Run PostgreSQL queue integration only when PostgreSQL test environment is reachable.
+    - Command: `cd cv; python -m pytest -m postgres`
+    - Expected: `PASS` or `not available yet` with exact environment reason.
 
-14. `@role/docs-maintainer` Update indexes only if file inventory or commands changed.
+23. `@role/code-reviewer` Review changed worker files against consulted docs.
+    - Check:
+      - image-only scope;
+      - valid video jobs are not failed because this phase is image-only;
+      - no video/tracking implementation;
+      - no backend/frontend/schema changes unless directly justified;
+      - relative DB paths only;
+      - no absolute paths in logs/errors/exports/API-facing values;
+      - no secrets in logs;
+      - no CV output beyond image-space data;
+      - no no-detection-as-failure behavior;
+      - tests cover successful, no-detection, export, and failure paths.
+    - Verify: no `WARNING: CONFLICT`; otherwise stop for user decision.
+
+24. `@role/docs-maintainer` Update component index only if implementation changes current worker state or commands.
     - Candidate: `cv/index.md`.
-    - Do not update product docs unless source-of-truth paths/commands changed and user authorizes doc work.
-    - Verifiable: either exact index update or "skipped; no command/file inventory change".
+    - Do not modify product docs.
+    - Verify: index remains a folder summary, not duplicated product spec.
 
-15. `@role/tester` Final allowed-change check.
-    - Command: `git status --short`
-    - Expected: only Phase 16 source/tests/index/context files changed during implementation.
-    - In this planning-only turn, expected changed files are only `.context/research.md`, `.context/design.md`, and `.context/plan.md`.
+25. `@role/tester` Final relevant gates for Phase 17.
+    - `cd cv; python -m ruff check .` -> expected `PASS`.
+    - `cd cv; python -m pytest` -> expected `PASS`.
+    - `cd cv; python -m pytest -m postgres` -> expected `PASS` if PostgreSQL available, otherwise `not available yet`.
+
+## Stop conditions
+
+Stop and report `WARNING: CONFLICT` if implementation finds docs or existing code requiring:
+
+- schema changes for Phase 17;
+- backend API contract changes;
+- video processing/tracking work;
+- valid video jobs being marked failed only because Phase 17 is image-only;
+- frontend UI work;
+- absolute path exposure;
+- no-detection image failure behavior;
+- YOLO11 primary usage without documented fallback reason;
+- physical targeting/navigation/control/geospatial output.

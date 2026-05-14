@@ -1,13 +1,16 @@
-# Research - Phase 16 CV model loading, device selection, and model cache
+# Research - Phase 17 Image Processing Pipeline
 
-## Current Phase
+## Current phase
 
-- Current phase from `docs/phase.md`: `Phase 16 - CV model loading, device selection, and model cache`.
-- Direction: CV Worker / CV Runtime.
-- Prompt risk value: not provided; literal placeholder received.
-- Assumption: risk is `MEDIUM` because phase touches worker model loading, model artifact paths, job failure behavior, and runtime device selection.
+Confirmed current phase from `docs/phase.md`: **Phase 17 - Image processing pipeline**.
 
-## Docs Consulted
+Phase direction: CV Worker / Image Processing.
+
+Phase goal: implement end-to-end image job processing.
+
+Risk level: not provided by user. Assumption: **HIGH**, because worker will write DB records, result files, exports, and final job status.
+
+## Docs consulted
 
 Required first reads:
 
@@ -17,99 +20,112 @@ Required first reads:
 - `docs/ROADMAP.md`
 - `docs/phase.md`
 
-Phase `Relevant docs:` reads:
+Relevant docs from phase:
 
 - `docs/CV_PIPELINE.md`
-- `docs/TRAINING_EXPERIMENTS.md`
 - `docs/DATA_MODEL.md`
-- `docs/ARCHITECTURE.md`
+- `docs/API.md`
 - `docs/TESTING_QA.md`
 
-Relevant context reads:
+Existing `.context` artifacts checked:
 
 - `.context/status.md`
-- `.context/review-code-resolution.md`
+- `.context/research.md`
+- `.context/design.md`
+- `.context/plan.md`
+- `.context/review-plan-claude.md`
 - `.context/review-plan-resolution.md`
 
-## Confirmed Repository Facts
+Confirmed fact: checked `.context` files above were empty at read time.
 
-- `git status --short` returned no output before this contract rewrite.
-- `cv/` exists and contains worker package, tests, Dockerfile, `pyproject.toml`, and `index.md`.
-- `backend/` exists and contains implemented FastAPI backend, schema, model registry, job creation, and result APIs through prior phases.
-- `frontend/` contains placeholder Dockerfile and index only; frontend app is not part of Phase 16.
-- `training/` contains `index.md` only; training utilities are not part of Phase 16.
-- `docker-compose.yml` defines `postgres`, `backend`, `cv-worker`, and `frontend`.
-- `backend` and `cv-worker` both mount `./storage:/app/storage`.
-- `.env.example` contains `CV_DEVICE`, `ACTIVE_MODEL_ID`, `STORAGE_ROOT`, and `MODELS_ROOT`.
-- `cv/pyproject.toml` includes `torch`, `ultralytics`, `opencv-python-headless`, `pandas`, `numpy`, SQLAlchemy, psycopg, Pydantic, pytest, and Ruff.
+## Planning review resolution facts
 
-## Existing Implementation State
+Claude planning review items were resolved in `.context/review-plan-resolution.md`.
 
-Confirmed existing Phase 16 surface:
+Accepted facts that affect implementation research:
 
-- `cv/aerovision_worker/device.py` implements `CV_DEVICE` handling for `auto`, `cpu`, and `cuda`; forced CUDA raises `DeviceUnavailableError` when unavailable.
-- `cv/aerovision_worker/settings.py` exposes worker settings for `DATABASE_URL`, `STORAGE_ROOT`, `MODELS_ROOT`, `CV_DEVICE`, `ACTIVE_MODEL_ID`, polling, heartbeat, stale timeout, and retry count.
-- `cv/aerovision_worker/model_runtime.py` resolves model metadata by documented priority: job `model_version_id`, then active DB model, then `ACTIVE_MODEL_ID` fallback.
-- `cv/aerovision_worker/model_runtime.py` resolves relative weights paths safely and fails with stable safe errors for unsafe or missing paths.
-- `cv/aerovision_worker/model_runtime.py` lazy-loads Ultralytics `YOLO`, applies selected device through `.to(device)` when supported, and caches loaded models by model ID plus device.
-- `cv/aerovision_worker/main.py` logs selected device on startup, loads model after job claim, fails job safely on model-loading errors, and then keeps later-phase processing as placeholder failure.
-- `cv/aerovision_worker/queue.py` already supports PostgreSQL queue claiming, heartbeat, stale recovery, and job failure helper.
-- `cv/tests/test_device.py`, `cv/tests/test_model_runtime.py`, and `cv/tests/test_startup.py` cover Phase 16 behavior including device selection, model priority, path safety, missing weights, cache behavior, YOLO family metadata pass-through, and safe logs.
-- `.context/status.md` says Phase 16 implementation and code-review final fix are complete, with CV worker gates passed.
+- Phase 17 must not mark valid video jobs as failed only because video processing is later-phase work.
+- Image-only queue behavior should prefer claiming/filtering image jobs only, leaving video jobs queued for the later video phase where practical.
+- Completed image-job summaries must include sanitized original filename, source file size, and model size MB when available.
+- Artifact creation failures for annotated output, CSV export, and JSON export are required worker error cases for this phase.
 
-Confirmed later-phase gaps:
+## Confirmed repository facts
 
-- Inference, tracking, annotated media, detection rows, track summaries, CSV/JSON exports, and successful job completion are not implemented in this phase.
-- `run_poll_iteration` still fails a claimed job with `Processing not implemented in this phase` after successful model preflight.
+- Git checkout exists.
+- `git status --short` before this contract showed modified `.context/*` files and modified `docs/phase.md`.
+- Repository has root `docker-compose.yml`, `docker-compose.gpu.yml`, `.env.example`, `Makefile`, `README.md`, `backend/`, `cv/`, `frontend/`, `training/`, `scripts/`, and `docs/`.
+- `frontend/` is still placeholder-only for product UI.
+- `training/` contains only `index.md`.
+- `backend/` contains implemented FastAPI APIs, SQLAlchemy models, Alembic migration, result/download APIs, and tests.
+- `cv/pyproject.toml` already includes `numpy`, `opencv-python-headless`, `pandas`, `torch`, `ultralytics`, SQLAlchemy, psycopg, Pydantic, pytest, and Ruff.
+- `cv/index.md` states worker currently has settings, logging, device selection, DB connectivity, storage path safety, startup checks, PostgreSQL queue claiming, heartbeat/progress helpers, stale recovery, polling, model metadata resolution, safe model weights path handling, lazy Ultralytics loading, model caching, and placeholder failure after model preflight.
+- `cv/aerovision_worker/main.py` currently claims jobs, loads model metadata/runtime, then fails claimed jobs with `PLACEHOLDER_PROCESSING_ERROR`.
+- `cv/aerovision_worker/queue.py` provides `claim_next_job`, `update_job_heartbeat`, `recover_stale_jobs`, and `fail_processing_job`.
+- `cv/aerovision_worker/model_runtime.py` resolves model priority: job model, active DB model, then `ACTIVE_MODEL_ID`; resolves safe weights path; loads and caches Ultralytics model.
+- `cv/aerovision_worker/storage_paths.py` validates relative paths and joins under configured storage roots.
+- `backend/app/db/models.py` has required tables/fields for `processing_jobs`, `detections`, `tracks`, and path checks.
 
-## Unknowns and Assumptions
+## Existing implementation state
+
+Confirmed implemented for this phase dependency chain:
+
+- Queue claim exists and uses PostgreSQL `FOR UPDATE SKIP LOCKED` when dialect is PostgreSQL.
+- Claim transaction is short; processing happens after claim.
+- Worker has heartbeat update helper with progress bounds.
+- Worker can fail owned processing jobs with safe error message.
+- Worker can recover stale processing jobs.
+- Worker can select/load/cache model by documented priority.
+- Worker can reject unsafe and missing model weights paths without logging absolute paths.
+- Backend result APIs already consume `summary_json`, `result_media_path`, `csv_path`, `json_path`, `detections`, and `tracks`.
+
+Confirmed not implemented yet:
+
+- Image decode/read in worker.
+- YOLO inference execution for image jobs.
+- Detection normalization into DB `detections` rows.
+- Annotated image output generation.
+- CSV export generation.
+- JSON export generation.
+- Completed image job status update with result/export paths and summary.
+- No-detection image completion.
+- Corrupted/missing/unreadable image handling inside worker image pipeline.
+- Worker tests specific to image processing outputs.
+
+## Unknowns and assumptions
 
 Confirmed unknowns:
 
-- Actual local YOLO26 weights are not confirmed present under `storage/models/`.
-- Actual Ultralytics package support for YOLO26 in this environment is not confirmed by this research pass.
-- CUDA availability on current machine/container is not confirmed.
-- Real model loading with real `.pt` artifacts has not been verified in this planning-only turn.
-- PostgreSQL-backed model loading against full migrated schema was not re-run in this planning-only turn.
-- `python -m aerovision_worker.main --check-once` can mutate queued jobs; it was not run in this planning-only turn and must be limited to isolated/disposable state or an empty queue.
+- Installed Ultralytics result object details must be handled behind a small adapter or mocked in tests.
+- Exact annotated-image drawing method is not specified beyond producing annotated image when possible.
+- Exact output image extension is not specified. Assumption: preserve uploaded image extension when safe, or write `.jpg`/`.png` consistently under `results/{job_id}/` if implementation documents only relative DB path.
+- Exact JSON export internal field detail is not exhaustively specified beyond required top-level keys and CV-only boundary.
+- Exact summary key names are not fully fixed by docs. Assumption: use documented metric names converted to stable snake_case keys already expected by backend tests where present.
+- Phase 17 is image-only. Video tracking, track summaries, and video progress cadence are later-phase work.
 
-Assumptions:
+Assumptions for implementation:
 
-- Phase 16 remains current because `docs/phase.md` names it, even though existing `.context/status.md` marks implementation complete.
-- Any future implementation pass should be verification-first and only patch documented Phase 16 gaps if checks reveal drift.
-- `MODELS_ROOT` support for bare model paths remains compatibility behavior; documented `models/...` paths resolve under `STORAGE_ROOT`.
-- If a documented local `.pt` artifact exists, implementation verification should include real Ultralytics model-load smoke; otherwise report `not available yet` with missing artifact reason.
+- Worker may use existing SQLAlchemy raw SQL style from `queue.py` and `model_runtime.py`.
+- Image jobs are identified by joined `media_files.media_type = 'image'`; non-image jobs should not be processed by Phase 17 image path.
+- DB writes for detections, result paths, exports, summary, and final status should happen in short transactions after media/model processing, not while running inference.
+- Tests should use mocked model output and small in-memory image fixtures, not real YOLO weights.
+- No-detection jobs still create annotated output if decode succeeds, headers-only CSV, JSON with empty `detections`, `status = completed`, `progress_percent = 100`, and null confidence summary values.
 
-## Files Likely Relevant for Implementation
+## Files likely relevant for implementation
 
-Worker source:
+Existing files:
 
-- `cv/aerovision_worker/settings.py`
-- `cv/aerovision_worker/device.py`
-- `cv/aerovision_worker/model_runtime.py`
 - `cv/aerovision_worker/main.py`
 - `cv/aerovision_worker/queue.py`
+- `cv/aerovision_worker/model_runtime.py`
 - `cv/aerovision_worker/storage_paths.py`
-- `cv/aerovision_worker/logging.py`
-
-Worker tests:
-
-- `cv/tests/test_device.py`
-- `cv/tests/test_model_runtime.py`
+- `cv/aerovision_worker/settings.py`
+- `cv/pyproject.toml`
 - `cv/tests/test_startup.py`
-- `cv/tests/test_storage_paths.py`
+- `cv/tests/test_model_runtime.py`
 - `cv/tests/test_queue.py`
-- `cv/tests/test_queue_postgres.py`
-
-Backend references, read-only unless a verified Phase 16 contract mismatch is found:
-
-- `backend/app/services/jobs.py`
-- `backend/app/services/models.py`
+- `cv/tests/test_storage_paths.py`
 - `backend/app/db/models.py`
+- `backend/app/services/results.py`
 - `backend/tests/test_jobs_api.py`
-- `backend/tests/test_models_api.py`
 
-Docs/index references, update only if commands or file inventory change:
-
-- `cv/index.md`
-- `docs/index.md`
+Potential new worker/test files may be justified for decomposition, but exact new file names are not dictated by docs and should be chosen only during implementation.

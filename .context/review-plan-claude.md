@@ -2,11 +2,9 @@
 
 ## Summary
 
-Phase 16 plan matches documented scope: worker-side model selection, relative weights path handling, model loading/cache, `CV_DEVICE` behavior, safe model-load failure, and no backend/frontend/schema/training work unless verified drift appears.
+Phase 17 plan matches image-processing scope and key docs: worker-only image path, shared-storage reads/writes, YOLO inference through existing runtime, original-pixel boxes, image detection invariants, no-detection success, CSV/JSON exports, and relative result paths.
 
-Plan keeps architecture boundaries intact: worker uses PostgreSQL and shared storage, does not add HTTP worker API coupling, does not launch training, does not add inference/tracking/export scope, and preserves YOLO26 primary / YOLO11 documented fallback metadata.
-
-Changes needed are validation-safety and evidence gaps, not product redesign.
+Changes needed before implementation: remove risky valid-video failure option, add required summary fields, and add tests for output/export failure handling.
 
 ## Blocking issues
 
@@ -14,30 +12,31 @@ None.
 
 ## Important issues
 
-1. Environment-dependent `--check-once` gate can mutate real queued jobs.
-   - Evidence: `.context/plan.md` step 8 says successful model preflight keeps later-phase placeholder failure: `Processing not implemented in this phase`.
-   - Evidence: `.context/plan.md` step 12 runs `python -m aerovision_worker.main --check-once` when env/database are configured.
-   - Evidence: `docs/ARCHITECTURE.md` says worker claims oldest queued job and marks it processing, then completed/failed after processing.
-   - Risk: running optional smoke against non-isolated configured DB can claim a real queued job and fail it after successful model load, even though phase does not implement processing.
-   - Required change: constrain this gate to isolated test data / empty queue / disposable DB, or document exact expected mutation before running. If safe preconditions are absent, report `not available yet`.
+1. Valid video jobs may be marked failed during image-only phase.
 
-2. Plan does not require evidence for real Ultralytics model load when weights exist.
-   - Evidence: `docs/phase.md` validation requires worker loads configured model from relative path when weights exist.
-   - Evidence: `.context/plan.md` targeted tests can pass with mocked `YOLO`; real artifact smoke is only optional in `.context/design.md`, not in ordered plan.
-   - Risk: path/file existence and cache logic may pass unit tests while actual `ultralytics.YOLO(weights)` fails in environment or with documented artifact layout.
-   - Required change: add environment-dependent smoke when a documented local `.pt` artifact exists; otherwise report `not available yet` with missing artifact reason.
+Evidence: `.context/plan.md` step 8 says non-image jobs may be rejected with safe failed status. `docs/CV_PIPELINE.md` defines video as supported runtime input and has separate video processing flow. `docs/API.md` allows jobs for uploaded image or video media. `docs/phase.md` scopes Phase 17 to image processing only, not changing valid video-job semantics. Failing a valid queued video job because Phase 17 image implementation claimed it would create false processing failures. Plan should require image-only claiming/filtering or explicit deferral behavior that does not convert valid future video work into failed processing errors.
+
+2. Summary metric plan omits available required fields.
+
+Evidence: `.context/plan.md` step 16 lists summary values but omits `original_filename`, source file size, and model size MB. `docs/CV_PIPELINE.md` Processing Summary Metrics requires original filename, file size, and model size MB when available. `docs/DATA_MODEL.md` stores `media_files.original_filename`, `media_files.file_size_bytes`, and `model_versions` metadata/weights path needed to calculate or source these values. Add these to implementation and tests, with model size nullable only when not available.
+
+3. Failure tests do not cover output/export write failures.
+
+Evidence: `.context/plan.md` step 6 covers missing and corrupted inputs only. `docs/CV_PIPELINE.md` CV Runtime Error Handling explicitly requires handling failed output media creation, failed CSV export creation, and failed JSON export creation. Since Phase 17 creates annotated image, CSV, and JSON artifacts, plan needs relevant mocked failure tests or a documented reason a specific failure cannot be simulated.
 
 ## Optional improvements
 
-- Add explicit assertion that model-load logs and stored job errors omit `STORAGE_ROOT`, `MODELS_ROOT`, database URL, and env-derived secret values. Plan has log-safety review, but direct tests reduce privacy drift.
-- Add test naming that separates documented `models/...` paths under `STORAGE_ROOT` from bare compatibility paths under `MODELS_ROOT`, so future edits do not reintroduce `models/models/...`.
+1. Add assertion that completed/failed finalization updates `updated_at` if this is not already handled by SQLAlchemy/server defaults. `docs/DATA_MODEL.md` defines `processing_jobs.updated_at` as last update timestamp.
+
+2. In retry cleanup, consider job-scoped stale result-file cleanup or overwrite behavior. `.context/plan.md` step 17 handles duplicate detection rows/result refs, but stale artifact files can still accumulate. This is optional because docs require safe storage cleanup later, not immediate physical deletion.
 
 ## Questions for resolution
 
-- Prompt risk value was literal `<MEDIUM | HIGH>`, not selected. Review treats phase as MEDIUM because scope touches external model artifacts, DB-backed queue state, and device/runtime failure behavior.
+1. For Phase 17, should worker queue selection skip non-image jobs until video phase, or should non-image jobs remain queued with a safe "not processed by this phase" behavior? Plan should pick one non-failing behavior before coding.
 
 ## Files consulted
 
+- `C:\Users\Kotletka\.codex\skills\caveman\SKILL.md`
 - `CLAUDE.md`
 - `AGENTS.md`
 - `docs/index.md`
@@ -47,8 +46,7 @@ None.
 - `.context/design.md`
 - `.context/plan.md`
 - `docs/CV_PIPELINE.md`
-- `docs/TRAINING_EXPERIMENTS.md`
 - `docs/DATA_MODEL.md`
-- `docs/ARCHITECTURE.md`
+- `docs/API.md`
 - `docs/TESTING_QA.md`
 - `git status --short`

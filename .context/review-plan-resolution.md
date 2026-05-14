@@ -1,35 +1,38 @@
-# Phase 16 Planning Review Resolution
+# Planning Review Resolution - Phase 17 Image Processing Pipeline
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude review verdict was `APPROVED_WITH_CHANGES`. All review items were resolved. Accepted items are doc-consistent and applied only to the Phase 16 implementation contract.
+Claude planning review was evaluated against `docs/CV_PIPELINE.md`, `docs/DATA_MODEL.md`, `docs/API.md`, `docs/TESTING_QA.md`, `docs/phase.md`, and existing Phase 17 `.context` contract files.
+
+No source code changes are authorized by this resolution. Accepted items update only the Phase 17 implementation contract.
 
 ## Resolution table
 
-| ID | Claude item | Resolution | Reason | Applied files |
+| ID | Claude item | Resolution | Reason | Applied to |
 |---|---|---|---|---|
-| I-1 | Environment-dependent `--check-once` gate can mutate real queued jobs because Phase 16 still fails successfully preflighted jobs with the later-phase placeholder. | accepted | Matches `docs/ARCHITECTURE.md` worker claim/mutation behavior and avoids damaging non-isolated queue state. | `.context/research.md`, `.context/design.md`, `.context/plan.md` |
-| I-2 | Plan does not require evidence for real Ultralytics model load when weights exist. | accepted | Matches `docs/phase.md` validation that worker loads a configured model from a relative path when weights exist. Keeps it environment-dependent because local artifacts may be absent. | `.context/research.md`, `.context/design.md`, `.context/plan.md` |
-| O-1 | Add explicit assertion that model-load logs and stored job errors omit `STORAGE_ROOT`, `MODELS_ROOT`, database URL, and env-derived secret values. | accepted | Matches `docs/AUTH_SECURITY.md`, `docs/TESTING_QA.md`, and Phase 16 safe logging/error behavior. | `.context/design.md`, `.context/plan.md` |
-| O-2 | Add test naming that separates documented `models/...` paths under `STORAGE_ROOT` from bare compatibility paths under `MODELS_ROOT`. | accepted | Matches existing accepted path contract and reduces regression risk without changing product behavior. | `.context/design.md`, `.context/plan.md` |
-| Q-1 | Prompt risk value was literal `<MEDIUM \| HIGH>`; Claude treated phase as MEDIUM. | accepted | `.context/research.md` already records `MEDIUM`; Phase 16 touches model artifacts, DB-backed queue state, and runtime failure behavior. No user decision needed. | none |
+| IMPORTANT-1 | Valid video jobs may be marked failed during image-only phase. | accepted | Product docs support video jobs, but Phase 17 is image-only. Valid video jobs must not become failed only because video processing is later-phase work. | `.context/design.md`, `.context/plan.md`, `.context/research.md` |
+| IMPORTANT-2 | Summary metric plan omits `original_filename`, source file size, and model size MB. | accepted | `docs/CV_PIPELINE.md` requires these summary metrics when available. Data is available from `media_files` and model metadata/weights path where practical. | `.context/design.md`, `.context/plan.md`, `.context/research.md` |
+| IMPORTANT-3 | Failure tests do not cover output media, CSV, or JSON creation failures. | accepted | `docs/CV_PIPELINE.md` requires safe handling for failed output media creation and failed CSV/JSON export creation. | `.context/design.md`, `.context/plan.md` |
+| OPTIONAL-1 | Add assertion/finalization handling for `updated_at`. | accepted | `docs/DATA_MODEL.md` defines `processing_jobs.updated_at` as last update timestamp. Phase 17 finalization should preserve this contract through existing DB mechanism or explicit update. | `.context/plan.md` |
+| OPTIONAL-2 | Clean up stale result files on retry. | rejected | Physical stale artifact cleanup is not required by Phase 17 docs and can expand scope. Job-scoped DB/result-reference cleanup remains required to avoid duplicate rows/refs. Later safe storage cleanup remains documented admin/runtime work. | none |
+| QUESTION-1 | Should non-image jobs be skipped or left queued instead of failed? | duplicate | Resolved by IMPORTANT-1. Final contract: Phase 17 must not fail valid video jobs; implementation should claim/filter image jobs only where practical, leaving video jobs queued for later video phase. | `.context/design.md`, `.context/plan.md` |
 
 ## Accepted changes applied
 
-- Constrained `python -m aerovision_worker.main --check-once` to isolated disposable DB/test data or verified empty queue.
-- Added required `not available yet` outcome when `--check-once` safe preconditions are absent.
-- Added real Ultralytics model-load smoke when a documented local `.pt` artifact exists.
-- Added required `not available yet` outcome with missing artifact reason when no local `.pt` exists.
-- Strengthened privacy assertions for model-load logs and stored job errors.
-- Added path-test naming requirement separating documented `STORAGE_ROOT` behavior from bare `MODELS_ROOT` compatibility.
+- Phase 17 contract now requires non-image/video jobs to avoid false failure during image-only implementation.
+- Plan now prefers image-only worker claiming/filtering; valid video jobs remain queued for later video phase where practical.
+- Plan now forbids marking valid video jobs failed only because Phase 17 does not implement video processing.
+- Summary contract now includes sanitized original filename, source file size, and model size MB when available.
+- Tests now include output media write failure, CSV export write failure, and JSON export write failure or a documented reason if a specific failure cannot be simulated.
+- Completion/failure finalization now must keep `processing_jobs.updated_at` correct through existing DB behavior or explicit update, with assertion where practical.
 
 ## Rejected items
 
-None.
+- OPTIONAL-2: physical cleanup of stale result files on retry. Rejected as phase creep. Phase 17 still must avoid duplicate DB detections/result references for job-scoped retry behavior.
 
 ## Duplicate items
 
-None.
+- QUESTION-1 duplicates IMPORTANT-1 after choosing image-only queue filtering / non-failing deferral.
 
 ## Items needing user decision
 
@@ -37,7 +40,15 @@ None.
 
 ## Final contract status
 
-- Scope remains Phase 16 only: CV worker model selection, model loading, device use, cache, and safe fallback/error behavior.
-- No source code changes authorized or made in this resolution step.
-- No backend API, database migration, frontend, training, inference, tracking, export, or result-writing work added.
-- Implementation may proceed against updated `.context/research.md`, `.context/design.md`, and `.context/plan.md`.
+Phase 17 implementation contract is ready.
+
+Scope remains worker-only image processing:
+
+- no backend API changes;
+- no database schema/migration changes;
+- no frontend changes;
+- no video/tracking implementation;
+- no training utilities;
+- no new runtime service;
+- no CV output beyond image-space detection data;
+- no source code changes during planning review resolution.

@@ -11,10 +11,10 @@ from uuid import uuid4
 
 from aerovision_worker.database import check_database, create_session_factory, wait_for_database
 from aerovision_worker.device import DeviceSelection, select_device
+from aerovision_worker.image_processing import process_image_job
 from aerovision_worker.logging import configure_logging
 from aerovision_worker.model_runtime import ModelLoadingError, ModelRuntime
 from aerovision_worker.queue import (
-    PLACEHOLDER_PROCESSING_ERROR,
     claim_next_job,
     fail_processing_job,
     recover_stale_jobs,
@@ -75,7 +75,7 @@ def run_poll_iteration(
     LOGGER.info("job_claimed job_id=%s worker_id=%s", claimed.id, worker_id)
     if model_runtime is not None:
         try:
-            model_runtime.load_for_job(session_factory, job_id=claimed.id)
+            loaded_model = model_runtime.load_for_job(session_factory, job_id=claimed.id)
         except ModelLoadingError as exc:
             failed = fail_processing_job(
                 session_factory,
@@ -87,16 +87,13 @@ def run_poll_iteration(
             if failed:
                 LOGGER.info("job_failed_model_load job_id=%s worker_id=%s", claimed.id, worker_id)
             return True
-
-    failed = fail_processing_job(
-        session_factory,
-        job_id=claimed.id,
-        worker_id=worker_id,
-        error_message=PLACEHOLDER_PROCESSING_ERROR,
-        now=utc_now(),
-    )
-    if failed:
-        LOGGER.info("job_failed_placeholder job_id=%s worker_id=%s", claimed.id, worker_id)
+        process_image_job(
+            settings,
+            session_factory,
+            job_id=claimed.id,
+            worker_id=worker_id,
+            loaded_model=loaded_model,
+        )
     return True
 
 

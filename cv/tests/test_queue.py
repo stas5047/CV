@@ -22,8 +22,20 @@ def session_factory() -> sessionmaker[Session]:
         connection.execute(
             text(
                 """
+                create table media_files (
+                    id char(32) primary key,
+                    media_type varchar(20) not null,
+                    deleted_at timestamp null
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
                 create table processing_jobs (
                     id char(32) primary key,
+                    media_file_id char(32) not null,
                     status varchar(20) not null,
                     progress_percent integer not null default 0,
                     last_heartbeat_at timestamp null,
@@ -57,17 +69,27 @@ def insert_job(
     deleted_at: datetime | None = None,
 ) -> str:
     job_id = job_id or uuid4().hex
+    media_id = f"media-{job_id}"
     with factory.begin() as session:
         session.execute(
             text(
                 """
+                insert into media_files (id, media_type, deleted_at)
+                values (:id, :media_type, :deleted_at)
+                """
+            ),
+            {"id": media_id, "media_type": "image", "deleted_at": deleted_at},
+        )
+        session.execute(
+            text(
+                """
                 insert into processing_jobs (
-                    id, status, progress_percent, last_heartbeat_at, locked_by,
+                    id, media_file_id, status, progress_percent, last_heartbeat_at, locked_by,
                     locked_at, retry_count, started_at, completed_at, deleted_at,
                     created_at, updated_at, error_message
                 )
                 values (
-                    :id, :status, 0, :last_heartbeat_at, :locked_by,
+                    :id, :media_file_id, :status, 0, :last_heartbeat_at, :locked_by,
                     :locked_at, :retry_count, :started_at, null, :deleted_at,
                     :created_at, :created_at, :error_message
                 )
@@ -75,6 +97,7 @@ def insert_job(
             ),
             {
                 "id": job_id,
+                "media_file_id": media_id,
                 "status": status,
                 "last_heartbeat_at": last_heartbeat_at,
                 "locked_by": locked_by,
@@ -85,6 +108,36 @@ def insert_job(
                 "created_at": created_at,
                 "error_message": "previous safe error",
             },
+        )
+    return job_id
+
+
+def insert_video_job(
+    factory: sessionmaker[Session],
+    *,
+    job_id: str | None = None,
+    created_at: datetime,
+) -> str:
+    job_id = job_id or uuid4().hex
+    media_id = f"media-{job_id}"
+    with factory.begin() as session:
+        session.execute(
+            text(
+                "insert into media_files (id, media_type, deleted_at) values (:id, 'video', null)"
+            ),
+            {"id": media_id},
+        )
+        session.execute(
+            text(
+                """
+                insert into processing_jobs (
+                    id, media_file_id, status, progress_percent, retry_count,
+                    created_at, updated_at
+                )
+                values (:id, :media_file_id, 'queued', 0, 0, :created_at, :created_at)
+                """
+            ),
+            {"id": job_id, "media_file_id": media_id, "created_at": created_at},
         )
     return job_id
 
@@ -141,6 +194,19 @@ def test_claim_next_job_returns_none_when_queue_empty() -> None:
     claimed = claim_next_job(factory, worker_id="worker-a")
 
     assert claimed is None
+
+
+def test_claim_next_job_leaves_video_jobs_queued_for_later_phase() -> None:
+    factory = session_factory()
+    now = datetime(2026, 5, 14, 12, 0, tzinfo=UTC)
+    video_id = insert_video_job(factory, created_at=now - timedelta(minutes=2))
+    image_id = insert_job(factory, created_at=now - timedelta(minutes=1))
+
+    claimed = claim_next_job(factory, worker_id="worker-a", now=now)
+
+    assert claimed is not None
+    assert claimed.id == image_id
+    assert fetch_job(factory, video_id)["status"] == "queued"
 
 
 def test_update_job_heartbeat_updates_only_matching_processing_owner() -> None:

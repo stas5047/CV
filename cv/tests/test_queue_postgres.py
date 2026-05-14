@@ -48,8 +48,20 @@ def postgres_queue_factory() -> sessionmaker[Session]:
             connection.execute(
                 text(
                     """
+                    create table media_files (
+                        id uuid primary key,
+                        media_type varchar(20) not null,
+                        deleted_at timestamptz null
+                    )
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
                     create table processing_jobs (
                         id uuid primary key,
+                        media_file_id uuid not null references media_files(id),
                         status varchar(20) not null,
                         progress_percent integer not null default 0,
                         last_heartbeat_at timestamptz null,
@@ -131,17 +143,27 @@ def test_postgres_claim_transaction_commits_before_processing(
 
 def _insert_job(factory: sessionmaker[Session], *, created_at: datetime):
     job_id = uuid4()
+    media_id = uuid4()
     with factory.begin() as session:
         session.execute(
             text(
                 """
-                insert into processing_jobs (
-                    id, status, progress_percent, retry_count, created_at, updated_at
-                )
-                values (:id, 'queued', 0, 0, :created_at, :created_at)
+                insert into media_files (id, media_type, deleted_at)
+                values (:id, 'image', null)
                 """
             ),
-            {"id": job_id, "created_at": created_at},
+            {"id": media_id},
+        )
+        session.execute(
+            text(
+                """
+                insert into processing_jobs (
+                    id, media_file_id, status, progress_percent, retry_count, created_at, updated_at
+                )
+                values (:id, :media_file_id, 'queued', 0, 0, :created_at, :created_at)
+                """
+            ),
+            {"id": job_id, "media_file_id": media_id, "created_at": created_at},
         )
     return job_id
 

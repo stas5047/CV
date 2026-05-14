@@ -186,11 +186,14 @@ def fail_processing_job(
 
 def _select_next_queued_job_id(session: Session) -> Any | None:
     statement = """
-        select id
-        from processing_jobs
-        where status = 'queued'
-          and deleted_at is null
-        order by created_at asc
+        select pj.id
+        from processing_jobs pj
+        join media_files mf on mf.id = pj.media_file_id
+        where pj.status = 'queued'
+          and pj.deleted_at is null
+          and mf.deleted_at is null
+          and mf.media_type = 'image'
+        order by pj.created_at asc
         limit 1
     """
     if session.get_bind().dialect.name == "postgresql":

@@ -1,12 +1,14 @@
-# Phase 16 Code Review Resolution
+# Code Review Resolution - Phase 17 Image Processing Pipeline
 
 ## Verdict: FIXED
 
+OpenAI and Claude code reviews were evaluated against `docs/CV_PIPELINE.md`, `docs/DATA_MODEL.md`, `docs/API.md`, `docs/TESTING_QA.md`, `.context/design.md`, `.context/plan.md`, and `.context/review-plan-resolution.md`.
+
 ## Resolution table
 
-| ID | Source | Priority | Review item | Resolution | Reason |
+| ID | Review source | Priority | Item | Resolution | Reason |
 |---|---|---|---|---|---|
-| OAI-I-1 | `.context/review-code-openai.md` | important | `.context/status.md` gives a false mutation-risk reason for skipping `python -m aerovision_worker.main --check-once`. | accepted | Verified `cv/aerovision_worker/main.py` returns before polling when `check_once` is true, so status must cite real prerequisites instead of queue mutation risk. |
+| OPENAI-IMPORTANT-1 | `.context/review-code-openai.md` | important | Output/path/database-adjacent failures can bypass job failure finalization and leave image jobs stuck in `processing` until stale recovery. | accepted | `docs/CV_PIPELINE.md` requires safe handling for failed output media creation, failed CSV/JSON export creation, database write failures, and worker crash/stale recovery. Unsafe DB paths and result directory creation failures should fail the claimed image job immediately with safe messages when possible. |
 
 ## Accepted critical fixes
 
@@ -14,7 +16,9 @@ None.
 
 ## Accepted important fixes
 
-- Correct `.context/status.md` so `--check-once` result reflects current worker behavior and verified smoke output.
+- Convert unsafe DB-stored source path validation failures into `ImageProcessingError` so `process_image_job()` marks the claimed job `failed`.
+- Convert output directory creation failures from `_output_path()` into `ImageProcessingError` with safe message.
+- Add regression tests for unsafe stored source path and output directory creation failure.
 
 ## Accepted optional fixes
 
@@ -34,15 +38,16 @@ None.
 
 ## Fixes applied
 
-- Corrected `.context/status.md` to remove the false queue-mutation skip reason.
-- Recorded successful `python -m aerovision_worker.main --check-once` startup smoke with local PostgreSQL.
+- Wrapped DB-stored `media_files.stored_path` validation in `ImageProcessingError`, so unsafe source paths mark claimed image jobs as `failed` with safe error text.
+- Wrapped result output directory creation in `ImageProcessingError`, so storage directory failures mark claimed image jobs as `failed` with safe error text.
+- Converted SQLAlchemy finalization failures during image job completion into `ImageProcessingError` where the worker can still record a safe failure state.
+- Added regression tests for unsafe stored source paths and result output directory creation failure.
 
 ## Final verification
 
-- `git diff --check` from repo root: PASS; no whitespace errors. Git printed CRLF normalization warnings for existing dirty files.
-- `python -m pytest tests/test_device.py tests/test_storage_paths.py tests/test_model_runtime.py tests/test_startup.py` from `cv/`: PASS, 35 passed, 18 SQLite datetime adapter warnings.
-- `python -m ruff check .` from `cv/`: PASS, `All checks passed!`.
-- `python -m pytest` from `cv/`: PASS, 59 passed, 64 SQLite datetime adapter warnings.
-- `python -m pytest -m postgres` from `cv/`: PASS, 3 passed, 56 deselected.
-- `python -m aerovision_worker.main --check-once` from `cv/` with local `DATABASE_URL`: PASS; startup checks completed, selected `cpu`, database ready, and command exited before polling.
-- Real Ultralytics model-load smoke: not available yet; no `.pt` or `.onnx` artifact found under `storage/models/`.
+- `cd cv; python -m pytest tests/test_image_processing.py` -> PASS, 11 passed.
+- `cd cv; python -m ruff check aerovision_worker/image_processing.py tests/test_image_processing.py` -> PASS.
+- `cd cv; python -m ruff check .` -> PASS.
+- `cd cv; python -m pytest` -> PASS, 71 passed.
+- `cd cv; python -m pytest -m postgres` -> PASS, 3 passed, 68 deselected.
+- `git diff --check` from repo root -> FAIL, unrelated existing trailing whitespace in `docs/phase.md:3`.

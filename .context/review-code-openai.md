@@ -1,12 +1,12 @@
-# OpenAI Code Review - Phase 16
+# OpenAI Code Review - Phase 17 Image Processing Pipeline
 
 ## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Phase 16 worker implementation matches documented scope: model metadata resolution, relative model weights path handling, lazy Ultralytics loading, selected-device application, model cache reuse, and worker poll model preflight. No backend API, DB schema, frontend, training, inference, tracking, export, or result-writing scope creep found.
+Phase 17 implementation is scoped correctly to CV worker image processing. It keeps video jobs queued, uses PostgreSQL/shared storage boundaries, writes relative result/export paths, produces CSV/JSON exports, handles no-detection as success, and has relevant worker tests.
 
-One non-source defect remains in the reviewed change set: `.context/status.md` reports the `--check-once` gate as unavailable for a mutation reason that no longer matches worker code.
+One important defect remains: some documented worker error paths still escape safe failure handling and can leave the claimed job in `processing` until stale recovery instead of marking it `failed` immediately.
 
 ## Critical issues
 
@@ -14,11 +14,12 @@ None.
 
 ## Important issues
 
-1. `.context/status.md` gives a false reason for skipping `python -m aerovision_worker.main --check-once`.
-   - Evidence: `.context/status.md:33` says the gate is `not available yet` because no isolated DB/empty queue precondition exists and the Phase 16 placeholder can mutate claimed jobs.
-   - Evidence: `cv/aerovision_worker/main.py:116` returns immediately when `check_once` is true, before poll loop starts at `cv/aerovision_worker/main.py:123`; it does not call `run_poll_iteration` or claim queued jobs.
-   - Evidence: `cv/index.md:26` describes `--check-once` as startup smoke checks and exit.
-   - Impact: quality-gate status is inaccurate. If the command is unavailable, the reason should be missing env/DB/model prerequisites, not queue mutation risk.
+1. Output/path/database-adjacent failures can bypass job failure finalization.
+   - Evidence: `process_image_job()` only catches `ImageProcessingError` in `cv/aerovision_worker/image_processing.py:139`.
+   - Evidence: DB-stored `stored_path` validation happens at `cv/aerovision_worker/image_processing.py:188` through `validate_relative_storage_path(...)`; that helper raises `ValueError`, not `ImageProcessingError`, so an unsafe stored path escapes the catch block.
+   - Evidence: result directory creation happens at `cv/aerovision_worker/image_processing.py:407`; `Path.mkdir(...)` can raise `OSError`, but `_output_path()` only converts `ValueError` from path validation at `cv/aerovision_worker/image_processing.py:403-406`.
+   - Evidence: `docs/CV_PIPELINE.md:369-371` requires handling failed output media creation, failed CSV/JSON export creation, and database write failures.
+   - Impact: a permission/path/storage failure during artifact setup, or an unsafe DB path, can crash the poll iteration instead of writing a safe `failed` job state. Existing tests cover `cv2.imwrite=False`, CSV `open()` failure, and JSON `write_text()` failure, but not `_output_path()` failures or unsafe stored-path failure.
 
 ## Optional issues
 
@@ -26,31 +27,23 @@ None.
 
 ## Quality gate assessment
 
-- `rtk git status --short`: PASS for review input. Shows only `.context/design.md`, `.context/plan.md`, `.context/research.md`, `.context/review-plan-claude.md`, `.context/review-plan-resolution.md`, and `.context/status.md` modified.
-- `rtk git diff --stat`: PASS for review input. Current diff is `.context` only: 6 files, 273 insertions, 285 deletions.
-- `rtk git diff`: PASS for review input. No source-code diff currently pending; Phase 16 source inspected from current tree.
-- `rtk git diff --check`: PASS.
-- `python -m pytest tests/test_device.py tests/test_storage_paths.py tests/test_model_runtime.py tests/test_startup.py` from `cv/`: PASS, 35 passed, 18 SQLite datetime adapter warnings.
-- `python -m pytest` from `cv/`: PASS, 59 passed, 64 SQLite datetime adapter warnings.
-- `python -m pytest -m postgres` from `cv/`: PASS, 3 passed, 56 deselected.
-- `python -m ruff check .` from `cv/`: PASS, `All checks passed!`.
-- Real Ultralytics model-load smoke: not available yet; `.context/status.md:32` says no `.pt` or `.onnx` artifact exists under `storage/models/`.
+- `rtk git status --short`: PASS for review input. Shows Phase 17 worker/context changes plus untracked `cv/aerovision_worker/image_processing.py` and `cv/tests/test_image_processing.py`.
+- `rtk git diff --stat`: PASS for review input. Shows CV worker, tests, docs/context changes.
+- `rtk git diff`: PASS for review input.
+- `cd cv; python -m ruff check .`: PASS (`All checks passed!`).
+- `cd cv; python -m pytest`: PASS (69 passed, 157 warnings).
+- `cd cv; python -m pytest -m postgres`: PASS (3 passed, 66 deselected).
 
 ## Security/privacy assessment
 
-- Model weight paths are validated as relative paths and resolved under storage roots before loading.
-- Missing/unsafe weight errors use stable safe strings and do not expose absolute paths.
-- Model loading logs include model id, family, variant, and device only.
-- No DB URLs, tokens, passwords, JWT secrets, absolute paths, API responses, downloads, frontend displays, or exports were added by this phase.
+No absolute result/export DB paths found in reviewed implementation. CSV/JSON exports stay inside CV image-space fields and do not include targeting/navigation/control data. Remaining privacy/safety risk is failure handling for unsafe stored paths: validation blocks traversal, but the unconverted `ValueError` can bypass safe job failure finalization.
 
 ## Positive findings
 
-- Model selection priority matches `docs/CV_PIPELINE.md`: job model, then active DB model, then `ACTIVE_MODEL_ID` only when no active DB model exists.
-- Documented `models/...` paths resolve under `STORAGE_ROOT`; bare paths under `MODELS_ROOT` remain compatibility behavior only.
-- Cache key separates model id and selected device.
-- YOLO family metadata is preserved; no silent YOLO11 substitution found.
-- Worker loads model before current placeholder failure, keeping later inference/tracking/export work out of Phase 16.
-- PostgreSQL queue tests cover `FOR UPDATE SKIP LOCKED` claim behavior.
+- Image-only queue claiming in `cv/aerovision_worker/queue.py:187-201` leaves valid video jobs queued for later phase.
+- Image detection rows use `frame_index = 0`, `timestamp_ms = 0`, and `track_id = None` in `cv/aerovision_worker/image_processing.py:266-282`.
+- No-detection image jobs still complete and produce headers-only CSV plus JSON with empty `detections`, covered by `cv/tests/test_image_processing.py:337-364`.
+- Export contract test covers required CSV columns, JSON top-level keys, empty `tracks`, and no obvious forbidden output strings in `cv/tests/test_image_processing.py:492-538`.
 
 ## Files consulted
 
@@ -60,29 +53,25 @@ None.
 - `docs/ROADMAP.md`
 - `docs/phase.md`
 - `docs/CV_PIPELINE.md`
-- `docs/TRAINING_EXPERIMENTS.md`
 - `docs/DATA_MODEL.md`
-- `docs/ARCHITECTURE.md`
+- `docs/API.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
-- `.context/review-plan-claude.md`
 - `.context/status.md`
-- `cv/aerovision_worker/model_runtime.py`
 - `cv/aerovision_worker/main.py`
-- `cv/aerovision_worker/settings.py`
-- `cv/aerovision_worker/storage_paths.py`
-- `cv/aerovision_worker/device.py`
 - `cv/aerovision_worker/queue.py`
-- `cv/tests/test_model_runtime.py`
-- `cv/tests/test_startup.py`
-- `cv/tests/test_device.py`
-- `cv/tests/test_storage_paths.py`
+- `cv/aerovision_worker/image_processing.py`
+- `cv/aerovision_worker/storage_paths.py`
+- `cv/aerovision_worker/model_runtime.py`
+- `cv/aerovision_worker/settings.py`
+- `cv/tests/test_image_processing.py`
 - `cv/tests/test_queue.py`
 - `cv/tests/test_queue_postgres.py`
+- `cv/tests/test_startup.py`
 - `cv/index.md`
-- `backend/app/db/models.py`
-- `backend/app/services/jobs.py`
-- `backend/app/services/models.py`
+- `rtk git status --short`
+- `rtk git diff --stat`
+- `rtk git diff`

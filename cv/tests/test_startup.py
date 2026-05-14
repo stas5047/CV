@@ -68,7 +68,7 @@ def test_run_worker_reports_forced_cuda_failure_without_database_retry(monkeypat
         raise AssertionError("forced CUDA should fail with device-specific error")
 
 
-def test_run_poll_iteration_loads_model_then_fails_placeholder_claim(monkeypatch) -> None:
+def test_run_poll_iteration_loads_model_then_processes_claimed_image_job(monkeypatch) -> None:
     settings = WorkerSettings(
         database_url="sqlite+pysqlite:///:memory:",
         stale_job_minutes=10,
@@ -94,8 +94,15 @@ def test_run_poll_iteration_loads_model_then_fails_placeholder_claim(monkeypatch
         "fail_processing_job",
         lambda *args, **kwargs: calls.append(("fail", kwargs)) or True,
     )
+    monkeypatch.setattr(
+        worker_main,
+        "process_image_job",
+        lambda *args, **kwargs: calls.append(("process_image", kwargs)) or None,
+        raising=False,
+    )
     model_runtime = SimpleNamespace(
-        load_for_job=lambda *args, **kwargs: calls.append(("load_model", kwargs)) or object()
+        load_for_job=lambda *args, **kwargs: calls.append(("load_model", kwargs))
+        or SimpleNamespace(model=object(), metadata=SimpleNamespace(id="model-1", name="Model 1"))
     )
 
     claimed = run_poll_iteration(
@@ -106,9 +113,10 @@ def test_run_poll_iteration_loads_model_then_fails_placeholder_claim(monkeypatch
     )
 
     assert claimed is True
-    assert [name for name, _payload in calls] == ["recover", "claim", "load_model", "fail"]
+    assert [name for name, _payload in calls] == ["recover", "claim", "load_model", "process_image"]
     assert calls[2][1]["job_id"] == "job-1"
-    assert calls[3][1]["error_message"] == worker_main.PLACEHOLDER_PROCESSING_ERROR
+    assert calls[3][1]["job_id"] == "job-1"
+    assert calls[3][1]["worker_id"] == "worker-a"
 
 
 def test_run_poll_iteration_marks_missing_model_failed_with_safe_error(monkeypatch) -> None:
