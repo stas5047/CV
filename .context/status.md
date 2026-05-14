@@ -5,7 +5,7 @@
 - Phase: `Phase 16 - CV model loading, device selection, and model cache`.
 - Mode: Implementation.
 - Risk: `MEDIUM`.
-- Verdict: code review final fix complete; relevant gates passed.
+- Verdict: implementation verified in this run; no Phase 16 source changes needed.
 
 ## Completed
 
@@ -20,11 +20,17 @@
 - Failed claimed jobs safely on model-loading errors.
 - Added tests for model priority, path safety, missing weights, cache behavior, device application, safe logs, YOLO family metadata pass-through, and worker poll integration.
 - Updated `cv/index.md`.
-- Resolved OpenAI code review important item by removing trailing whitespace from `docs/phase.md:3`.
+- Resolved OpenAI code review important item by correcting the stale `--check-once` skip reason in this status file.
 - Updated `.context/review-code-resolution.md`.
 
 ## Quality Gates Run
 
+- `python -m pytest tests/test_device.py tests/test_storage_paths.py tests/test_model_runtime.py tests/test_startup.py` from `cv/` in this run: PASS, 35 passed, 18 SQLite datetime adapter warnings.
+- `python -m pytest` from `cv/` in this run: PASS, 59 passed, 64 SQLite datetime adapter warnings.
+- `python -m ruff check .` from `cv/` in this run: PASS, `All checks passed!`.
+- `python -m pytest -m postgres` from `cv/` in this run: PASS, 3 passed, 56 deselected.
+- Real Ultralytics model-load smoke in this run: not available yet; no `.pt` or `.onnx` artifact found under `storage/models/`.
+- `python -m aerovision_worker.main --check-once` from `cv/` in this run with local `DATABASE_URL`: PASS; startup checks completed, selected `cpu`, database ready, and command exited before polling.
 - `python -m pytest tests/test_model_runtime.py` from `cv/`: RED first, failed with missing `aerovision_worker.model_runtime`; PASS after implementation, 14 passed.
 - `python -m pytest tests/test_startup.py` from `cv/`: RED after poll integration tests, failed because `run_poll_iteration` lacked `model_runtime`; PASS after implementation, 6 passed.
 - `python -m pytest tests/test_startup.py tests/test_model_runtime.py` from `cv/`: PASS, 20 passed.
@@ -59,7 +65,7 @@
 
 ## Remaining Risks
 
-- Worker still fails jobs with the processing placeholder after successful model preflight until later media-processing phases implement inference/tracking/export/result writes.
+- Worker still fails jobs with the processing placeholder after successful model preflight during normal polling until later media-processing phases implement inference/tracking/export/result writes.
 - Real YOLO artifact loading was not exercised with actual weights; tests mock the loader and verify path/cache/metadata behavior.
 - PostgreSQL full migrated schema was not re-smoked in this phase; no DB schema changes were made.
 - Repo still has existing dirty planning/review/source files from Phase 16 implementation; no unrelated changes were reverted.

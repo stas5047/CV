@@ -8,19 +8,20 @@ Claude review verdict was `APPROVED_WITH_CHANGES`. All review items were resolve
 
 | ID | Claude item | Resolution | Reason | Applied files |
 |---|---|---|---|---|
-| I-1 | Model weights path root behavior ambiguous; documented `models/{model_version_id}/weights.pt` must resolve relative to `STORAGE_ROOT`, with bare `MODELS_ROOT` paths only compatibility behavior. | accepted | Matches `docs/ARCHITECTURE.md` relative storage examples and `docs/DATA_MODEL.md` path-field rules. Prevents valid documented records from resolving as `models/models/...`. | `.context/design.md`, `.context/plan.md`, `.context/research.md` |
-| O-1 | Add explicit test that missing-weight errors and model-loading logs do not include absolute storage paths. | accepted | Matches Phase 16 validation and project security/logging rules. | `.context/design.md`, `.context/plan.md` |
-| O-2 | Add test for YOLO11 metadata pass-through and no silent YOLO11 substitution when metadata says YOLO26. | accepted | Matches `docs/CV_PIPELINE.md` and `docs/TRAINING_EXPERIMENTS.md` YOLO26-primary / YOLO11-documented-fallback policy. | `.context/design.md`, `.context/plan.md` |
-| Q-1 | Prompt risk level placeholder remains literal; reviewer assumed MEDIUM. | accepted | `.context/research.md` already treats Phase 16 as MEDIUM because model artifacts are loaded and jobs may fail safely. No product-doc conflict and no user decision needed. | `.context/research.md` |
+| I-1 | Environment-dependent `--check-once` gate can mutate real queued jobs because Phase 16 still fails successfully preflighted jobs with the later-phase placeholder. | accepted | Matches `docs/ARCHITECTURE.md` worker claim/mutation behavior and avoids damaging non-isolated queue state. | `.context/research.md`, `.context/design.md`, `.context/plan.md` |
+| I-2 | Plan does not require evidence for real Ultralytics model load when weights exist. | accepted | Matches `docs/phase.md` validation that worker loads a configured model from a relative path when weights exist. Keeps it environment-dependent because local artifacts may be absent. | `.context/research.md`, `.context/design.md`, `.context/plan.md` |
+| O-1 | Add explicit assertion that model-load logs and stored job errors omit `STORAGE_ROOT`, `MODELS_ROOT`, database URL, and env-derived secret values. | accepted | Matches `docs/AUTH_SECURITY.md`, `docs/TESTING_QA.md`, and Phase 16 safe logging/error behavior. | `.context/design.md`, `.context/plan.md` |
+| O-2 | Add test naming that separates documented `models/...` paths under `STORAGE_ROOT` from bare compatibility paths under `MODELS_ROOT`. | accepted | Matches existing accepted path contract and reduces regression risk without changing product behavior. | `.context/design.md`, `.context/plan.md` |
+| Q-1 | Prompt risk value was literal `<MEDIUM \| HIGH>`; Claude treated phase as MEDIUM. | accepted | `.context/research.md` already records `MEDIUM`; Phase 16 touches model artifacts, DB-backed queue state, and runtime failure behavior. No user decision needed. | none |
 
 ## Accepted changes applied
 
-- Locked model weights path behavior: documented `models/{model_version_id}/weights.pt` resolves under `STORAGE_ROOT`.
-- Added contract that `MODELS_ROOT` support is compatibility-only for bare model-storage paths and must not double-prefix `models/...`.
-- Added required tests for documented path resolution and no `models/models/...` regression.
-- Added required tests/assertions for safe missing-weight errors and model-loading logs with no absolute paths.
-- Added required tests for YOLO11 metadata pass-through and no silent fallback/substitution.
-- Recorded Phase 16 risk as `MEDIUM`.
+- Constrained `python -m aerovision_worker.main --check-once` to isolated disposable DB/test data or verified empty queue.
+- Added required `not available yet` outcome when `--check-once` safe preconditions are absent.
+- Added real Ultralytics model-load smoke when a documented local `.pt` artifact exists.
+- Added required `not available yet` outcome with missing artifact reason when no local `.pt` exists.
+- Strengthened privacy assertions for model-load logs and stored job errors.
+- Added path-test naming requirement separating documented `STORAGE_ROOT` behavior from bare `MODELS_ROOT` compatibility.
 
 ## Rejected items
 

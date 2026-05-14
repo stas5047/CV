@@ -2,11 +2,11 @@
 
 ## Summary
 
-Phase 16 plan matches current phase scope: CV worker model resolution, YOLO model loading, device behavior, cache, safe missing-weight failure, and no backend/frontend/schema work.
+Phase 16 plan matches documented scope: worker-side model selection, relative weights path handling, model loading/cache, `CV_DEVICE` behavior, safe model-load failure, and no backend/frontend/schema/training work unless verified drift appears.
 
-Plan preserves main architecture boundaries: worker reads PostgreSQL and shared storage, backend remains API authority, model weights stay filesystem-only, and no training/inference/export later-phase work is added.
+Plan keeps architecture boundaries intact: worker uses PostgreSQL and shared storage, does not add HTTP worker API coupling, does not launch training, does not add inference/tracking/export scope, and preserves YOLO26 primary / YOLO11 documented fallback metadata.
 
-Approval depends on resolving one implementation risk before coding path logic.
+Changes needed are validation-safety and evidence gaps, not product redesign.
 
 ## Blocking issues
 
@@ -14,21 +14,27 @@ None.
 
 ## Important issues
 
-1. Model weights path root behavior is still ambiguous and can break documented records.
-   - Evidence: `docs/ARCHITECTURE.md` recommends stored model paths like `models/{model_version_id}/weights.pt` as paths relative to `STORAGE_ROOT`.
-   - Evidence: `docs/DATA_MODEL.md` says `model_versions.weights_path` stores relative paths only and first implementation should register paths under `STORAGE_ROOT/models`.
-   - Evidence: `.context/design.md` says to prefer existing `MODELS_ROOT` for `model_versions.weights_path`, while also noting records may store `models/...` and must not be double-prefixed.
-   - Risk: implementation could resolve `models/{id}/weights.pt` under `MODELS_ROOT` and produce `.../models/models/{id}/weights.pt`, causing valid documented model registrations to fail.
-   - Required change: implementation/tests must lock expected behavior for documented `models/{model_version_id}/weights.pt` relative to `STORAGE_ROOT`. If bare `weights.pt` or `{id}/weights.pt` under `MODELS_ROOT` is supported, treat it as compatibility behavior, not replacement for documented path form.
+1. Environment-dependent `--check-once` gate can mutate real queued jobs.
+   - Evidence: `.context/plan.md` step 8 says successful model preflight keeps later-phase placeholder failure: `Processing not implemented in this phase`.
+   - Evidence: `.context/plan.md` step 12 runs `python -m aerovision_worker.main --check-once` when env/database are configured.
+   - Evidence: `docs/ARCHITECTURE.md` says worker claims oldest queued job and marks it processing, then completed/failed after processing.
+   - Risk: running optional smoke against non-isolated configured DB can claim a real queued job and fail it after successful model load, even though phase does not implement processing.
+   - Required change: constrain this gate to isolated test data / empty queue / disposable DB, or document exact expected mutation before running. If safe preconditions are absent, report `not available yet`.
+
+2. Plan does not require evidence for real Ultralytics model load when weights exist.
+   - Evidence: `docs/phase.md` validation requires worker loads configured model from relative path when weights exist.
+   - Evidence: `.context/plan.md` targeted tests can pass with mocked `YOLO`; real artifact smoke is only optional in `.context/design.md`, not in ordered plan.
+   - Risk: path/file existence and cache logic may pass unit tests while actual `ultralytics.YOLO(weights)` fails in environment or with documented artifact layout.
+   - Required change: add environment-dependent smoke when a documented local `.pt` artifact exists; otherwise report `not available yet` with missing artifact reason.
 
 ## Optional improvements
 
-- Add one explicit test that safe missing-weight error and model-loading log do not include absolute storage paths. Plan mentions safe logging, but explicit assertion would cover phase validation from `docs/phase.md`.
-- Add one test for YOLO11 metadata pass-through: worker may load a row whose `model_family = YOLO11`, but must not silently substitute YOLO11 when metadata says `YOLO26`.
+- Add explicit assertion that model-load logs and stored job errors omit `STORAGE_ROOT`, `MODELS_ROOT`, database URL, and env-derived secret values. Plan has log-safety review, but direct tests reduce privacy drift.
+- Add test naming that separates documented `models/...` paths under `STORAGE_ROOT` from bare compatibility paths under `MODELS_ROOT`, so future edits do not reintroduce `models/models/...`.
 
 ## Questions for resolution
 
-- Risk level in prompt is still literal `<MEDIUM | HIGH>`. Review assumes MEDIUM because phase loads external model artifacts and can fail queued jobs, but does not change API/schema or run inference.
+- Prompt risk value was literal `<MEDIUM | HIGH>`, not selected. Review treats phase as MEDIUM because scope touches external model artifacts, DB-backed queue state, and device/runtime failure behavior.
 
 ## Files consulted
 

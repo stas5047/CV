@@ -1,122 +1,97 @@
-# Phase 16 Implementation Plan
+# Plan - Phase 16 CV model loading, device selection, and model cache
 
 ## Scope
 
-Only CV worker model selection/loading/cache behavior for `Phase 16 - CV model loading, device selection, and model cache`.
+Phase only: CV worker model selection, model loading, device selection, model cache, and safe failure behavior.
 
-No source implementation done in this planning phase.
+Do not add inference, tracking, exports, result writes, frontend UI, backend API routes, database migrations, training launch, Celery, Redis, RTSP/live camera, or any CV output beyond model preflight state.
 
-## Ordered Atomic Plan
+## Ordered Atomic Steps
 
-1. `@role/developer-cv-worker` Add focused tests for model metadata resolution.
-   - Verify job-specific `processing_jobs.model_version_id` selects that `model_versions` row.
-   - Verify absent job model uses active DB model.
-   - Verify absent job model and absent active DB model uses `ACTIVE_MODEL_ID`.
-   - Verify absent/malformed fallback fails with safe worker error.
-   - Verification: new model-runtime test fails before implementation.
+1. `@role/developer-cv-worker` Re-read Phase 16 docs before source edits.
+   - Verify `docs/phase.md` still names Phase 16.
+   - Verify `Relevant docs:` still match this contract.
+   - Verifiable: notes match `.context/research.md`.
 
-2. `@role/developer-cv-worker` Add focused tests for model weights path safety.
-   - Verify documented `models/{model_version_id}/weights.pt` resolves under `STORAGE_ROOT`.
-   - Verify documented `models/{model_version_id}/weights.pt` is not resolved as `models/models/{model_version_id}/weights.pt`.
-   - Verify bare model-storage compatibility paths such as `{model_version_id}/weights.pt` or `weights.pt` resolve under `MODELS_ROOT` only when supported by existing settings.
-   - Verify absolute path is rejected.
-   - Verify traversal path is rejected.
-   - Verify missing weights file raises a safe model-loading error without absolute path in message.
-   - Verification: new path tests fail before implementation.
+2. `@role/developer-cv-worker` Inspect current worker model/device implementation.
+   - Read `cv/aerovision_worker/device.py`, `settings.py`, `model_runtime.py`, `main.py`, `queue.py`, and `storage_paths.py`.
+   - Verifiable: list confirmed implemented behaviors and any missing Phase 16 requirements before editing.
 
-3. `@role/developer-cv-worker` Add focused tests for model metadata and cache behavior.
-   - Mock Ultralytics `YOLO`.
-   - Verify `model_family = YOLO11` metadata can be loaded only when the database row says YOLO11.
-   - Verify `model_family = YOLO26` metadata is not silently relabeled or substituted as YOLO11.
-   - Verify same model version and device reuses cached loaded model.
-   - Verify different model version loads a separate model.
-   - Verify selected device is applied/passed consistently.
-   - Verification: new cache tests fail before implementation.
+3. `@role/developer-cv-worker` Confirm no backend/API/schema work is required.
+   - Read only `backend/app/services/jobs.py`, `backend/app/services/models.py`, and `backend/app/db/models.py` if model resolution or path validation looks inconsistent.
+   - Verifiable: either "no backend change" or exact doc-backed mismatch.
 
-4. `@role/developer-cv-worker` Implement internal model metadata resolution.
-   - Read existing `processing_jobs.model_version_id`.
-   - Query existing `model_versions` fields: `id`, `name`, `model_family`, `variant`, `weights_path`, `is_active`.
-   - Apply documented priority only when job model is absent: active DB model, then `ACTIVE_MODEL_ID`.
-   - Do not add schema fields.
-   - Verification: model-priority tests pass.
+4. `@role/developer-cv-worker` If model priority is missing or regressed, fix worker metadata resolution only.
+   - Required priority: job `model_version_id`, active DB model, then `ACTIVE_MODEL_ID` only when no active DB model exists.
+   - Verifiable: `cv/tests/test_model_runtime.py` has passing tests for all three priority levels and override prevention.
 
-5. `@role/developer-cv-worker` Implement model weights path resolution.
-   - Reuse existing relative-path validation from `cv/aerovision_worker/storage_paths.py`.
-   - Treat documented `models/{model_version_id}/weights.pt` values as relative to `STORAGE_ROOT`.
-   - Do not prepend `MODELS_ROOT` to values that already start with `models/`.
-   - Treat bare paths under `MODELS_ROOT` as compatibility behavior only.
-   - Reject unsafe paths and missing files with safe error text.
-   - Do not store or log absolute paths.
-   - Verification: path-safety and missing-weight tests pass.
+5. `@role/developer-cv-worker` If weights path handling is missing or regressed, fix path resolution only.
+   - Documented `models/...` paths resolve under `STORAGE_ROOT`.
+   - Bare compatibility paths resolve under `MODELS_ROOT`.
+   - Unsafe, absolute, drive, traversal, or missing paths fail with safe `ModelLoadingError`.
+   - Verifiable: tests cover no `models/models/...`, unsafe path rejection, and missing file safe message.
+   - Verifiable: test names clearly separate documented `models/...` under `STORAGE_ROOT` from bare compatibility paths under `MODELS_ROOT`.
 
-6. `@role/developer-cv-worker` Implement Ultralytics model loading wrapper.
-   - Construct `YOLO` only after path validation and existence check.
-   - Preserve model metadata family exactly as stored; no silent YOLO11 substitution.
-   - Apply selected device from existing `select_device`.
-   - Keep CPU path valid.
-   - Verification: mocked YOLO loader tests pass.
+6. `@role/developer-cv-worker` If device handling is missing or regressed, fix device selection only.
+   - `auto`: CUDA if available else CPU.
+   - `cpu`: CPU.
+   - `cuda`: clear failure if CUDA unavailable.
+   - Verifiable: `cv/tests/test_device.py` passes.
 
-7. `@role/developer-cv-worker` Implement in-memory model cache.
-   - Cache by model version ID and selected device.
-   - Reuse loaded model for repeated jobs with same key.
-   - Load a new model when a job requires a different model version or selected device.
-   - Verification: cache tests pass.
+7. `@role/developer-cv-worker` If model loading/cache is missing or regressed, fix `ModelRuntime` only.
+   - Lazy-load Ultralytics `YOLO`.
+   - Apply selected device with model `.to(device)` when supported.
+   - Cache by `(model_id, selected_device)`.
+   - Preserve `model_family` metadata without silent YOLO11 substitution.
+   - Verifiable: cache/device/metadata tests pass.
 
-8. `@role/developer-cv-worker` Wire model preflight into worker poll iteration.
-   - After claiming job, resolve and load required model.
-   - If model load fails, mark claimed job failed with safe model error.
-   - If model load succeeds, keep later-phase placeholder failure for actual media processing.
-   - Preserve stale-job recovery and claim behavior.
-   - Verification: startup/poll iteration tests pass.
+8. `@role/developer-cv-worker` If poll integration is missing or regressed, fix worker polling only.
+   - After claim, run model preflight.
+   - On model-load error, mark job `failed` with safe error.
+   - After successful preflight, keep existing later-phase placeholder failure.
+   - Verifiable: startup/poll tests prove load-before-placeholder and missing-model failure behavior.
 
-9. `@role/developer-cv-worker` Add/adjust logging.
-   - Log selected device as already implemented.
-   - Log model loading events with model ID/family/variant only.
-   - Add assertions that missing-weight errors and model-loading logs do not include absolute storage paths.
-   - Ensure logs do not expose absolute paths, database URLs, tokens, secrets, or env secrets.
-   - Verification: logging assertions pass.
+9. `@role/developer-cv-worker` Review logs and stored errors.
+   - Confirm logs include selected device and model ID/family/variant/device.
+   - Confirm logs/errors omit absolute storage paths and secrets.
+   - Verifiable: `caplog` tests check no storage root in model logs and startup logs.
+   - Verifiable: tests/assertions cover absence of `STORAGE_ROOT`, `MODELS_ROOT`, database URLs, and env-derived secret values in model-load logs and stored job errors.
 
-10. `@role/tester` Run focused CV worker quality gates from `cv/`.
-    - `python -m pytest tests/test_device.py tests/test_storage_paths.py tests/test_startup.py tests/test_model_runtime.py`
+10. `@role/tester` Run targeted worker gates.
+    - Command: `python -m pytest tests/test_device.py tests/test_storage_paths.py tests/test_model_runtime.py tests/test_startup.py`
+    - Working directory: `cv/`
     - Expected: `PASS`.
 
-11. `@role/tester` Run full CV worker unit suite from `cv/`.
-    - `python -m pytest`
-    - Expected: `PASS` or documented blocker with exact failure.
-
-12. `@role/tester` Run CV worker lint from `cv/`.
-    - `python -m ruff check .`
+11. `@role/tester` Run worker regression gates.
+    - Command: `python -m pytest`
+    - Working directory: `cv/`
+    - Expected: `PASS`.
+    - Command: `python -m ruff check .`
+    - Working directory: `cv/`
     - Expected: `PASS`.
 
-13. `@role/code-reviewer` Review implementation against phase docs.
-    - Check no backend API route changes.
-    - Check no DB schema changes.
-    - Check no frontend changes.
-    - Check model selection priority matches docs.
-    - Check relative path rule and safe logging.
-    - Check documented `models/...` paths resolve under `STORAGE_ROOT` without double-prefixing.
-    - Check YOLO26/YOLO11 metadata behavior.
-    - Check no inference/tracking/export/later-phase work added.
+12. `@role/tester` Run environment-dependent checks only when prerequisites exist.
+   - Command: `python -m pytest -m postgres`
+   - Working directory: `cv/`
+   - Expected when PostgreSQL reachable: `PASS`; otherwise report `not available yet`.
+   - Command: `python -m aerovision_worker.main --check-once`
+   - Working directory: `cv/`
+   - Preconditions: run only against isolated disposable DB/test data, or after verifying queue is empty. Do not run against non-isolated configured DB with real queued jobs because Phase 16 placeholder can fail a successfully preflighted job.
+   - Expected when safe preconditions exist: selected device logged and DB check passes; if a queued test job exists, expected mutation is claim then safe Phase 16 placeholder failure. Otherwise report `not available yet` with missing precondition.
+   - Command: real Ultralytics model-load smoke using a documented local `.pt` artifact path.
+   - Working directory: `cv/`
+   - Expected when a documented local weights artifact exists: worker loads model from relative path and cache/device path succeeds; otherwise report `not available yet` with missing artifact reason.
 
-14. `@role/docs-maintainer` Update only component index if implementation changes worker commands or current-state wording.
-    - Expected: usually no product docs update.
-    - If `cv/index.md` current implementation summary becomes inaccurate, update only that index.
+13. `@role/code-reviewer` Perform Phase 16 scope review.
+    - Check changed files against `docs/CV_PIPELINE.md`, `docs/TRAINING_EXPERIMENTS.md`, `docs/DATA_MODEL.md`, `docs/ARCHITECTURE.md`, and `docs/TESTING_QA.md`.
+    - Verifiable: no backend API/schema/frontend/training/inference/tracking/export scope creep.
 
-## Relevant Checks Only
+14. `@role/docs-maintainer` Update indexes only if file inventory or commands changed.
+    - Candidate: `cv/index.md`.
+    - Do not update product docs unless source-of-truth paths/commands changed and user authorizes doc work.
+    - Verifiable: either exact index update or "skipped; no command/file inventory change".
 
-- `python -m pytest tests/test_device.py tests/test_storage_paths.py tests/test_startup.py tests/test_model_runtime.py`
-- `python -m pytest`
-- `python -m ruff check .`
-
-## Explicit Non-Goals
-
-- No image inference.
-- No video inference.
-- No tracking.
-- No CSV/JSON export generation.
-- No result media writing.
-- No database migrations.
-- No backend API changes.
-- No frontend work.
-- No training scripts or notebooks.
-- No YOLO11 fallback switch unless already documented by model metadata.
+15. `@role/tester` Final allowed-change check.
+    - Command: `git status --short`
+    - Expected: only Phase 16 source/tests/index/context files changed during implementation.
+    - In this planning-only turn, expected changed files are only `.context/research.md`, `.context/design.md`, and `.context/plan.md`.

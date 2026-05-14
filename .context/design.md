@@ -1,113 +1,92 @@
-# Phase 16 Design
+# Design - Phase 16 CV model loading, device selection, and model cache
 
 ## Phase Goal
 
-Implement CV worker model selection, model loading, selected-device use, in-memory cache, and safe missing-weight/device errors for the current phase only.
+Implement and verify CV worker model selection, model loading, runtime device selection, in-memory model cache, and safe fallback/error behavior for `Phase 16 - CV model loading, device selection, and model cache`.
 
-## Intended Behavior From Docs
+## Intended Behavior from Docs
 
-Confirmed facts:
+Confirmed doc requirements:
 
-- Worker processes the resolved model version stored on `processing_jobs.model_version_id`.
-- Model selection priority is job-specific model, then active DB model, then `ACTIVE_MODEL_ID` only when no DB active model exists.
-- Model weights paths are relative storage paths only.
-- Worker loads YOLO models only when needed.
-- Worker caches the active/selected model when practical and switches/reloads when a different job requires a different model.
-- `CV_DEVICE=auto` uses CUDA when available, otherwise CPU.
+- Worker uses resolved `processing_jobs.model_version_id` when present.
+- If job has no model version, worker uses active `model_versions.is_active = true`.
+- `ACTIVE_MODEL_ID` is only fallback when no active DB model exists.
+- `ACTIVE_MODEL_ID` must not override job-specific or database-active model selection.
+- Model weights paths are relative storage paths; absolute host/container paths must not be stored or logged.
+- Documented model path examples are under `models/...` relative to `STORAGE_ROOT`.
+- YOLO26 is primary model family.
+- YOLO11 is fallback only after YOLO26 unavailability is reported and documented; runtime must preserve actual `model_family` metadata.
+- `CV_DEVICE=auto` uses CUDA when available and CPU otherwise.
 - `CV_DEVICE=cpu` forces CPU.
 - `CV_DEVICE=cuda` fails clearly when CUDA is unavailable.
+- Worker logs selected runtime device.
+- Worker logs model loading events without secrets or unsafe paths.
+- Missing model weights fail the claimed job safely with a clear error message.
 - CPU inference must remain possible.
-- Missing weights should fail the job safely with a clear `error_message`.
-- YOLO26 remains primary. YOLO11 is allowed only when fallback is documented and reflected in model metadata.
-- Logs may report selected runtime device and model loading events, but must not leak secrets or unsafe absolute paths.
-
-Assumptions:
-
-- Phase 16 should load a model but not run image/video inference, tracking, export generation, or result writes.
-- Phase 16 can replace the placeholder job failure with a model-loading preflight path: claim job, resolve/load model, then fail with the existing processing-placeholder message until processing phases exist.
-- Tests should mock Ultralytics `YOLO` and use temporary files for weights-path behavior.
+- Phase 16 must not implement image/video inference, tracking, exports, result writes, frontend behavior, backend API changes, schema changes, or training launch.
 
 ## Architecture Decisions
 
-- Add a CV-worker-only model runtime component responsible for:
-  - reading the claimed job's `model_version_id`;
-  - resolving fallback model metadata only when the job lacks a resolved model;
-  - validating relative `weights_path`;
-  - resolving documented `models/{model_version_id}/weights.pt` paths relative to `STORAGE_ROOT`;
-  - supporting bare model-storage paths such as `{model_version_id}/weights.pt` or `weights.pt` under `MODELS_ROOT` only as compatibility behavior;
-  - avoiding double-prefixing paths that already start with `models/`;
-  - checking file existence before constructing YOLO;
-  - constructing Ultralytics `YOLO` with selected weights;
-  - moving/using the selected device when supported by the Ultralytics API;
-  - caching loaded model by model version ID plus selected device.
-- Keep route/API/backend behavior unchanged.
-- Keep DB schema unchanged.
-- Keep long processing out of backend requests.
-- Keep backend-worker communication through PostgreSQL/shared storage only.
-- Keep all model artifacts in filesystem storage, never PostgreSQL.
+- Keep model-runtime logic inside `cv/aerovision_worker/model_runtime.py`; worker owns loading/cache, backend owns job creation and model registry APIs.
+- Keep device selection isolated in `cv/aerovision_worker/device.py`; startup selects once and passes selected device into `ModelRuntime`.
+- Keep model cache in memory per worker process, keyed by `(model_id, selected_device)`.
+- Resolve documented `models/...` paths from `STORAGE_ROOT`; support bare paths relative to `MODELS_ROOT` only as compatibility.
+- Keep errors stable and safe: user/API-visible job error strings must not include absolute paths, DB URLs, tokens, passwords, or stack traces.
+- Preserve later-phase placeholder after model preflight until media processing phases implement inference/tracking/export/result writes.
 
 ## Backend Impact
 
-- No backend source changes planned.
-- Backend remains source that resolves `processing_jobs.model_version_id` when creating jobs.
-- Backend DB model definitions are reference only for worker SQL queries.
+- No backend source change intended for Phase 16 if existing job creation/model registry behavior matches docs.
+- Backend remains source of truth for resolving and storing `processing_jobs.model_version_id` during job creation.
+- Backend model registry still validates relative model weights paths before registration/activation.
 
 ## Frontend Impact
 
-- No frontend changes planned.
+- None for this phase.
 
 ## DB Impact
 
-- No migration/schema changes planned.
-- Worker will read existing `processing_jobs` and `model_versions` fields.
-- Worker will update existing `processing_jobs.status`, `error_message`, heartbeat/lock fields through existing queue helpers.
+- No schema or migration change intended.
+- Worker reads existing `processing_jobs.model_version_id`, `model_versions.is_active`, and `model_versions.weights_path`.
+- Worker writes only safe failure state if model loading fails.
 
 ## API Impact
 
-- No API contract changes planned.
+- No API route or response contract change intended.
+- Any failed job error from missing/unloadable model must remain safe for later backend result display.
 
 ## Security/Privacy Impact
 
-- Validate all model weight paths as relative paths.
-- Reject missing/unsafe weight paths before model construction.
-- Do not log absolute filesystem paths, database URLs, secrets, tokens, or environment values.
-- Store only safe job `error_message` text.
-- Preserve CV-only boundary: no targeting, navigation, geospatial, or hardware-control output.
+- Must reject unsafe model weights paths including absolute paths, drive paths, traversal, and escaped storage roots.
+- Must not log absolute storage paths, DB passwords, JWT secrets, tokens, admin password, raw environment values, or model file contents.
+- Must preserve CV-only boundary: model metadata and runtime device only; no targeting, navigation, geospatial, hardware-control, or engagement output.
 
 ## Test Strategy
 
-- Unit-test model path validation with safe relative paths, absolute paths, traversal paths, and missing files.
-- Unit-test documented model path behavior:
-  - `models/{model_version_id}/weights.pt` resolves under `STORAGE_ROOT`;
-  - this documented path must not become `models/models/...`;
-  - bare model-storage paths under `MODELS_ROOT` are compatibility behavior only.
-- Unit-test model selection priority for:
-  - job-specific model ID;
-  - DB active model when job model is absent;
-  - `ACTIVE_MODEL_ID` only when no active DB model exists;
-  - missing fallback model failure.
-- Unit-test cache behavior:
-  - same model ID and device reuses cached object;
-  - different model ID loads a different object;
-  - different device loads or applies device selection separately.
-- Unit-test `CV_DEVICE` behavior through existing `test_device.py`.
-- Unit-test worker poll iteration behavior:
-  - claimed job with existing weights attempts model load before placeholder processing failure;
-  - missing weights marks job failed with safe error;
-  - forced CUDA unavailable still fails clearly before database processing.
-- Unit-test safe logging:
-  - missing-weight error messages do not include absolute storage paths;
-  - model-loading log records do not include absolute storage paths.
-- Unit-test YOLO family metadata pass-through:
-  - a row with `model_family = YOLO11` can be loaded as metadata states;
-  - a row with `model_family = YOLO26` is not silently substituted or relabeled as YOLO11.
-- Run focused CV worker tests and Ruff:
-  - `python -m pytest tests/test_device.py tests/test_storage_paths.py tests/test_startup.py tests/test_model_runtime.py`
-  - `python -m ruff check .`
-  - `python -m pytest`
+Relevant automated checks:
 
-## Ambiguities Or Conflicts
+- `python -m pytest tests/test_device.py` from `cv/`: device selection contract.
+- `python -m pytest tests/test_storage_paths.py` from `cv/`: relative path safety helper.
+- `python -m pytest tests/test_model_runtime.py` from `cv/`: model priority, path resolution, missing weights, cache, metadata, and log safety.
+- `python -m pytest tests/test_startup.py` from `cv/`: startup device logging and poll integration with model preflight.
+- `python -m pytest` from `cv/`: worker regression suite because model loading is wired into queue polling.
+- `python -m ruff check .` from `cv/`: worker lint gate.
 
-- No `WARNING: CONFLICT` found.
-- Resolved path rule: documented `model_versions.weights_path` values such as `models/{model_version_id}/weights.pt` are relative to `STORAGE_ROOT` and are primary. `MODELS_ROOT` may support bare compatibility values, but must not replace or double-prefix documented `models/...` records.
-- Ambiguity: YOLO26 availability in Ultralytics is environment-dependent. This phase must not switch to YOLO11 unless DB metadata already says `YOLO11` and prior documentation records fallback.
+Optional environment-dependent checks:
+
+- `python -m pytest -m postgres` from `cv/` when PostgreSQL is reachable.
+- `python -m aerovision_worker.main --check-once` from `cv/` only against an isolated disposable database/test queue, or after verifying the queue is empty. Do not run it against a non-isolated configured database with real queued jobs because a successfully preflighted job still reaches the Phase 16 placeholder failure.
+- Real Ultralytics model-load smoke with a documented local `.pt` artifact when present; otherwise report `not available yet` with the missing artifact reason.
+
+Additional validation expectations:
+
+- Tests should assert model-loading logs and stored job errors omit `STORAGE_ROOT`, `MODELS_ROOT`, database URLs, and env-derived secret values.
+- Test names should distinguish documented `models/...` paths under `STORAGE_ROOT` from bare compatibility paths under `MODELS_ROOT`.
+
+## Ambiguities or Conflicts
+
+- No `WARNING: CONFLICT` found between Phase 16 docs and existing code during this research pass.
+- Prompt phase title and risk were placeholders; current phase taken from `docs/phase.md`, risk assumed `MEDIUM`.
+- Existing `.context/status.md` reports Phase 16 already implemented and reviewed. This is state information, not a product-doc conflict.
+- Actual YOLO26 availability and actual weights presence remain environment unknowns; plan must not silently switch to YOLO11.
+- `--check-once` is mutation-capable when queued jobs exist; run it only with isolated/disposable state or empty queue preconditions.
