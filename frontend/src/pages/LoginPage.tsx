@@ -4,6 +4,7 @@ import { ReloadIcon } from "@radix-ui/react-icons";
 import { ApiError } from "../api/auth";
 import { useAuth } from "../auth/useAuth";
 import { Alert } from "../components/Alert";
+import { useToast } from "../components/toast";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { AuthLayout } from "./AuthLayout";
@@ -19,6 +20,7 @@ export function LoginPage() {
   const { authApi, setToken, token } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -32,17 +34,22 @@ export function LoginPage() {
     event.preventDefault();
     setError("");
     if (!email || !password) {
-      setError("Заповніть email і пароль.");
+      const message = "Заповніть email і пароль.";
+      setError(message);
+      toast({ variant: "error", title: "Форма неповна" });
       return;
     }
     setLoading(true);
     try {
       const response = await authApi.login(email, password);
       setToken(response.access_token);
+      toast({ variant: "success", title: "Вхід виконано", description: "Переходимо до робочої панелі." });
       const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "/dashboard";
       navigate(from, { replace: true });
     } catch (err) {
-      setError(loginErrorMessage(err));
+      const message = loginErrorMessage(err);
+      setError(message);
+      toast({ variant: "error", title: "Не вдалося увійти", description: "Перевірте поля форми." });
     } finally {
       setLoading(false);
     }

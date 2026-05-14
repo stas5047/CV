@@ -199,7 +199,7 @@ export function ThresholdAnalysis({ rows }: { rows: ThresholdRow[] }) {
 
   return (
     <section className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-      <ChartPanel label="Precision / Recall / F1 за порогом">
+      <ChartPanel label="Точність / повнота / F1 за порогом">
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={data}>
             <CartesianGrid stroke="hsl(var(--border))" vertical={false} />
@@ -207,8 +207,8 @@ export function ThresholdAnalysis({ rows }: { rows: ThresholdRow[] }) {
             <YAxis stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} domain={[0, 100]} />
             <Tooltip contentStyle={tooltipStyle} />
             <Legend />
-            <Line type="monotone" dataKey="precision" name="Precision" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="recall" name="Recall" stroke="#86efac" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="precision" name="Точність" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="recall" name="Повнота" stroke="#86efac" strokeWidth={2} dot={false} />
             <Line type="monotone" dataKey="f1" name="F1" stroke="#facc15" strokeWidth={2} dot={false} />
           </LineChart>
         </ResponsiveContainer>
@@ -218,8 +218,8 @@ export function ThresholdAnalysis({ rows }: { rows: ThresholdRow[] }) {
           <thead className="border-b border-border text-xs uppercase tracking-[0.05em] text-muted-foreground">
             <tr>
               <th className="px-4 py-3">Поріг</th>
-              <th className="px-4 py-3">Precision</th>
-              <th className="px-4 py-3">Recall</th>
+              <th className="px-4 py-3">Точність</th>
+              <th className="px-4 py-3">Повнота</th>
               <th className="px-4 py-3">F1</th>
             </tr>
           </thead>

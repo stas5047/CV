@@ -192,6 +192,10 @@ describe("Phase 27 job details page", () => {
     expect(screen.getByText("Завершено")).toBeInTheDocument();
     expect(screen.getAllByText("drone").length).toBeGreaterThan(0);
     expect(screen.getByText("[124, 87, 312, 198]")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Координати рамки" })).toBeInTheDocument();
+    expect(screen.getAllByRole("columnheader", { name: "ID треку" })).toHaveLength(2);
+    expect(screen.queryByRole("columnheader", { name: "Bounding box" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Track ID" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Треки об'єктів" })).toBeInTheDocument();
     expect(container).not.toHaveTextContent("frame_stride");
     expect(container).not.toHaveTextContent("C:\\");

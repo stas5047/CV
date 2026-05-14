@@ -12,6 +12,7 @@ import {
 import { Link, useParams } from "react-router-dom";
 import { downloadJobFile, getJob, getJobResult, listJobDetections, listJobTracks, saveBlob } from "../api/jobs";
 import type { JobDownloadReference } from "../api/types";
+import { useToast } from "../components/toast";
 import { Button } from "../components/ui/button";
 import {
   averageConfidence,
@@ -59,6 +60,7 @@ function DownloadButton({
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const { toast } = useToast();
 
   const handleDownload = async () => {
     if (!reference?.available) return;
@@ -67,8 +69,10 @@ function DownloadButton({
     try {
       const blob = await downloadJobFile(reference.download_url);
       saveBlob(blob, filename);
+      toast({ variant: "success", title: "Завантаження підготовлено", description: label });
     } catch {
       setError(true);
+      toast({ variant: "error", title: "Завантаження не вдалося", description: "Не вдалося підготувати файл." });
     } finally {
       setLoading(false);
     }
@@ -298,8 +302,8 @@ export function JobDetailsPage() {
                     <th className="px-4 py-3 font-semibold">Час</th>
                     <th className="px-4 py-3 font-semibold">Клас</th>
                     <th className="px-4 py-3 font-semibold">Впевненість</th>
-                    <th className="px-4 py-3 font-semibold">Bounding box</th>
-                    <th className="px-4 py-3 font-semibold">Track ID</th>
+                    <th className="px-4 py-3 font-semibold">Координати рамки</th>
+                    <th className="px-4 py-3 font-semibold">ID треку</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -340,7 +344,7 @@ export function JobDetailsPage() {
               <table className="w-full min-w-[780px] border-collapse text-sm">
                 <thead className="bg-secondary">
                   <tr className="text-left text-[11px] uppercase tracking-[0.055em] text-muted-foreground">
-                    <th className="px-4 py-3 font-semibold">Track ID</th>
+                    <th className="px-4 py-3 font-semibold">ID треку</th>
                     <th className="px-4 py-3 font-semibold">Клас</th>
                     <th className="px-4 py-3 font-semibold">Перший кадр</th>
                     <th className="px-4 py-3 font-semibold">Останній кадр</th>

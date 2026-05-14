@@ -201,6 +201,7 @@ describe("Phase 30 admin page", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Перевірити сховище" }));
     await screen.findByText("Можна видалити: 4");
+    expect(screen.getByText("Перевірку сховища завершено")).toBeInTheDocument();
     expect(cleanupPayloads(fetchMock)).toContainEqual({ dry_run: true });
 
     const cleanupPanel = screen.getByTestId("cleanup-panel");

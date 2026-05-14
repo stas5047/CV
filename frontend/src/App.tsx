@@ -3,6 +3,7 @@ import { BrowserRouter, MemoryRouter, Navigate, Route, Routes } from "react-rout
 import { AuthProvider } from "./auth/AuthProvider";
 import { AdminRoute } from "./auth/AdminRoute";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
+import { ToastProvider } from "./components/ToastProvider";
 import type { AuthApi } from "./api/auth";
 import { AppShell } from "./layout/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -66,9 +67,11 @@ export function App({
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider authApi={authApi}>
-        <Router {...routerProps}>
-          <AppRoutes />
-        </Router>
+        <ToastProvider>
+          <Router {...routerProps}>
+            <AppRoutes />
+          </Router>
+        </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

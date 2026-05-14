@@ -14,6 +14,7 @@ import {
 import { Link } from "react-router-dom";
 import { cleanupStorage } from "../../api/admin";
 import type { AdminStatsResponse, JobDetail, StorageCleanupResponse, User } from "../../api/types";
+import { useToast } from "../../components/toast";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
 import {
@@ -204,11 +205,24 @@ function cleanupLine(label: string, value: number) {
 export function CleanupPanel() {
   const [confirmed, setConfirmed] = useState(false);
   const [result, setResult] = useState<StorageCleanupResponse | null>(null);
+  const { toast } = useToast();
   const mutation = useMutation({
     mutationFn: cleanupStorage,
     onSuccess: (data) => {
       setResult(data);
       if (data.dry_run) setConfirmed(false);
+      toast({
+        variant: "success",
+        title: data.dry_run ? "Перевірку сховища завершено" : "Очищення сховища завершено",
+        description: data.dry_run ? "Перегляньте підсумок перед підтвердженням." : "Захищені файли залишено без змін.",
+      });
+    },
+    onError: () => {
+      toast({
+        variant: "error",
+        title: "Очищення не вдалося",
+        description: "Повторіть запит після перевірки сервера.",
+      });
     },
   });
   const canConfirm = Boolean(result?.dry_run) && confirmed && !mutation.isPending;

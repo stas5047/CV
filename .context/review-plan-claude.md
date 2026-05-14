@@ -1,12 +1,12 @@
-# Independent Planning Review - Phase 30 Frontend admin page
+# Phase 31 Planning Review
 
 ## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Plan matches Phase 30 scope: frontend-only `/admin` page, admin route guard, backend REST admin endpoints, Ukrainian UI states, prototype-driven dashboard layout, no complex user management, and backend authorization as source of truth.
+Plan matches Phase 31 scope: frontend Ukrainian UX polish, responsive audit, prototype-aligned visual cleanup, and CV-only/frontend security boundary checks. It keeps backend, API, database, worker, training, Docker, routes, and product docs out of scope, which matches `docs/phase.md` and `docs/ROADMAP.md`.
 
-Changes needed before implementation are narrow: make cleanup flow semantics explicit, and broaden frontend validation to match project quality gates for route/page work.
+One important gap needs tightening before implementation: toast/success-error feedback is scoped too narrowly compared with `docs/FRONTEND_UX.md` and Phase 31.
 
 ## Blocking issues
 
@@ -14,37 +14,24 @@ None.
 
 ## Important issues
 
-1. Frontend validation plan is too narrow for this route/page phase.
-
-   Evidence:
-   - `.context/plan.md` step 9 lists only `npm run test -- admin-page` or equivalent plus `npm run build`.
-   - `AGENTS.md` Quality Gate Selection for "Frontend route/page/control" requires typecheck, lint, build, route/component tests, and manual browser flow when available.
-   - `docs/TESTING_QA.md` frontend route and UI quality tests require `/admin` admin-only behavior, Ukrainian text, loading/error/empty states, layout quality, and absolute-path suppression.
-
-   Required change:
-   - Add configured frontend lint/typecheck commands when available, or record `not available yet`.
-   - Add a manual browser smoke for `/admin` when app/browser tooling is available, focused on admin-only access, responsive table/card layout, loading/error/empty states, and no raw `null`/absolute paths.
-
-2. Storage cleanup behavior is under-specified.
-
-   Evidence:
-   - `docs/phase.md` requires a "storage cleanup action".
-   - `docs/API.md` defines `POST /api/admin/storage/cleanup` and requires safe cleanup that does not delete active model weights or recent user results accidentally.
-   - `docs/AUTH_SECURITY.md` says cleanup must be conservative and respect database references and soft deletion.
-   - `.context/plan.md` step 5 says "Prefer dry-run/preview before destructive cleanup if UI includes both", leaving open whether Phase 30 implements actual cleanup, dry-run only, or both.
-
-   Required change:
-   - Specify one exact UX path: recommended two-step flow is `dry_run: true` preview first, then explicit confirmation sends `dry_run: false`.
-   - Tests should assert the cleanup payload(s), response count rendering, success state, no storage paths displayed, and safe handling of API failure.
+1. Toast feedback requirement can be skipped by current plan wording.
+   - Evidence: `docs/phase.md` Phase 31 scope requires standardizing "status badges, buttons, forms, tables, cards, charts, skeletons, toasts, and empty states." `docs/FRONTEND_UX.md` Design Requirements says UI must "use toast notifications for success and errors."
+   - Plan risk: `.context/plan.md` Step 7 says "toasts or toast-like feedback where already present," which allows implementation to skip missing toast coverage when no existing toast is present.
+   - Required change: include an explicit audit/fix step for success/error toast or equivalent documented feedback on relevant frontend actions, especially login/register errors, upload/job creation, downloads, model/admin mutations, and cleanup where implemented. Keep visible text Ukrainian and avoid adding new product flows.
 
 ## Optional improvements
 
-- Make `.context/plan.md` step 11 concrete for component indexes: if implementation creates `frontend/src/pages/AdminPage.tsx` or a new admin API module and `frontend/index.md` tracks current contents, update that index; otherwise state no index update needed.
-- Add a lightweight prototype conformance check during code review: compare `/admin` against `prototype/admin.jsx` structure and current `index.css` visual system, without adding new dependencies.
+1. Manual smoke setup could be made less ambiguous.
+   - Evidence: `.context/plan.md` Step 13 requires route smoke for `/jobs/:jobId`, regular/admin visibility, and narrow viewport. Current research notes backend/live data availability is unknown.
+   - Improvement: during implementation, record whether route smoke used live backend data, seeded/mock test data, or route-level test harness data. This avoids overstating manual coverage.
+
+2. Risk placeholder should be recorded as an assumption.
+   - Evidence: user prompt contains `Risk level: <MEDIUM | HIGH>`, while `.context/research.md` assumes `MEDIUM`.
+   - Improvement: final implementation report should preserve that assumption unless user confirms `HIGH`.
 
 ## Questions for resolution
 
-- Should Phase 30 expose both cleanup preview and confirmed cleanup, or should it intentionally ship preview-only with wording that does not claim files were deleted?
+None blocking.
 
 ## Files consulted
 
@@ -57,8 +44,6 @@ None.
 - `.context/design.md`
 - `.context/plan.md`
 - `docs/FRONTEND_UX.md`
-- `docs/API.md`
+- `docs/PROJECT_CONTEXT.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
-- `C:/Users/Kotletka/.codex/skills/caveman/SKILL.md`
-- `C:/Users/Kotletka/.codex/skills/taste-skill/SKILL.md`

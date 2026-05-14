@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 import { ApiError, type AuthApi } from "../api/auth";
 import { tokenStorage } from "../auth/tokenStorage";
+import { Logo } from "../components/Logo";
 
 const baseUser = {
   id: "user-1",
@@ -91,6 +92,19 @@ describe("Phase 24 auth routes", () => {
     await userEvent.click(screen.getByRole("button", { name: "Увійти" }));
 
     expect(await screen.findByText("Невірний email або пароль.")).toBeInTheDocument();
+    expect(screen.getByText("Не вдалося увійти")).toBeInTheDocument();
+  });
+
+  it("uses Ukrainian visible product subtitles", () => {
+    render(<App authApi={authApi()} initialEntries={["/login"]} />);
+
+    expect(screen.getByText("Система комп'ютерного зору для аналізу медіафайлів")).toBeInTheDocument();
+    expect(screen.queryByText("CV subsystem")).not.toBeInTheDocument();
+
+    render(<Logo />);
+
+    expect(screen.getByText("Підсистема комп'ютерного зору")).toBeInTheDocument();
+    expect(screen.queryByText("CV subsystem")).not.toBeInTheDocument();
   });
 
   it("validates registration password length and maps disabled registration to Ukrainian notice", async () => {

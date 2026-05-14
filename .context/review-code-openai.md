@@ -1,12 +1,12 @@
-# Verdict: APPROVED_WITH_CHANGES
+# OpenAI Code Review - Phase 31
+
+## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Phase 30 implements the `/admin` frontend page with typed admin API helpers, admin-only route wiring, global stats, recent global jobs, shortcuts, two-step storage cleanup, basic users table, focused tests, and `frontend/index.md` update.
+Frontend label fixes are narrow and doc-aligned: remaining visible English labels in logo, dashboard model metrics, experiment precision/recall sections, and job detail tables were localized while preserving accepted technical labels such as `mAP`, `FPS`, `YOLO`, `CSV`, and `JSON`.
 
-Implementation matches the main Phase 30 architecture: frontend calls existing backend REST admin endpoints only, `/admin` stays wrapped in `AdminRoute`, regular-user route access is tested, cleanup requires dry-run preview before confirmed cleanup, and no backend/database/CV/training scope was added.
-
-One small but real UX contract issue remains: a touched admin error-state string includes English `backend API` in visible UI text.
+No source-level correctness, auth-boundary, storage-path, or CV-only wording regression found in changed frontend files. Two phase-contract gaps remain: toast feedback was not implemented/audited, and manual route smoke is only partial.
 
 ## Critical issues
 
@@ -14,10 +14,15 @@ None.
 
 ## Important issues
 
-1. Admin error state includes non-Ukrainian visible text.
-   - Evidence: `docs/FRONTEND_UX.md:37` requires visible frontend UI text to be Ukrainian; accepted technical labels are limited examples such as `FPS`, `mAP`, `JWT`, `YOLO`, `CSV`, `JSON`.
-   - Evidence: `frontend/src/pages/admin/AdminPageParts.tsx:90` renders `Перевірте з'єднання з backend API та повторіть запит.`
-   - Impact: Phase 30 mostly satisfies Ukrainian UI, but this touched error state does not fully satisfy the documented language gate. Suggested fix: use Ukrainian wording such as `API бекенду`.
+1. Toast feedback requirement remains unmet.
+   - Evidence: `docs/phase.md` Phase 31 scope requires standardizing "status badges, buttons, forms, tables, cards, charts, skeletons, toasts, and empty states"; `docs/FRONTEND_UX.md` Design Requirements says UI must use toast notifications for success and errors; `.context/review-plan-resolution.md` accepted this as an implementation contract.
+   - Evidence in code: `rg -n "toast|Toast" frontend/src` finds no toast component or toast usage. Existing feedback is inline error/success text only, for example `frontend/src/pages/JobDetailsPage.tsx`, `frontend/src/pages/ModelsPage.tsx`, `frontend/src/pages/admin/AdminPageParts.tsx`, and `frontend/src/pages/upload/UploadPageParts.tsx`.
+   - Impact: Phase 31 toast/success-error feedback contract is not completed. This is UX-contract drift, not a backend/security defect.
+
+2. Manual route smoke gate is partial, not complete.
+   - Evidence: `docs/phase.md` Phase 31 validation requires manual route smoke for login, registration, dashboard, upload, jobs, job details, models, experiments, and admin.
+   - Evidence: `.context/status.md` records browser screenshots only for `/login` desktop and `/register` mobile; protected route smoke used Vitest route harness with mocked API data, not browser/manual route smoke.
+   - Impact: Automated coverage is good, but phase validation cannot be marked fully complete for responsive/protected-route browser behavior.
 
 ## Optional issues
 
@@ -25,30 +30,24 @@ None.
 
 ## Quality gate assessment
 
-- `rtk git status --short`: inspected; Phase 30 frontend files plus planning/status context are changed, with new `frontend/src/api/admin.ts`, `frontend/src/pages/AdminPage.tsx`, `frontend/src/pages/admin/`, and `frontend/src/test/admin-page.test.tsx`.
-- `rtk git diff --stat`: inspected.
-- `rtk git diff`: inspected.
-- `npm run test -- admin-page`: PASS, 5 tests passed.
-- `npm test`: PASS, 50 tests passed.
-- `npm run lint`: PASS.
-- `npm run build`: PASS; Vite reported a chunk-size warning for `assets/index-6ORvIKs_.js` at 848.21 kB, not a failed gate.
-- Manual browser smoke: not run. `.context/status.md:17` reports it as unavailable because no live backend was running and browser control was unavailable in that implementation session.
+- `npm run lint` from `frontend/`: PASS.
+- `npm test` from `frontend/`: PASS, 8 test files and 51 tests.
+- `npm run build` from `frontend/`: PASS, with existing Vite chunk-size warning for `848.40 kB` JS chunk.
+- Manual browser smoke: PARTIAL. Login/register were browser-smoked per `.context/status.md`; protected routes covered by Vitest mocked route harness, not full manual browser smoke.
 
 ## Security/privacy assessment
 
-- Admin UI remains behind `AdminRoute` in `frontend/src/App.tsx:34-38`.
-- Admin API client calls only documented `/api/admin/*` endpoints in `frontend/src/api/admin.ts:10-26`.
-- Cleanup flow sends preview `{ dry_run: true }` and confirmed `{ dry_run: false }`, covered by `frontend/src/test/admin-page.test.tsx:193-211`.
-- Error-state test avoids raw backend detail and internal storage path display in `frontend/src/test/admin-page.test.tsx:179-190`.
-- No password, token, storage path, user-management mutation, training launch, or CV-control surface added in the reviewed Phase 30 code.
+Changed frontend source does not add backend calls, token handling, storage path display, admin visibility changes, or CV output semantics. Existing tests still assert no visible `frame_stride`, raw `null`, `undefined`, `C:\`, `/app/storage`, or unsafe storage strings on relevant pages.
+
+No secret, token, password, database password, or absolute storage path exposure found in changed source diff.
 
 ## Positive findings
 
-- Phase content matches `docs/phase.md:8-18` and `docs/FRONTEND_UX.md:321-337`: global stats, recent jobs, shortcuts, cleanup action, and basic users table are present.
-- API shapes align with backend schemas: `frontend/src/api/types.ts:265-329` matches `backend/app/schemas/admin.py:40-82`.
-- Two-step cleanup follows `.context/plan.md:29-34` and is implemented in `frontend/src/pages/admin/AdminPageParts.tsx:204-258`.
-- Tests cover admin data render, regular-user blocking, empty states, safe request error, and cleanup preview/confirm flow in `frontend/src/test/admin-page.test.tsx:136-211`.
-- `frontend/index.md:24` was updated for the new admin page, matching the plan's index update rule.
+- Ukrainian label fixes match `docs/FRONTEND_UX.md` visible-text rule.
+- `tracker behavior comparison` remains unchanged, matching the documented tracker-comparison wording.
+- Tests were added for the exact localization regressions fixed.
+- `frontend/index.md` update is appropriate because current frontend implementation summary changed to Phase 31.
+- No backend, database, API, worker, training, Docker, or product-contract source changes were introduced.
 
 ## Files consulted
 
@@ -58,27 +57,27 @@ None.
 - `docs/ROADMAP.md`
 - `docs/phase.md`
 - `docs/FRONTEND_UX.md`
-- `docs/API.md`
+- `docs/PROJECT_CONTEXT.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
+- `prototype/index.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
-- `prototype/admin.jsx`
-- `prototype/styles.css`
 - `frontend/index.md`
 - `frontend/package.json`
-- `frontend/src/App.tsx`
-- `frontend/src/api/admin.ts`
-- `frontend/src/api/client.ts`
-- `frontend/src/api/types.ts`
-- `frontend/src/auth/AdminRoute.tsx`
-- `frontend/src/layout/AppShell.tsx`
-- `frontend/src/pages/AdminPage.tsx`
-- `frontend/src/pages/admin/AdminPageParts.tsx`
-- `frontend/src/pages/jobs/jobFormatters.ts`
-- `frontend/src/test/admin-page.test.tsx`
-- `backend/app/api/admin.py`
-- `backend/app/schemas/admin.py`
+- `frontend/src/components/Logo.tsx`
+- `frontend/src/pages/DashboardPage.tsx`
+- `frontend/src/pages/ExperimentsPage.tsx`
+- `frontend/src/pages/JobDetailsPage.tsx`
+- `frontend/src/pages/experiments/ExperimentPageParts.tsx`
+- `frontend/src/pages/experiments/experimentPageUtils.ts`
+- `frontend/src/test/auth-routes.test.tsx`
+- `frontend/src/test/dashboard.test.tsx`
+- `frontend/src/test/experiments-page.test.tsx`
+- `frontend/src/test/job-details-page.test.tsx`
+- `rtk git status --short`
+- `rtk git diff --stat`
+- `rtk git diff` excluding forbidden independent code-review files

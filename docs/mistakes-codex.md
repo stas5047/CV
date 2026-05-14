@@ -1,5 +1,12 @@
 # Codex Mistake Log
 
+## 2026-05-15 - Playwright module smoke attempt used unavailable `npx --package` path
+
+- Mistake: Tried to run a browser-smoke helper through `npx --package playwright node`, but this environment did not expose the Playwright package to `require("playwright")`.
+- Impact: Browser smoke did not run from that attempt and cost a verification step.
+- Fix: Stopped the browser-smoke attempt after the user explicitly said browser checks are user-owned for this pass.
+- Prevention: In this environment, do not assume `npx --package` exposes Playwright to arbitrary Node scripts. Use the project test runner or skip browser checks when the user owns them.
+
 ## 2026-05-15 - Phase 29 frontend Ukrainian text was committed as mojibake
 
 - Mistake: Phase 29 `/experiments` visible Ukrainian strings and test expectations were corrupted into mojibake, and tests imported the implementation empty-state constant instead of asserting the docs literal.

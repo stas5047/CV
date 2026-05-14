@@ -176,11 +176,17 @@ describe("Phase 29 experiments page", () => {
     expect(screen.getAllByText("YOLO26s-seraphim-v1").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Recharts").length).toBeGreaterThan(0);
     expect(screen.getAllByText("FPS / latency").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Точність / повнота / mAP" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Precision / Recall / mAP" })).not.toBeInTheDocument();
     expect(screen.getAllByText(DOCS_REQUIRED_EXPERIMENT_EMPTY_TEXT).length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole("button", { name: "Поріг впевненості" }));
     expect(screen.getByText("0.25")).toBeInTheDocument();
     expect(screen.getByText("0.70")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Точність" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Повнота" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Precision" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Recall" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "tracker behavior comparison" }));
     expect(screen.getByRole("heading", { name: "tracker behavior comparison" })).toBeInTheDocument();

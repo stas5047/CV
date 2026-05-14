@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { activateModel, listModels, registerModel } from "../api/models";
 import { useAuth } from "../auth/useAuth";
+import { useToast } from "../components/toast";
 import { Button } from "../components/ui/button";
 import {
   EmptyState,
@@ -24,6 +25,7 @@ import {
 export function ModelsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<ModelFormState>(emptyModelForm);
   const [formError, setFormError] = useState<string | null>(null);
@@ -43,9 +45,12 @@ export function ModelsPage() {
       setShowForm(false);
       setFormError(null);
       await queryClient.invalidateQueries({ queryKey: ["models"] });
+      toast({ variant: "success", title: "Модель зареєстровано", description: "Реєстр моделей оновлено." });
     },
     onError: () => {
-      setFormError("Не вдалося зареєструвати модель. Перевірте поля та повторіть запит.");
+      const message = "Не вдалося зареєструвати модель. Перевірте поля та повторіть запит.";
+      setFormError(message);
+      toast({ variant: "error", title: "Реєстрація моделі не вдалася", description: "Перевірте поля форми." });
     },
   });
 
@@ -57,9 +62,12 @@ export function ModelsPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["models"] });
+      toast({ variant: "success", title: "Модель активовано", description: "Активну модель оновлено." });
     },
     onError: () => {
-      setActivationError("Не вдалося активувати модель. Перевірте права доступу та повторіть запит.");
+      const message = "Не вдалося активувати модель. Перевірте права доступу та повторіть запит.";
+      setActivationError(message);
+      toast({ variant: "error", title: "Активація не вдалася", description: "Перевірте права доступу." });
     },
     onSettled: () => setActivatingId(null),
   });
@@ -69,6 +77,7 @@ export function ModelsPage() {
     setFormError(null);
     if (isUnsafeRelativePath(form.weights_path)) {
       setFormError(UNSAFE_PATH_ERROR);
+      toast({ variant: "error", title: "Шлях до ваг некоректний" });
       return;
     }
     registerMutation.mutate(modelPayload(form));

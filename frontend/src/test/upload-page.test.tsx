@@ -208,6 +208,7 @@ describe("Phase 26 upload page", () => {
     await userEvent.click(screen.getByRole("button", { name: "Запустити обробку" }));
 
     await screen.findByText("Обробку завершено успішно");
+    expect(screen.getByText("Завдання створено")).toBeInTheDocument();
     const mediaRequest = requests.find((request) => request.path === "/api/media");
     const jobRequest = requests.find((request) => request.path === "/api/jobs");
     expect(mediaRequest?.body).toBeInstanceOf(FormData);

@@ -201,6 +201,7 @@ describe("Phase 28 models page", () => {
       expect(within(screen.getByTestId("model-card-model-2")).getByText("Активна")).toBeInTheDocument();
       expect(within(screen.getByTestId("model-card-model-1")).queryByText("Активна")).not.toBeInTheDocument();
     });
+    expect(screen.getByText("Модель активовано")).toBeInTheDocument();
   });
 
   it("shows a safe Ukrainian error when model activation fails", async () => {

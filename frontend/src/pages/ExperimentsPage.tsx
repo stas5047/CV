@@ -72,7 +72,7 @@ export function ExperimentsPage() {
       <div className="space-y-5">
         {tab === "models" ? (
           <>
-            <SectionShell title="Precision / Recall / mAP" icon={<ChartSectionIcon />}>
+            <SectionShell title="Точність / повнота / mAP" icon={<ChartSectionIcon />}>
               <MetricCards cards={cards} />
             </SectionShell>
             <SectionShell title="Порівняння моделей" icon={<ChartSectionIcon />}>

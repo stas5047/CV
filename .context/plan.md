@@ -1,73 +1,117 @@
-# Plan - Phase 30 Frontend admin page
+# Phase 31 Implementation Plan
 
-1. `@role/developer-frontend` Add typed admin API helpers for existing endpoints.
-   - Scope: frontend API layer only.
-   - Use `apiRequest`.
-   - Cover stats, admin jobs, users, and storage cleanup.
-   - Verify by tests/mocks expecting exact `/api/admin/*` calls.
+## Scope
 
-2. `@role/developer-frontend` Add missing frontend admin response types if needed.
-   - Scope: `AdminUserListResponse`, `AdminJobListResponse`, `StorageCleanupRequest`, `StorageCleanupResponse`.
-   - Keep shapes aligned with backend schemas already present.
-   - Do not add fields absent from backend schema.
+Phase only: `Phase 31 - Frontend Ukrainian UX, responsive polish, and scope audit`.
 
-3. `@role/developer-frontend` Replace placeholder `/admin` page with real admin page.
-   - Render global stats from `GET /admin/stats`.
-   - Render recent global jobs from `GET /admin/jobs`.
-   - Render basic users table from `GET /admin/users`.
-   - Render model/experiment shortcut buttons linking to existing `/models` and `/experiments`.
-   - Keep all visible text Ukrainian.
-   - Do not add user-management mutation controls.
+Do not modify backend, database, API contracts, worker, training, Docker runtime, product docs, or routes. Use `prototype/` only as visual reference.
 
-4. `@role/developer-frontend` Implement admin page states.
-   - Loading: skeletons sized like stats/cards/tables.
-   - Error: safe Ukrainian error message plus retry.
-   - Empty: Ukrainian empty states for no jobs and no users.
-   - Success: cleanup result summary after cleanup request.
-   - Verify no raw `null` or `undefined` renders.
+## Ordered Atomic Plan
 
-5. `@role/developer-frontend` Implement conservative cleanup UI.
-   - Use required two-step flow: preview first, then confirmed cleanup.
-   - Preview button sends `POST /api/admin/storage/cleanup` with `{ dry_run: true }`.
-   - Confirmed cleanup is enabled only after preview and explicit confirmation, then sends `{ dry_run: false }`.
-   - Show backend response counts only.
-   - Do not display storage paths.
-   - Do not claim active models/results are deleted.
+1. `@role/developer-frontend` - Inventory production routes and prototype screens.
+   - Verify `frontend/src/App.tsx` routes match required docs routes.
+   - Map each production page to its prototype file.
+   - Verifiable by route-to-file checklist in implementation notes or final report.
 
-6. `@role/developer-frontend` Match prototype-driven layout and existing design system.
-   - Use dark dashboard card/table style from `prototype/admin.jsx` and current `index.css`.
-   - Use installed Radix icons only.
-   - Use Tailwind CSS v3-compatible classes.
-   - Keep responsive grid collapse for laptop/narrow screens.
+2. `@role/developer-frontend` - Audit visible text.
+   - Search route/page/component files for user-facing strings.
+   - Keep Ukrainian text for labels, buttons, headings, errors, empty states, toasts, and table headings where practical.
+   - Keep only documented technical labels such as `FPS`, `mAP`, `YOLO`, `CSV`, `JSON`, plus field labels required by docs when clearer.
+   - Verifiable by targeted `rg` review and frontend tests.
 
-7. `@role/developer-frontend` Wire route import.
-   - Point `frontend/src/App.tsx` at real admin page.
-   - Remove only obsolete placeholder export if no longer used.
-   - Preserve `AdminRoute` and `AppShell` behavior.
+3. `@role/developer-frontend` - Audit CV-only wording.
+   - Search frontend visible text for targeting, interception, navigation, geolocation, payload, aiming, flight-control, or hardware-control language.
+   - Replace any found user-facing text with CV-only image-space wording from docs.
+   - Verifiable by targeted `rg` scan and route smoke.
 
-8. `@role/tester` Add focused frontend tests for Phase 30.
-   - Admin sees page data from admin APIs.
-   - Regular user is forbidden and admin nav stays hidden.
-   - Empty jobs/users render empty states.
-   - API failure shows safe Ukrainian error, not raw backend detail.
-   - Cleanup preview posts `{ dry_run: true }` and shows response summary.
-   - Confirmed cleanup posts `{ dry_run: false }` only after explicit confirmation and shows response summary.
-   - Cleanup API failure shows safe Ukrainian error.
-   - Container does not contain `null`, `undefined`, `C:\`, `/app/`, `/storage/`, or raw token-like values from mocks.
+4. `@role/developer-frontend` - Audit unsafe display.
+   - Ensure pages use existing safe text/format helpers before rendering filenames, model names, error messages, paths, artifact values, and backend details.
+   - Ensure raw `null`, `undefined`, `frame_stride`, `C:\`, `/app/storage`, and `/storage/` do not appear in UI.
+   - Verifiable by existing and updated tests.
 
-9. `@role/tester` Run relevant quality gates.
-   - `npm run test -- admin-page` or equivalent targeted Vitest command: expected PASS.
-   - `npm run lint`: expected PASS.
-   - `npm run build`: expected PASS.
-   - Manual browser smoke for `/admin` when app/browser tooling is available: expected PASS.
-   - If a command/tool is unavailable, report `not available yet` with reason.
-   - Backend tests: not run / not required unless frontend implementation reveals API mismatch.
+5. `@role/developer-frontend` - Standardize formatting helpers where pages drift.
+   - Align date, duration, confidence, percentage, FPS, count, and bounding-box display across dashboard, jobs, details, models, experiments, and admin.
+   - Do not change API payloads.
+   - Verifiable by unit/route tests and manual screenshots.
 
-10. `@role/code-reviewer` Review changed frontend files against docs.
-   - Check admin-only visibility, Ukrainian text, empty/loading/error states, no absolute paths, no raw nulls, no scope creep, no invented backend behavior, no out-of-scope CV wording.
-   - Verify design follows prototype and existing dashboard system.
-   - Compare `/admin` layout structure against `prototype/admin.jsx` and current `index.css` visual system without adding new dependencies.
+6. `@role/developer-frontend` - Standardize status badge behavior.
+   - Align job status badge labels, dot behavior, colors, and sizes with docs and prototype.
+   - Keep visible status text Ukrainian.
+   - Verifiable by status badge tests or page route assertions.
 
-11. `@role/docs-maintainer` Skip product doc updates.
-   - No commands, env vars, routes, product docs, or source-of-truth docs should change in this phase.
-   - If implementation creates `frontend/src/pages/AdminPage.tsx`, `frontend/src/api/admin.ts`, or otherwise changes frontend folder contents tracked by `frontend/index.md`, update `frontend/index.md`; otherwise record index update skipped.
+7. `@role/developer-frontend` - Standardize buttons/forms/tables/cards/skeletons/toasts/empty states.
+   - Use existing shadcn-style `Button`, `Input`, `.av-*` classes, and page part components.
+   - Match prototype density, borders, green accent, mono numeric data, compact tables, and small radius.
+   - Audit and fix success/error toast notifications or equivalent documented feedback for implemented actions, especially login/register errors, upload/job creation, downloads, model/admin mutations, and cleanup.
+   - Keep feedback text Ukrainian and avoid adding new product flows.
+   - Avoid new dependencies.
+   - Verifiable by browser smoke and frontend snapshot-free route tests.
+
+8. `@role/developer-frontend` - Audit auth and admin visibility.
+   - Verify guests see only auth/public routes.
+   - Verify regular users do not see admin navigation or admin mutation actions.
+   - Verify `/admin` still goes through `AdminRoute`.
+   - Verifiable by existing auth/admin tests plus any needed assertions.
+
+9. `@role/developer-frontend` - Audit loading/error/empty/forbidden/no-detection states.
+   - Confirm each required route has clear Ukrainian loading, error, and empty state.
+   - Confirm no-detection completed job is successful and keeps downloads when available.
+   - Confirm experiments use required empty-state text for missing sections.
+   - Verifiable by existing tests and focused additions where gaps appear.
+
+10. `@role/developer-frontend` - Audit responsive behavior.
+    - Check shell, mobile drawer, auth forms, metric grids, upload layout, tables, details page, charts, and admin panels at narrow and desktop widths.
+    - Prefer single-column mobile layouts and table horizontal scroll.
+    - Keep `min-h-[100dvh]` where full-height behavior exists.
+    - Verifiable by manual browser route smoke and CSS review.
+
+11. `@role/developer-frontend` - Apply minimal frontend fixes found by the audits.
+    - Modify only relevant existing frontend files and existing tests.
+    - Do not add routes, API calls, schema fields, product flows, or product docs.
+    - Verifiable by `git diff -- frontend`.
+
+12. `@role/tester` - Run frontend quality gates.
+    - `cd frontend; npm run lint`
+    - `cd frontend; npm test`
+    - `cd frontend; npm run build`
+    - Expected: PASS, except known Vite chunk-size warning may remain if build succeeds.
+
+13. `@role/tester` - Run manual route smoke.
+    - Check `/login`, `/register`, `/dashboard`, `/upload`, `/jobs`, `/jobs/:jobId`, `/models`, `/experiments`, and `/admin`.
+    - Include regular-user and admin visibility where practical.
+    - Include narrow viewport smoke.
+    - Record whether smoke used live backend data, seeded/mock test data, or route-level test harness data.
+    - Verifiable by manual notes in final implementation report.
+
+14. `@role/code-reviewer` - Scope and safety review.
+    - Compare diff against Phase 31 docs only.
+    - Confirm no backend/db/API/runtime/product-doc changes.
+    - Confirm no out-of-scope CV wording.
+    - Confirm no unsafe path/secret display.
+    - Confirm frontend remains based on prototype visual language.
+    - Verifiable by review notes and final verdict.
+
+15. `@role/docs-maintainer` - Documentation update decision.
+    - Product docs must not be changed for this phase unless implementation changes commands, env vars, documented file paths, or component indexes.
+    - Expected for Phase 31: docs updates skipped.
+    - Verifiable by `git diff -- docs frontend/index.md`.
+
+## Quality Gates
+
+- `cd frontend; npm run lint`
+- `cd frontend; npm test`
+- `cd frontend; npm run build`
+- Manual frontend route smoke for required routes.
+- Toast/success-error feedback audit.
+- Ukrainian UX audit.
+- Scope boundary audit.
+- Admin visibility audit.
+- Unsafe display audit for raw `null`, `undefined`, `frame_stride`, absolute paths, and storage internals.
+
+## Out Of Scope
+
+- Backend, database, API, worker, training, Docker runtime, deployment, or product docs changes.
+- New routes or product flows.
+- New API calls or schema fields.
+- Live camera, RTSP, targeting, navigation, interception, hardware control, or training-from-UI behavior.
+- Adding Framer Motion, GSAP, Three.js, or icon libraries not already installed.

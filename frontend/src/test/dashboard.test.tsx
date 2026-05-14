@@ -114,6 +114,10 @@ describe("Phase 25 dashboard", () => {
     expect(screen.getAllByText("12").length).toBeGreaterThan(0);
     expect(screen.getByText("81,2%")).toBeInTheDocument();
     expect(screen.getAllByText("YOLO26s-v1.2").length).toBeGreaterThan(0);
+    expect(screen.getByText("Точність")).toBeInTheDocument();
+    expect(screen.getByText("Повнота")).toBeInTheDocument();
+    expect(screen.queryByText("Precision")).not.toBeInTheDocument();
+    expect(screen.queryByText("Recall")).not.toBeInTheDocument();
     expect(screen.getByText("patrol_footage_01.mp4")).toBeInTheDocument();
     expect(screen.queryByText("models/yolo26s-v1.2.pt")).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/admin/"))).toBe(false);

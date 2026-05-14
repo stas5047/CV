@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileIcon, ReloadIcon, RocketIcon, UploadIcon } from "@radix-ui/react-icons";
 import { createProcessingJob, getProcessingJob, listModelsForUpload, uploadMedia } from "../api/upload";
 import type { JobCreateRequest, JobDetail, MediaResponse, TrackerType } from "../api/types";
+import { useToast } from "../components/toast";
 import { Button } from "../components/ui/button";
 import { cn } from "../lib/utils";
 import { FilePreview, JobStatusPanel, ModelSelector, SliderField } from "./upload/UploadPageParts";
@@ -28,6 +29,7 @@ export function UploadPage() {
   const [iou, setIou] = useState(DEFAULT_IOU);
   const [tracker, setTracker] = useState<TrackerType>("bytetrack");
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const { toast } = useToast();
 
   const modelsQuery = useQuery({
     queryKey: ["upload", "models"],
@@ -75,17 +77,24 @@ export function UploadPage() {
         throw Object.assign(error instanceof Error ? error : new Error("job failed"), { step: "job" });
       });
     },
-    onSuccess: setCreatedJob,
+    onSuccess: (job) => {
+      setCreatedJob(job);
+      toast({ variant: "success", title: "Завдання створено", description: "Статус обробки оновлюється на сторінці." });
+    },
     onError: (error) => {
       const step = (error as Error & { step?: "media" | "job" }).step ?? "job";
-      setSubmitError(safeSubmitError(step));
+      const message = safeSubmitError(step);
+      setSubmitError(message);
+      toast({ variant: "error", title: "Обробку не запущено", description: "Перевірте файл або параметри." });
     },
   });
 
   const acceptFile = (candidate: File | undefined) => {
     if (!candidate) return;
     if (!ALL_EXTENSIONS.includes(extensionOf(candidate.name))) {
-      setValidationError("Формат файлу не підтримується.");
+      const message = "Формат файлу не підтримується.";
+      setValidationError(message);
+      toast({ variant: "error", title: "Файл відхилено" });
       setFile(null);
       setUploadedMedia(null);
       setCreatedJob(null);

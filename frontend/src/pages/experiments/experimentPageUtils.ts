@@ -40,8 +40,8 @@ export type PerformanceRow = {
 };
 
 const modelMetricLabels = [
-  { label: "Precision", keys: ["precision"] },
-  { label: "Recall", keys: ["recall"] },
+  { label: "Точність", keys: ["precision"] },
+  { label: "Повнота", keys: ["recall"] },
   { label: "mAP@50", keys: ["map50", "mAP50", "map_50", "mAP@0.5", "mAP@50"] },
   { label: "mAP@50-95", keys: ["map50_95", "map_50_95", "mAP50_95", "mAP@0.5:0.95", "mAP@50-95"] },
 ];
@@ -146,8 +146,8 @@ export function modelComparisonRows(runs: ExperimentRun[]): ModelComparisonRow[]
 export function precisionRecallCards(runs: ExperimentRun[]) {
   const primary = runs[1] ?? runs[0];
   return [
-    { label: "Precision", value: metricValue(primary, ["precision"]) },
-    { label: "Recall", value: metricValue(primary, ["recall"]) },
+    { label: "Точність", value: metricValue(primary, ["precision"]) },
+    { label: "Повнота", value: metricValue(primary, ["recall"]) },
     { label: "mAP@50", value: metricValue(primary, ["map50", "mAP@50"]) },
     { label: "mAP@50-95", value: metricValue(primary, ["map50_95", "mAP@50-95"]) },
   ];

@@ -4,6 +4,7 @@ import { ReloadIcon } from "@radix-ui/react-icons";
 import { ApiError } from "../api/auth";
 import { useAuth } from "../auth/useAuth";
 import { Alert } from "../components/Alert";
+import { useToast } from "../components/toast";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { AuthLayout } from "./AuthLayout";
@@ -21,6 +22,7 @@ function registerErrorMessage(error: unknown) {
 export function RegisterPage() {
   const { authApi } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -31,23 +33,32 @@ export function RegisterPage() {
     event.preventDefault();
     setError("");
     if (!email) {
-      setError("Email є обов'язковим.");
+      const message = "Email є обов'язковим.";
+      setError(message);
+      toast({ variant: "error", title: "Форма неповна" });
       return;
     }
     if (password.length < 8) {
-      setError("Мінімум 8 символів.");
+      const message = "Мінімум 8 символів.";
+      setError(message);
+      toast({ variant: "error", title: "Пароль закороткий" });
       return;
     }
     if (password !== confirm) {
-      setError("Паролі не збігаються.");
+      const message = "Паролі не збігаються.";
+      setError(message);
+      toast({ variant: "error", title: "Перевірте пароль" });
       return;
     }
     setLoading(true);
     try {
       await authApi.register(email, password);
+      toast({ variant: "success", title: "Акаунт створено", description: "Тепер увійдіть з новими даними." });
       navigate("/login", { replace: true });
     } catch (err) {
-      setError(registerErrorMessage(err));
+      const message = registerErrorMessage(err);
+      setError(message);
+      toast({ variant: "error", title: "Не вдалося зареєструватися", description: "Перевірте дані форми." });
     } finally {
       setLoading(false);
     }

@@ -1,14 +1,15 @@
-# Code Review Resolution - Phase 30 Frontend admin page
+# Phase 31 Code Review Resolution
 
 ## Verdict: FIXED
 
-OpenAI review verdict was `APPROVED_WITH_CHANGES`. Claude code review file is not present. One important issue is accepted. No critical, optional, duplicate, or user-decision items were found.
+No review item needs user decision. Accepted source fixes are limited to Phase 31 toast/success-error feedback. Browser checks were explicitly moved out of this pass by current user instruction.
 
 ## Resolution table
 
-| ID | Source | Priority | Review item | Resolution | Fix decision |
-|---|---|---:|---|---|---|
-| I1 | `.context/review-code-openai.md` | important | Admin error state contains visible English text `backend API`, conflicting with Ukrainian UI rule. | accepted | Replace visible phrase with Ukrainian wording while keeping technical API meaning. |
+| Priority | Source | Item | Resolution | Reason |
+|---|---|---|---|---|
+| important | OpenAI | Toast feedback requirement remains unmet. | accepted | `docs/FRONTEND_UX.md`, `docs/phase.md`, and `.context/review-plan-resolution.md` require toast notifications or equivalent success/error feedback audit. No product-doc conflict. |
+| important | OpenAI | Manual route smoke gate is partial. | rejected | Superseded by current user instruction on 2026-05-15: browser checks are user-owned and must be skipped in this pass. No source change applies. |
 
 ## Accepted critical fixes
 
@@ -16,7 +17,7 @@ None.
 
 ## Accepted important fixes
 
-- I1: Replace non-Ukrainian visible admin error copy in `frontend/src/pages/admin/AdminPageParts.tsx`.
+- Add low-risk frontend toast infrastructure and use it for implemented success/error actions where mutations or downloads already exist.
 
 ## Accepted optional fixes
 
@@ -24,7 +25,7 @@ None.
 
 ## Rejected items
 
-None.
+- Manual/browser route smoke review item: current user instruction explicitly says to skip browser checks and user will perform them.
 
 ## Duplicate items
 
@@ -36,15 +37,16 @@ None.
 
 ## Fixes applied
 
-- Replaced `backend API` visible copy with `API бекенду` in `frontend/src/pages/admin/AdminPageParts.tsx`.
-- Left unrelated `frontend/src/pages/DashboardPage.tsx` wording unchanged because it was outside the accepted Phase 30 review item.
+- Added frontend toast provider and `useToast` hook.
+- Wrapped the React app in the toast provider.
+- Added success/error toast feedback for implemented auth, upload, model registration/activation, result download, and admin cleanup actions.
+- Added focused frontend regression assertions for representative toast feedback.
+- Updated `frontend/index.md` current-state notes for toast support.
+- Browser/manual route smoke was not run because the user explicitly moved that check outside this pass.
 
 ## Final verification
 
-- `rg "backend API" frontend/src/pages/admin frontend/src/pages/AdminPage.tsx`: PASS, no admin-page matches.
-- `rg "API бекенду" frontend/src/pages/admin/AdminPageParts.tsx`: PASS, fixed copy present.
-- `cd frontend; npm run test -- admin-page`: PASS, 5 tests passed.
-- `cd frontend; npm test`: PASS, 50 tests passed.
 - `cd frontend; npm run lint`: PASS.
-- `cd frontend; npm run build`: PASS with Vite chunk-size warning only.
-- Manual browser smoke: not run; no live backend/admin auth flow was available in this final-fix turn.
+- `cd frontend; npm test`: PASS, `8 passed`, `51 passed`.
+- `cd frontend; npm run build`: PASS. Vite emitted a non-failing chunk-size warning for `852.83 kB` JS chunk.
+- Browser/manual route smoke: skipped by current user instruction; user will perform browser checks.

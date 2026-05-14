@@ -1,122 +1,144 @@
-# Design - Phase 30 Frontend admin page
+# Phase 31 Design
 
-## Phase goal
+## Phase Goal
 
-Implement the `/admin` frontend page only. Page must be admin-only, use existing backend REST admin endpoints, follow `@prototype` admin layout/style, show global stats, recent global jobs, model/experiment shortcuts, conservative storage cleanup UI, and basic users table.
+Make the production frontend coherent, Ukrainian, polished, responsive, based on the `prototype/` visual reference, and within the documented CV-only scope.
 
-## Intended behavior from docs
+## Intended Behavior From Docs
 
 Confirmed:
 
-- `/admin` is required route and admin-only page.
-- Guests must be redirected by protected routing.
-- Regular users must not see admin navigation and must not access `/admin`.
-- Admin page content:
-  - global processing statistics;
-  - recent jobs from all users;
-  - model management shortcuts;
-  - storage cleanup action;
-  - basic users table.
-- Complex user management is out of scope.
-- Backend remains authorization source of truth.
-- Visible UI text must be Ukrainian.
-- Empty, loading, error, forbidden, and success states must be clear.
-- No raw `null`, `undefined`, unsafe absolute filesystem paths, secrets, or tokens should be shown.
-- UI must stay inside CV-only boundary and must not imply targeting, navigation, interception, or hardware control.
+- All visible frontend UI text must be Ukrainian.
+- Accepted technical labels such as `FPS`, `mAP`, `YOLO`, `CSV`, and `JSON` remain readable.
+- Required frontend routes remain `/login`, `/register`, `/dashboard`, `/upload`, `/jobs`, `/jobs/:jobId`, `/models`, `/experiments`, and `/admin`.
+- Protected routes redirect guests to login.
+- Admin route and admin navigation/actions are visible only to admins.
+- UI must use polished dashboard components, not raw debug panels.
+- UI must use Tailwind CSS and shadcn/ui components.
+- UI must use Recharts for frontend charts.
+- UI must include loading, error, empty, forbidden, and no-detection states.
+- UI must not display raw `null` values.
+- UI must not display unsafe absolute filesystem paths.
+- UI must not expose `frame_stride` in the standard UI.
+- UI must not present CV outputs as targeting, navigation, interception, hardware-control, or engagement instructions.
+- Completed no-detection jobs are successful results, with Ukrainian empty state.
+- Experiment sections without data must show the exact documented Ukrainian empty-state text from `docs/FRONTEND_UX.md`.
 
 Assumptions:
 
-- Recent global jobs can use `GET /api/admin/jobs?limit=6` or similar small limit.
-- Basic users table can use `GET /api/admin/users?limit=50`.
-- Cleanup action uses existing `POST /api/admin/storage/cleanup` in an explicit two-step flow: preview sends `{ dry_run: true }`; confirmed cleanup sends `{ dry_run: false }`.
-- Cleanup UI should present counts from backend response, not invent file lists.
+- Prototype visual styling is authoritative for look and feel only: dark compact dashboard shell, narrow sidebar, dense data tables, restrained green accent, compact cards, clear skeletons, badges, toasts, forms, progress bars, and responsive mobile drawer.
+- Existing production API client calls and route flows remain unchanged.
+- Phase 31 should prefer consolidating existing presentation/formatting patterns over adding new product features.
 
-## Architecture decisions
+## Architecture Decisions
 
-- Keep implementation in frontend only.
-- Use TanStack Query for admin stats, jobs, and users, matching existing dashboard/jobs pages.
-- Use existing `apiRequest` so JWT header and API base URL handling stay centralized.
-- Add typed API wrappers for admin endpoints if needed, matching existing `frontend/src/api/*` pattern.
-- Reuse existing UI patterns:
-  - `av-card`, `av-label`, `av-skeleton`;
-  - shadcn-style `Button`;
-  - Radix icons from installed `@radix-ui/react-icons`;
-  - job `StatusBadge`, `MediaIcon`, and formatters where practical.
-- Base visual layout on `prototype/admin.jsx`:
-  - compact metric row;
-  - main grid with recent jobs and admin action rail;
-  - cleanup confirmation block;
-  - users table.
-- Respect design skill constraints:
-  - Tailwind v3 syntax only;
-  - no new dependency imports unless already installed;
-  - no emoji;
-  - no Framer Motion unless installed and needed, which it is not;
-  - avoid `h-screen`; existing shell uses `min-h-[100dvh]`;
-  - no purple/blue glow aesthetic; keep existing dark neutral + green accent.
+- Keep production stack as React + TypeScript + Vite + Tailwind CSS v3 + shadcn/ui + React Router + TanStack Query + Recharts.
+- Use `@radix-ui/react-icons`, because it is already installed. Do not add `@phosphor-icons/react`.
+- Do not add Framer Motion, GSAP, Three.js, or other motion libraries in this phase. Existing CSS transitions, `animate-pulse`, and skeleton shimmer are sufficient and align with current dependency set.
+- Use prototype tokens as the visual baseline, but implement them through `frontend/src/index.css`, Tailwind utilities, and existing shadcn-style primitives.
+- Keep browser-visible product behavior driven by docs and backend API contracts, not prototype mock data.
+- Keep `frontend/src/App.tsx` route structure unchanged unless review finds an existing route guard bug.
+- Prefer existing files and existing test files. Do not create new routes or product surfaces.
+- Deduplicate shared UX primitives only when it reduces inconsistent badges, cards, skeletons, or empty states without changing API behavior.
+- Keep high-density dashboard design compact and scan-friendly. Avoid marketing hero layouts.
+- Keep mobile layouts single-column or horizontally scrollable for data tables; avoid layout shifts and viewport `h-screen`.
 
-## Backend impact
+## Backend Impact
 
-- No backend source changes planned.
-- Frontend consumes already implemented admin API routes only.
+- None planned.
+- Backend remains authorization authority.
+- No backend routes, response schemas, auth behavior, upload rules, or download behavior should change in this phase.
 
-## Frontend impact
+## Frontend Impact
 
-- Replace `/admin` placeholder with real admin page.
-- Add admin API client functions and missing frontend response types if needed.
-- Add admin page tests for data, empty/loading/error, cleanup interaction, and route visibility.
-- Keep admin navigation/guard behavior already implemented.
+- Touched surface is frontend route/page/control polish, tests, and possibly shared styling.
+- Audit all pages for Ukrainian text, safe placeholders, hidden admin controls, safe errors, no raw paths, no `frame_stride`, and no out-of-scope CV wording.
+- Standardize page-level components:
+  - status badges;
+  - buttons;
+  - forms;
+  - tables;
+  - cards;
+  - charts;
+  - skeletons;
+  - toast notifications or equivalent documented success/error feedback for implemented user actions;
+  - empty/error states.
+- Standardize data formatting:
+  - date;
+  - duration;
+  - confidence;
+  - percentage;
+  - bounding box;
+  - missing data placeholder.
+- Align production styles with prototype:
+  - dark off-black background;
+  - compact sidebar;
+  - green accent;
+  - restrained borders;
+  - small-radius cards;
+  - mono numeric data;
+  - compact table rows;
+  - clear mobile drawer and table scrolling.
 
-## DB impact
+## Database Impact
 
-- No DB changes.
-- Cleanup semantics remain backend-owned.
+- None planned.
+- No schema, migration, seed, or database helper changes.
 
-## API impact
+## API Impact
 
-- No API contract changes.
-- Consumed endpoints:
-  - `GET /api/admin/stats`
-  - `GET /api/admin/jobs`
-  - `GET /api/admin/users`
-  - `POST /api/admin/storage/cleanup`
+- None planned.
+- No endpoint additions or payload changes.
+- Existing frontend API calls may be reused only as already implemented.
 
-## Security/privacy impact
+## Security And Privacy Impact
 
-- Admin page must rely on backend authorization and not treat hidden UI as security.
-- Regular users must still be blocked by `AdminRoute`; backend still rejects direct API calls.
-- Cleanup action wording must be conservative and not claim deletion beyond backend response.
-- Cleanup UI must require preview before confirmed cleanup and must show only response counts/categories, not file names or storage paths.
-- Do not display internal storage paths, passwords, tokens, password hashes, DB passwords, JWT secrets, or raw backend error details.
-- Do not add user management controls.
+- Touched through frontend display and visibility only.
+- Frontend must not reveal unsafe absolute paths, raw stack traces, tokens, secrets, database passwords, or backend storage internals.
+- Frontend must hide admin navigation and admin mutation actions from regular users.
+- Frontend route guard must still reject non-admin users from `/admin`, while backend remains source of truth.
+- Error messages shown to users must be safe Ukrainian summaries.
+- UI must not show text that implies targeting, navigation, interception, payload, geolocation, or hardware-control behavior.
 
-## Test strategy
+## Test Strategy
 
-Frontend checks relevant to touched surface:
+Relevant automated checks:
 
-- Add focused admin page test(s):
-  - admin route renders global stats/jobs/users from `/api/admin/*`;
-  - regular user cannot access `/admin`;
-  - empty admin jobs/users render Ukrainian empty states;
-  - failed admin request shows safe Ukrainian error and retry;
-  - cleanup preview posts `{ dry_run: true }`;
-  - confirmed cleanup posts `{ dry_run: false }` only after explicit confirmation;
-  - cleanup response counts and success/error states render without storage paths;
-  - page does not render `null`, `undefined`, or absolute paths from mocked data.
-- Run:
-  - `npm run test -- admin-page`
-  - `npm run lint`
-  - `npm run build`
-- Manual browser smoke when app/browser tooling is available:
-  - admin can view `/admin`;
-  - regular user is blocked;
-  - responsive stats/table/action layout matches prototype structure;
-  - loading, error, empty, cleanup preview, and cleanup success states remain Ukrainian and do not show raw `null` or absolute paths.
-- If test name filtering is not supported by npm script, run targeted Vitest file directly or `npm run test`.
-- Backend tests not required because backend is not modified.
+- `cd frontend; npm run lint`
+- `cd frontend; npm test`
+- `cd frontend; npm run build`
 
-## Ambiguities or conflicts
+Relevant focused test additions or updates:
 
-- No doc conflict found between `docs/phase.md`, `docs/ROADMAP.md`, `docs/FRONTEND_UX.md`, `docs/API.md`, `docs/AUTH_SECURITY.md`, and `docs/TESTING_QA.md` for Phase 30.
-- User prompt placeholders for phase title and risk are unresolved. Current phase is taken from `docs/phase.md`; risk treated as assumption.
-- Prototype text appears mojibake through terminal, but production frontend files already use same encoded Ukrainian convention. Implementation should preserve app-visible Ukrainian behavior and avoid changing encoding policy during this phase.
+- Ukrainian visible text audit assertions for pages where English labels are not documented technical terms.
+- Raw `null`, `undefined`, `frame_stride`, `C:\`, `/app/storage`, and `/storage/` non-display assertions for pages touched by polish.
+- Admin visibility assertions for shell navigation and admin actions.
+- Empty/loading/error/no-detection state assertions where components change.
+- Responsive behavior is primarily manual/browser verification unless an existing test can assert structure without brittle layout checks.
+
+Manual/browser checks:
+
+- Login route.
+- Registration route, including disabled-registration state where practical.
+- Dashboard route for user and admin data shapes.
+- Upload route, including invalid file and processing status states.
+- Jobs route with empty and filtered states.
+- Job details route with completed, processing, failed, video-preview-unavailable, and no-detection states.
+- Models route for regular user and admin.
+- Experiments route with missing metrics and charts.
+- Admin route for admin only.
+- Narrow viewport smoke for shell, tables, forms, and cards.
+- Manual smoke notes must record data source: live backend data, seeded/mock test data, or route-level test harness data.
+
+Baseline results from research:
+
+- `npm run lint` PASS.
+- `npm test` PASS, 8 files and 50 tests.
+- `npm run build` PASS, with Vite chunk-size warning.
+
+## Ambiguities Or Conflicts
+
+- No docs conflict found between `docs/phase.md` and `docs/ROADMAP.md` for Phase 31.
+- Ambiguity: user risk level was placeholder only. Assumed `MEDIUM`.
+- Ambiguity: whether `CV subsystem`, `Precision`, `Recall`, `Bounding box`, and `Track ID` count as accepted technical labels. Resolve during Phase 31 audit by preferring Ukrainian labels unless docs require exact English wording.
+- Ambiguity: exact prototype fidelity target. Use prototype for layout, density, color, and component behavior, but do not copy mock-only behavior or treat prototype data/actions as product contract.

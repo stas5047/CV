@@ -7,7 +7,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
       {!compact && (
         <div>
           <div className="font-display text-base font-bold leading-none">AeroVision</div>
-          <div className="mt-1 text-[11px] text-muted-foreground">CV subsystem</div>
+          <div className="mt-1 text-[11px] text-muted-foreground">Підсистема комп'ютерного зору</div>
         </div>
       )}
     </div>

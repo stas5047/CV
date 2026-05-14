@@ -1,37 +1,37 @@
-## Phase 30 - Frontend admin page
+## Phase 31 - Frontend Ukrainian UX, responsive polish, and scope audit
 
-**Direction:** Frontend / Admin  
-**Goal:** Implement admin-only UI for global stats, global jobs, users, shortcuts, and cleanup.
+**Direction:** Frontend / QA  
+**Goal:** Make the frontend coherent, Ukrainian, polished, responsive, and within documented scope.
 
 ### Scope
 
-- Implement `/admin` page.
-- Restrict route to admin users in frontend routing.
-- Display global processing statistics.
-- Display recent jobs from all users.
-- Display model management shortcuts.
-- Display safe storage cleanup action.
-- Display basic users table.
-- Do not implement complex user management unless explicitly approved later.
-- Add Ukrainian loading, error, empty, and success states.
-- Ensure backend remains the source of truth for authorization.
+- Audit all user-facing text for Ukrainian language.
+- Ensure accepted technical labels such as `FPS`, `mAP`, `YOLO`, `CSV`, and `JSON` remain readable.
+- Standardize status badges, buttons, forms, tables, cards, charts, skeletons, toasts, and empty states.
+- Standardize date, duration, confidence, percentage, and bounding-box formatting.
+- Ensure raw `null` is never displayed.
+- Ensure absolute filesystem paths are never displayed.
+- Ensure `frame_stride` is not visible in standard UI.
+- Ensure admin buttons and navigation are hidden from regular users.
+- Ensure no frontend text presents CV outputs as targeting, navigation, or interception instructions.
+- Verify responsiveness for desktop and laptop screens, and reasonable behavior on narrower screens.
+- Add or update frontend tests where practical.
 
 ### Relevant docs
 
 - `docs/FRONTEND_UX.md`
-- `docs/API.md`
+- `docs/PROJECT_CONTEXT.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Admin navigation appears only for admins.
-- Regular users cannot access `/admin`.
-- Admin page loads global stats/jobs/users.
-- Cleanup action is clear and conservative in UI wording.
-- Empty lists show Ukrainian empty states.
-- Frontend build passes.
+- Frontend lint/typecheck/build pass.
+- Manual route smoke passes for login, registration, dashboard, upload, jobs, job details, models, experiments, and admin.
+- Ukrainian UX audit passes.
+- No out-of-scope UI actions are visible.
+- Empty, loading, error, forbidden, and no-detection states are clear.
 
 ### Commit
 
-`feat(frontend-admin): add admin dashboard and cleanup UI`
+`style(frontend): polish Ukrainian dashboard UX and scope boundaries`

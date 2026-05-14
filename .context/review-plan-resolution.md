@@ -1,49 +1,40 @@
-# Planning Review Resolution - Phase 30 Frontend admin page
+# Phase 31 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude review verdict was `APPROVED_WITH_CHANGES`. All review items were resolved. No item conflicts with product docs. No source code was modified.
+Claude's planning review has no blocking issues and no questions requiring user decision. Accepted contract changes are limited to Phase 31 frontend UX/testing scope.
 
-## Resolution table
+## Resolution Table
 
-| ID | Claude item | Resolution | Contract update |
-|---|---|---|---|
-| I1 | Frontend validation plan too narrow for route/page phase. | accepted | Added `npm run lint`, retained `npm run build` because it includes `tsc -b`, added manual browser smoke when tooling is available, and required `not available yet` reporting for unavailable gates. |
-| I2 | Storage cleanup behavior under-specified. | accepted | Contract now requires two-step cleanup: preview with `{ dry_run: true }`, then explicit confirmed cleanup with `{ dry_run: false }`; tests must assert payloads, counts, safe errors, and no storage paths. |
-| O1 | Make component-index update rule concrete. | accepted | Plan now says update `frontend/index.md` if new frontend page/API files or tracked folder contents change; otherwise record skipped. |
-| O2 | Add prototype conformance check. | accepted | Code-review step now requires comparing `/admin` structure against `prototype/admin.jsx` and current `index.css` visual system without new dependencies. |
-| Q1 | Should cleanup expose both preview and confirmed cleanup, or preview-only? | accepted | Resolved as preview plus confirmed cleanup because docs require a cleanup action and API supports safe `dry_run` control. |
+| ID | Claude item | Resolution | Reason | Contract update |
+|---|---|---|---|---|
+| I-1 | Toast feedback requirement can be skipped by current plan wording. | accepted | `docs/FRONTEND_UX.md` requires toast notifications for success and errors; `docs/phase.md` requires standardizing toasts. No product-doc conflict. | Updated `.context/design.md` and `.context/plan.md` to require audit/fix of toast or equivalent documented success/error feedback for implemented actions. |
+| O-1 | Manual smoke setup could be made less ambiguous. | accepted | Clarifies validation evidence without changing scope or product behavior. | Updated `.context/design.md` and `.context/plan.md` to record whether smoke uses live backend data, seeded/mock data, or route-level test harness data. |
+| O-2 | Risk placeholder should be recorded as an assumption. | duplicate | Already recorded in `.context/research.md` and `.context/design.md` as assumed `MEDIUM`. | No additional update. |
 
-## Accepted changes applied
+## Accepted Changes Applied
 
-- `.context/research.md`
-  - Added discovered frontend scripts: `npm run lint`, `npm run build`, `npm run test`.
-  - Replaced cleanup unknown with final two-step cleanup contract.
-- `.context/design.md`
-  - Made cleanup UX exact: dry-run preview first, confirmed cleanup second.
-  - Expanded cleanup test expectations for payloads, response counts, safe errors, and no storage paths.
-  - Added lint/build/manual browser smoke validation.
-- `.context/plan.md`
-  - Updated cleanup implementation and test steps with exact payloads.
-  - Added lint and manual browser smoke gates.
-  - Added unavailable-command reporting rule.
-  - Added prototype conformance review step.
-  - Made `frontend/index.md` update rule concrete.
+- `.context/design.md`: replaced narrow "where already present" toast wording with explicit success/error feedback requirement.
+- `.context/design.md`: added manual smoke data-source recording requirement.
+- `.context/plan.md`: made Step 7 cover toasts and equivalent feedback explicitly.
+- `.context/plan.md`: made Step 13 require manual-smoke data-source notes.
+- `.context/plan.md`: added toast/success-error feedback audit to quality gates.
 
-## Rejected items
+## Rejected Items
 
 None.
 
-## Duplicate items
+## Duplicate Items
+
+- O-2: risk placeholder assumption already documented as `MEDIUM` in `.context/research.md` and `.context/design.md`.
+
+## Items Needing User Decision
 
 None.
 
-## Items needing user decision
+## Final Contract Status
 
-None.
-
-## Final contract status
-
-- Scope remains Phase 30 only: frontend `/admin` page.
-- Backend, database, CV worker, training, product docs, and source code remain unchanged in this resolution step.
-- Implementation contract is ready for frontend implementation against current docs and prototype.
+- Final implementation contract is scoped only to Phase 31.
+- No backend, database, API, worker, training, Docker runtime, source code, or product-doc changes were added to the contract.
+- Accepted changes do not conflict with product docs.
+- Status: ready for implementation.

@@ -262,8 +262,8 @@ function ActiveModelPanel({ model }: { model: ModelVersion | undefined }) {
       </div>
       <div className="mt-5 space-y-3">
         <ModelMetric label="mAP@50" value={map} />
-        <ModelMetric label="Precision" value={precision} />
-        <ModelMetric label="Recall" value={recall} />
+        <ModelMetric label="Точність" value={precision} />
+        <ModelMetric label="Повнота" value={recall} />
       </div>
     </section>
   );
