@@ -1,106 +1,109 @@
-# Phase 22 Research
+# Phase 23 Research
 
-## Current phase
+## Current Phase
 
-- Confirmed: `docs/phase.md` identifies current phase as `Phase 22 - Model artifact registration and experiment artifact import utilities`.
-- Confirmed direction: Backend / Training Integration.
-- Confirmed goal: bridge offline training artifacts into backend model registry and experiment import flows.
-- Assumption: user prompt left risk placeholder unresolved; treat phase risk as `MEDIUM` because implementation will add admin-facing artifact import helpers, path validation, and database/API writes.
+- Phase: `Phase 23 - Backend-worker end-to-end integration smoke`
+- Direction: Backend / CV Worker / QA
+- Goal from `docs/phase.md`: verify backend-created jobs are processed by worker and returned through API.
+- User-provided risk level: not specified; assume high integration risk because phase spans backend API, database queue, shared storage, worker processing, downloads, ownership, and model artifact availability.
 
-## Docs consulted
+## Docs Consulted
 
 - `AGENTS.md`
 - `CLAUDE.md`
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- `docs/TRAINING_EXPERIMENTS.md`
-- `docs/DATA_MODEL.md`
-- `docs/API.md`
-- `docs/AUTH_SECURITY.md`
-- `docs/TESTING_QA.md`
+- Phase relevant docs only:
+  - `docs/ARCHITECTURE.md`
+  - `docs/API.md`
+  - `docs/CV_PIPELINE.md`
+  - `docs/AUTH_SECURITY.md`
+  - `docs/TESTING_QA.md`
 
-## Confirmed repository facts
+## Confirmed Repository Facts
 
-- Git checkout exists.
-- `git status --short` before writing showed modified `.context/*` files and modified `docs/phase.md`.
-- Existing `.context/research.md`, `.context/design.md`, and `.context/plan.md` were 0 bytes before this write.
-- Root contains `backend/`, `frontend/`, `cv/`, `training/`, `docs/`, `scripts/`, Compose files, Makefile, README, `AGENTS.md`, and `CLAUDE.md`.
-- Backend package exists with FastAPI API modules, services, schemas, SQLAlchemy models, Alembic migration, setup command, and tests.
-- Training package exists with dataset split, notebook checks, artifact schemas, artifact validator CLI, templates, README, and tests.
-- Frontend still contains placeholder Dockerfile only; no Phase 22 frontend implementation needed.
-- CV worker exists beyond scaffold, but Phase 22 does not require worker changes.
+- Git checkout has modified `.context/*` files and `docs/phase.md` before this planning work.
+- `docker compose --env-file .env.example config` passes.
+- `docker-compose.yml` defines `postgres`, `backend`, `cv-worker`, and `frontend`.
+- Backend and CV worker both mount `./storage` to `/app/storage`.
+- `.env.example` uses safe placeholder secrets and CPU worker mode.
+- `.gitignore` excludes generated storage content and large model/video artifacts.
+- Backend project exists under `backend/` with FastAPI app, API routes, SQLAlchemy models, Alembic migration, auth, media, jobs/results/downloads, models, admin, experiments, and tests.
+- CV worker project exists under `cv/` with settings, DB helpers, queue claiming, stale recovery, model runtime, image processing, video processing, exports, and tests.
+- Frontend remains placeholder Dockerfile only and is not touched by this phase.
+- `cv/pyproject.toml` has a `postgres` pytest marker for worker queue integration tests.
+- No `cv/tests/conftest.py` exists.
 
-## Existing implementation state
+## Existing Implementation State
 
-- Backend model registry API already exists:
-  - `GET /api/models`
-  - `GET /api/models/{model_id}`
-  - `POST /api/models`
-  - `PATCH /api/models/{model_id}/activate`
-- Backend experiment API already exists:
-  - `GET /api/experiments`
-  - `GET /api/experiments/{experiment_id}`
-  - `POST /api/experiments/import`
-- Existing backend services validate relative model weights paths under `models/` and experiment artifact paths under `reports/`.
-- Existing backend services reject absolute paths and storage-root leakage in API responses.
-- Existing backend enforces admin-only model registration, model activation, and experiment import.
-- Existing database model already includes `model_versions`, `experiment_runs`, and `experiment_metrics`.
-- Existing training validator validates model cards and metrics artifacts but only reports import readiness; it does not register models or import experiments into backend.
-- Existing `training/templates/model_card.placeholder.json` supports nullable metrics.
-- Existing `training/templates/metrics.placeholder.json` covers four documented experiment families with nullable metrics.
+Confirmed from code:
+
+- Backend job creation stores queued jobs with resolved `model_version_id`, defaults for confidence, IoU, tracker, image size, and internal `frame_stride = 1`.
+- Backend result endpoints expose:
+  - `GET /api/jobs/{job_id}`
+  - `GET /api/jobs/{job_id}/summary`
+  - `GET /api/jobs/{job_id}/detections`
+  - `GET /api/jobs/{job_id}/tracks`
+  - `GET /api/jobs/{job_id}/result`
+  - `GET /api/jobs/{job_id}/download/media`
+  - `GET /api/jobs/{job_id}/download/csv`
+  - `GET /api/jobs/{job_id}/download/json`
+- Backend download service requires ownership/admin visibility and requires result files under `results/{job_id}/`.
+- Worker `run_poll_iteration()` runs stale recovery, claims one queued job, loads model, and dispatches image or video processor.
+- Worker queue claim uses `FOR UPDATE SKIP LOCKED` only for PostgreSQL dialect and does not hold transaction open during processing.
+- Worker image processing writes annotated image, CSV, JSON, detection rows, summary, relative result paths, and completed status.
+- Worker video processing writes annotated MP4, CSV, JSON, detection rows, track summaries, progress/heartbeat, summary, relative result paths, and completed status.
+- Worker missing model load path marks claimed job failed with safe error.
+- Existing backend and worker unit tests cover pieces independently; phase lacks a documented backend API -> worker -> backend API integration smoke.
 
 ## WARNING: CONFLICT
 
-- `docs/DATA_MODEL.md` and `docs/API.md` use experiment type identifiers:
-  - `model_comparison`
-  - `threshold_analysis`
-  - `tracker_comparison`
-  - `false_positive_analysis`
-- Existing `training/aerovision_training/schemas.py` and `training/templates/metrics.placeholder.json` use:
-  - `model_comparison`
-  - `confidence_threshold_analysis`
-  - `tracker_behavior_comparison`
-  - `false_positive_analysis`
-- Impact: current training metrics artifact cannot be posted directly to existing backend experiment import API without a documented mapping or source alignment.
+- `docs/index.md` says current CV worker state does not yet contain queue claiming, inference, tracking, exports, or result writes.
+- `README.md` says CV model loading, worker queue polling/claiming, inference, tracking, and exports are not available yet.
+- `cv/index.md` and files under `cv/aerovision_worker/` show queue claiming, model runtime, image/video processing, tracking/export behavior, and tests exist.
+- Planning assumption: trust code and `cv/index.md` for implementation state, but record this documentation-state conflict in design/plan. Do not edit product docs in this phase.
 
-## Unknowns and assumptions
+## Unknowns And Assumptions
 
-- Unknown: whether Phase 22 helper must be a backend-local database CLI, a training-local API client CLI, or both.
-- Assumption: prefer training-local API client helper because backend REST API already owns authorization and validation for model registration and experiment import.
-- Unknown: whether idempotent imports are required. Docs say test idempotency only when supported; existing schema/API do not document uniqueness keys for idempotent imports.
-- Assumption: do not add idempotency unless user approves unique-key behavior or docs change.
-- Unknown: exact admin credential/token workflow for helper.
-- Assumption: helper should prefer an existing admin JWT token from environment or argument and avoid logging tokens/passwords.
-- Unknown: whether README root or `training/README.md` should hold workflow docs.
-- Assumption: update `training/README.md` for detailed artifact workflow; update root `README.md` only if new user-facing commands are added.
+Confirmed unknowns:
 
-## Planning review resolution notes
+- User did not replace `<PHASE NUMBER AND TITLE>` or `<LOW | MEDIUM | HIGH>` placeholders.
+- No valid local YOLO model artifact is confirmed under `storage/models/`.
+- Full Docker E2E success with real inference depends on valid model weights and may be blocked if weights are missing.
+- Video fixture feasibility depends on OpenCV codec support in local/container environment.
+- Whether phase implementation should add a PowerShell smoke script, pytest integration test, or both is not yet specified by docs.
 
-- Accepted: implementation must make training schema/templates and backend-facing experiment payloads use documented canonical slugs: `model_comparison`, `threshold_analysis`, `tracker_comparison`, `false_positive_analysis`.
-- Rejected for Phase 22: compatibility aliases for current legacy slugs `confidence_threshold_analysis` and `tracker_behavior_comparison`. Add aliases only after explicit user approval.
-- Accepted: helper validation must reject absolute paths, traversal, and local/cloud path leaks in path-like metadata fields inside model cards and metrics artifacts, not only top-level `weights_path` and `artifacts_path`.
-- Accepted: targeted backend API gates for model registration, activation, experiment import, and API contract must run even when backend source code is unchanged.
-- Accepted: add mocked CLI smoke coverage for placeholder model card and metrics template payload shape, route/method, authorization header handling, and redacted output.
-- Accepted: implementation docs must state helper registers existing files under storage and never uploads `.pt` weights or starts training.
+Assumptions for implementation:
 
-## Files likely relevant for implementation
+- Phase contract should prefer deterministic test/smoke coverage over product changes.
+- Synthetic image/video fixtures are acceptable for tests if they use documented upload formats.
+- Fake model objects may be used in automated tests to make backend-worker API integration deterministic without committing weights.
+- Real Docker/manual smoke should require an external valid model artifact and must document blocker if absent.
+- No frontend work belongs in Phase 23.
 
-- `training/aerovision_training/schemas.py`
-- `training/aerovision_training/validate_artifacts.py`
-- `training/templates/model_card.placeholder.json`
-- `training/templates/metrics.placeholder.json`
-- `training/tests/test_schemas.py`
-- `training/README.md`
-- `training/index.md`
-- `training/pyproject.toml`
-- `backend/app/api/models.py`
-- `backend/app/api/experiments.py`
-- `backend/app/services/models.py`
-- `backend/app/services/experiments.py`
-- `backend/app/schemas/models.py`
-- `backend/app/schemas/experiments.py`
-- `backend/tests/test_models_api.py`
-- `backend/tests/test_experiments_api.py`
+## Files Likely Relevant For Implementation
+
+- `docs/phase.md`
+- `docker-compose.yml`
+- `.env.example`
+- `Makefile`
+- `scripts/bootstrap-storage.ps1`
+- `backend/app/api/media.py`
+- `backend/app/api/jobs.py`
+- `backend/app/services/media.py`
+- `backend/app/services/jobs.py`
+- `backend/app/services/results.py`
+- `backend/app/db/models.py`
+- `backend/tests/test_media_api.py`
+- `backend/tests/test_jobs_api.py`
 - `backend/tests/test_api_contract.py`
-- `README.md`
+- `cv/aerovision_worker/main.py`
+- `cv/aerovision_worker/queue.py`
+- `cv/aerovision_worker/model_runtime.py`
+- `cv/aerovision_worker/image_processing.py`
+- `cv/aerovision_worker/video_processing.py`
+- `cv/tests/test_startup.py`
+- `cv/tests/test_queue_postgres.py`
+- `cv/tests/test_image_processing.py`
+- `cv/tests/test_video_processing.py`

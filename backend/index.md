@@ -4,7 +4,7 @@
 
 The `backend/` folder contains the AeroVision FastAPI backend application.
 
-According to `../docs/`, this backend exposes the `/api` REST API. Current implementation contains the FastAPI foundation, typed environment settings, safe logging baseline, explicit CORS configuration, database connectivity skeleton, public health endpoints, SQLAlchemy ORM models for the documented schema, Alembic configuration, the initial database migration, local/demo startup migration switches, idempotent admin seed/setup, storage bootstrap, JWT authentication, public registration, login, current-user endpoints, reusable admin/ownership authorization helpers, storage path/filename safety utilities, the authenticated media upload/list/detail/soft-delete API, the authenticated/admin model registry API, queued job creation with model selection resolution, job history/detail/result/detection/track/download APIs, admin-only stats/jobs/users/storage-cleanup APIs, and the authenticated/admin experiment import and visibility API. Later phases add worker queue behavior, CV processing, and export generation.
+According to `../docs/`, this backend exposes the `/api` REST API. Current implementation contains the FastAPI foundation, typed environment settings, safe logging baseline, explicit CORS configuration, database connectivity skeleton, public health endpoints, SQLAlchemy ORM models for the documented schema, Alembic configuration, the initial database migration, local/demo startup migration switches, idempotent admin seed/setup, storage bootstrap, JWT authentication, public registration, login, current-user endpoints, reusable admin/ownership authorization helpers, storage path/filename safety utilities, the authenticated media upload/list/detail/soft-delete API, the authenticated/admin model registry API, queued job creation with model selection resolution, job history/detail/result/detection/track/download APIs, admin-only stats/jobs/users/storage-cleanup APIs, and the authenticated/admin experiment import and visibility API. Backend tests include a Phase 23 backend-worker smoke that drives real backend routes against the worker polling path through an isolated PostgreSQL schema and shared storage.
 
 ## Current Files
 
@@ -16,10 +16,10 @@ According to `../docs/`, this backend exposes the `/api` REST API. Current imple
 | `startup.sh` | Container startup script that optionally runs migrations and setup before Uvicorn. |
 | `app/` | FastAPI app package with API router, health/auth/media/model/job/admin/experiment endpoints, settings, CORS, logging, password hashing and JWT helpers, authorization helpers, storage path/filename safety utilities, media upload, model registry, job creation, job results/download services, admin stats/storage cleanup services, experiment import/visibility services, database connectivity, ORM models, schemas, and setup command. |
 | `migrations/` | Alembic migration environment and initial schema migration. |
-| `tests/` | Backend tests for settings, health endpoints, logging redaction, Phase 3 data-model constraints, Phase 4 setup behavior, Phase 5 auth behavior, Phase 6 security utilities, Phase 7 media upload/validation behavior, Phase 8 model registry behavior, Phase 9 job creation/model selection behavior, Phase 10 job result/download behavior, Phase 11 admin API behavior, Phase 12 experiment API behavior, and Phase 13 API contract/OpenAPI/pagination/error-safety behavior. |
+| `tests/` | Backend tests for settings, health endpoints, logging redaction, Phase 3 data-model constraints, Phase 4 setup behavior, Phase 5 auth behavior, Phase 6 security utilities, Phase 7 media upload/validation behavior, Phase 8 model registry behavior, Phase 9 job creation/model selection behavior, Phase 10 job result/download behavior, Phase 11 admin API behavior, Phase 12 experiment API behavior, Phase 13 API contract/OpenAPI/pagination/error-safety behavior, and Phase 23 backend-worker integration smoke behavior. |
 | `index.md` | Backend folder summary, current contents, and backend-local commands. |
 
-No worker queue logic, CV processing, or export generation exist yet in this checkout.
+Worker queue logic, CV processing, and export generation live under `../cv/`; backend remains the public API and download/authorization boundary.
 
 ## Commands
 

@@ -1,104 +1,118 @@
-# Phase 22 Implementation Plan
+# Phase 23 Plan
 
 ## Scope
 
-- Phase only: model artifact registration and experiment artifact import utilities.
-- No frontend work.
-- No CV worker work.
-- No database migration unless implementation discovers existing schema cannot store documented fields.
-- No new public API routes unless existing documented routes cannot support Phase 22 after evidence.
+Only Phase 23: backend-worker end-to-end integration smoke. No frontend work, no schema changes, no new product APIs, no product-doc edits, no training work.
 
-## Ordered atomic tasks
+## Ordered Atomic Steps
 
-1. `@role/developer-training` Re-read `training/aerovision_training/schemas.py`, `training/templates/model_card.placeholder.json`, `training/templates/metrics.placeholder.json`, and tests. Verify current artifact contract against `docs/TRAINING_EXPERIMENTS.md`, `docs/DATA_MODEL.md`, and `docs/API.md`.
-   - Verifiable: written notes identify exact mismatched experiment type slugs and required mapping/alignment.
+1. `@role/tester` Re-check repo state.
+   - Run: `git status --short`
+   - Verify: only expected pre-existing modified files plus planned Phase 23 test/script changes appear.
 
-2. `@role/developer-training` Add failing tests for artifact-to-backend payload conversion.
-   - Cover model card -> `POST /api/models` payload.
-   - Cover metrics artifact -> one or more `POST /api/experiments/import` payloads.
-   - Cover nullable metric values.
-   - Cover relative path preservation.
-   - Cover rejection of absolute/traversal paths.
-   - Verifiable: targeted tests fail before conversion/helper exists.
+2. `@role/tester` Confirm Compose contract.
+   - Run: `docker compose --env-file .env.example config`
+   - Verify: command passes; backend and `cv-worker` both mount `/app/storage`; `CV_DEVICE=cpu`.
 
-3. `@role/developer-training` Resolve `WARNING: CONFLICT` in training artifact experiment identifiers.
-   - Make current training template/schema identifiers match backend/API/data-model identifiers.
-   - Required canonical slugs: `model_comparison`, `threshold_analysis`, `tracker_comparison`, `false_positive_analysis`.
-   - Reject legacy slugs `confidence_threshold_analysis` and `tracker_behavior_comparison` unless user explicitly approves compatibility aliases later.
-   - Do not change product docs.
-   - Verifiable: tests prove artifact import payloads use `threshold_analysis` and `tracker_comparison` for backend requests.
+3. `@role/tester` Define clean integration environment.
+   - Use isolated test database/schema and isolated temp/shared storage for automated smoke.
+   - Ensure setup removes stale jobs, stale model rows, stale result files, and generated media for the smoke scope only.
+   - If clean environment cannot be prepared, stop and document exact Docker/local blocker.
+   - Verify: smoke cannot pass because of pre-existing local state.
 
-4. `@role/developer-training` Implement helper logic in existing training package boundaries.
-   - Read model card JSON.
-   - Read metrics JSON.
-   - Validate both using existing schema validation rules.
-   - Build backend model registration payload from model card plus caller-provided relative `weights_path`.
-   - Build backend experiment import payloads from metrics artifact plus caller-provided relative `artifacts_path` when needed.
-   - Validate path-like metadata inside artifacts before backend mutation, including `split_manifest`, report/plot/confusion-matrix references, and nested config/metadata values that look like paths.
-   - Reject absolute paths, traversal paths, drive-qualified paths, container/host paths, and cloud/local absolute path leaks.
-   - Do not start training.
-   - Do not read or write model weights content.
-   - Verifiable: unit tests pass without network or database.
+4. `@role/tester` Pick smoke harness location from existing repo areas.
+   - Prefer existing `scripts/` for manual Docker/API smoke or existing `backend/tests/` / `cv/tests/` for pytest smoke.
+   - Verify: no new top-level folder.
 
-5. `@role/developer-auth-security` Add helper secret-handling tests.
-   - Ensure token/password values are not printed in normal or error output.
-   - Ensure absolute storage paths are not printed.
-   - Ensure path-like metadata leaks fail validation before any backend mutation call.
-   - Ensure failed validation exits before backend mutation call.
-   - Verifiable: tests inspect captured output/error text.
+5. `@role/developer-backend` Map existing backend API setup helpers needed by smoke.
+   - Read only current auth/media/jobs/model helpers/tests.
+   - Verify: smoke can create/login user, upload media, create job, query results, and download files through existing endpoints.
 
-6. `@role/developer-training` Add CLI entry point or module command for helper.
-   - Register model from model card and existing relative weights path through existing backend API.
-   - Import experiments from metrics artifact through existing backend API.
-   - Optionally activate model through existing `PATCH /api/models/{model_id}/activate` only when explicit flag is supplied.
-   - Require admin authorization through backend API; do not bypass backend auth for public mutations.
-   - Add CLI smoke test using placeholder model card and metrics template through fake HTTP transport or monkeypatched client.
-   - Verifiable: CLI tests assert requested routes, methods, payloads, safe authorization/header handling, and redacted output.
+6. `@role/developer-cv-worker` Map worker callable path for deterministic smoke.
+   - Use existing worker queue/poll/processing entry points.
+   - Verify: smoke can run one worker iteration against same database/storage used by backend API.
 
-7. `@role/developer-backend` Inspect existing backend model/experiment services against generated helper payloads.
-   - If backend already accepts payloads, do not change backend.
-   - If backend rejects documented nullable metrics or safe relative paths, add targeted backend tests and minimal fix.
-   - Verifiable: backend tests show admin can register model, activate model, import experiments, and regular user cannot.
+7. `@role/tester` Build clean test fixture strategy.
+   - Use generated valid PNG image fixture.
+   - Use generated tiny MP4 fixture only if OpenCV codec support is available; otherwise document exact blocker.
+   - Do not commit generated media.
+   - Verify: uploaded media pass backend validation.
 
-8. `@role/developer-db` Confirm no schema change needed.
-   - Check fields used: `model_versions.metrics_json`, `experiment_runs.config_json`, `experiment_runs.artifacts_path`, `experiment_metrics.metric_value`, `experiment_metrics.metadata_json`.
-   - Verifiable: no Alembic migration created unless a documented schema gap is proven.
+8. `@role/tester` Build deterministic model strategy.
+   - For automated smoke, use test-only fake model object if no valid local YOLO weights are available.
+   - Fake model may replace only inference output; smoke must still use real backend routes, real database queue rows, real worker dispatch/write path, real storage writes, and real backend export/download checks.
+   - For manual Docker real-inference smoke, require external valid weights under ignored `storage/models/`.
+   - Verify: no model weights are committed.
 
-9. `@role/docs-maintainer` Update non-product implementation docs only if commands or workflow changed.
-   - Likely files: `training/README.md`, `training/index.md`, maybe root `README.md`.
-   - Document offline-to-app workflow from docs: train in cloud, download artifacts, place under storage, validate, register, activate, import.
-   - State helper registers existing files under storage; it does not upload `.pt` weights and does not start training.
-   - Do not modify `docs/*.md` product docs in this phase unless user explicitly approves.
-   - Verifiable: command examples match implemented helper and avoid secrets.
+9. `@role/developer-backend` Add or update integration smoke for image success flow.
+   - Flow: register/login user -> upload valid image -> register/activate model if needed -> create job -> run worker iteration -> fetch job detail/summary/detections/result metadata -> download media/CSV/JSON.
+   - Verify: job reaches `completed`, progress is `100`, result refs available, downloads return 200, API response text has no absolute storage path.
 
-10. `@role/tester` Run training gates.
-    - `python -m pytest training/tests`
-    - If a concrete validation command exists, run artifact validator against placeholder templates.
-    - Verifiable: PASS or documented FAIL with exact command output.
+10. `@role/developer-cv-worker` Add or update integration smoke for no-detection flow.
+   - Flow: upload no-detection fixture -> create job -> run worker iteration -> fetch summary/detections/tracks/downloads.
+   - Verify: status `completed`, `total_detections = 0`, empty detections/tracks, CSV headers exist, JSON `detections` array is empty, annotated media result/download exists when output creation is possible.
+   - If annotated media cannot be created because of codec/image writer limits, document exact command/log blocker.
 
-11. `@role/tester` Run targeted backend API gates for Phase 22, even if backend source code is unchanged.
+11. `@role/developer-cv-worker` Add or update integration smoke for failed-job behavior.
+    - Use missing model file or corrupted accepted media fixture.
+    - Verify: worker marks job `failed`; backend job detail/result exposes safe error/status; API response has no stack trace or absolute path.
+
+12. `@role/developer-auth-security` Add or update ownership smoke.
+    - Flow: second user attempts job detail/result/download for first user's completed job.
+    - Verify: cross-owner requests for job detail, summary, detections, tracks, result metadata, annotated media download, CSV download, and JSON download return not found/forbidden behavior without leaking existence or paths.
+
+13. `@role/developer-cv-worker` Add video smoke if feasible.
+    - Flow: upload valid tiny video -> create job -> run worker iteration -> fetch detail/progress/summary/detections/tracks/downloads.
+    - Verify: job completes, annotated MP4/CSV/JSON available, progress updates observed when practical, track rows exist when fake/real tracker produces IDs.
+    - If not feasible: record blocker with exact codec/model/runtime reason and command/log.
+
+14. `@role/tester` Run targeted backend gates if backend tests/scripts changed.
     - From `backend/`: `python -m ruff check .`
-    - From `backend/`: `python -m pytest tests/test_models_api.py tests/test_experiments_api.py tests/test_api_contract.py`
-    - Verifiable: PASS or documented FAIL with exact command output.
+    - From `backend/`: `python -m pytest tests/test_jobs_api.py tests/test_media_api.py tests/test_api_contract.py`
+    - Verify: PASS or exact blocker.
 
-12. `@role/code-reviewer` Review Phase 22 diff against docs and this contract.
-    - Check no training launched from helper.
-    - Check no new frontend/CV worker work.
-    - Check no new schema/API route unless justified by docs.
-    - Check relative paths only.
-    - Check no secrets/tokens/passwords in logs, docs, tests, or output.
-    - Check YOLO26 primary and YOLO11 fallback metadata remain accurate.
-    - Verifiable: review notes list accepted issues or state none found.
+15. `@role/tester` Run targeted worker gates if worker tests/scripts changed.
+    - From `cv/`: `python -m ruff check .`
+    - From `cv/`: `python -m pytest tests/test_startup.py tests/test_queue.py tests/test_image_processing.py tests/test_video_processing.py`
+    - Verify: PASS or exact blocker.
 
-## Completion criteria
+16. `@role/tester` Run PostgreSQL queue integration when PostgreSQL is reachable.
+    - From `cv/`: `python -m pytest -m postgres`
+    - Verify: PASS, or `not available yet`/blocker with exact database connection reason.
 
-- Helper validates offline artifacts before backend mutation.
-- Helper registers model versions using existing relative weights paths.
-- Helper imports experiment metrics/artifacts into backend-visible records.
-- Backend admin authorization remains source of truth for mutations.
-- Nullable metrics remain supported.
-- Experiment type conflict is resolved by making training schema/templates and helper backend payloads use canonical doc slugs.
-- Legacy experiment aliases are not supported in Phase 22 unless the user explicitly approves them later.
-- Path-like metadata inside imported artifacts is validated before backend mutation and cannot leak absolute/traversal paths.
-- No source work outside Phase 22 surfaces.
-- Relevant gates pass or blockers are documented.
+17. `@role/tester` Run new Phase 23 smoke command.
+    - Command depends on chosen harness in step 4.
+    - Verify: clean environment setup, image success, no-detection including annotated media when possible, failed-job safety, complete result-route ownership, CPU mode all pass.
+
+18. `@role/code-reviewer` Review Phase 23 changes only.
+    - Verify: no product API/schema/frontend/training behavior added.
+    - Verify: backend/worker boundary remains PostgreSQL/shared-storage only.
+    - Verify: CV-only output boundary preserved.
+    - Verify: no secrets, tokens, raw passwords, absolute paths, generated media, or weights in tracked files.
+
+19. `@role/docs-maintainer` Decide docs/index updates.
+    - Product docs must not be modified in this planning task.
+    - During implementation, update only component index/README if a new smoke command is added and docs update is explicitly in scope.
+    - Verify: no product docs changed without user approval.
+
+20. `@role/tester` Final status report.
+    - Include files changed.
+    - Include command results as `PASS`/`FAIL`/`not available`.
+    - Include security/privacy result.
+    - Include documented blockers, especially missing weights or video codec limits.
+
+## Relevant Checks Only
+
+- `docker compose --env-file .env.example config`
+- Backend targeted lint/tests only if backend area changes.
+- Worker targeted lint/tests only if worker area changes.
+- PostgreSQL queue marker when database reachable.
+- New Phase 23 smoke command.
+- Docker-backed real-inference smoke is not mandatory when valid model weights are unavailable; pytest smoke is acceptable if it uses real backend routes, PostgreSQL, isolated shared storage, and worker polling.
+
+Excluded checks:
+
+- Frontend build/tests.
+- Training tests.
+- GPU launch.
+- Full release QA.

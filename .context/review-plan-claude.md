@@ -1,10 +1,10 @@
-# Phase 22 Planning Review
-
-## Verdict: APPROVED_WITH_CHANGES
+# Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Plan fits Phase 22 scope: training/backend integration helper, no frontend, no CV worker, no training launch, no schema/API changes unless proven needed. Main changes needed before implementation: tighten experiment slug conflict resolution, validate path-like metadata, and always run targeted backend API gates because helper depends on existing admin endpoints.
+Plan matches Phase 23 direction: backend-worker integration smoke only, no frontend/schema/API/product behavior. Main architecture boundary is respected: backend API creates jobs, worker processes through PostgreSQL/shared storage, backend serves results/downloads.
+
+Changes needed before implementation: make clean DB/shared-storage smoke explicit, expand ownership checks to all result subroutes, and verify no-detection annotated media download when worker can create it.
 
 ## Blocking issues
 
@@ -12,36 +12,37 @@ None.
 
 ## Important issues
 
-1. Experiment type conflict resolution is too permissive.
+1. Clean integration environment is under-specified.
+   - Evidence: `docs/phase.md` scope says "Run clean database and shared storage with backend and worker."
+   - Plan evidence: steps 2 and 16 cover Compose config and a new smoke command, but no explicit clean database/shared-storage setup or teardown contract for the smoke harness.
+   - Risk: smoke can pass against dirty local state, stale result files, or pre-existing model/job rows. Add explicit clean test database/schema and isolated temp/shared storage setup for automated smoke, or document exact Docker/local blocker.
 
-   Evidence: `.context/research.md` reports conflict between `training/aerovision_training/schemas.py` / `training/templates/metrics.placeholder.json` and doc slugs. `docs/DATA_MODEL.md` requires `model_comparison`, `threshold_analysis`, `tracker_comparison`, `false_positive_analysis`; `docs/API.md` uses same experiment import contract. Plan step 3 allows "align template/schema identifiers ... or add a narrow mapper." Mapper alone can leave canonical training schema/templates doc-inconsistent.
+2. Ownership smoke misses named result subroutes.
+   - Evidence: `AUTH_SECURITY.md` says ownership checks apply to summaries, detections, tracks, annotated media downloads, CSV downloads, JSON downloads. `API.md` lists result endpoints: summary, detections, tracks, result metadata, media download, CSV download, JSON download.
+   - Plan evidence: step 11 says "second user attempts job detail/result/download" and "all cross-owner result/detail/download requests"; it does not explicitly include `/summary`, `/detections`, and `/tracks`.
+   - Risk: protected result data could leak even if main detail/download endpoints pass. Add explicit cross-owner checks for job detail, summary, detections, tracks, result metadata, media download, CSV download, and JSON download.
 
-   Required change: make backend-facing payloads, current templates, and validated canonical schema use doc slugs. Legacy mapper acceptable only as compatibility layer, with tests proving output slugs are `threshold_analysis` and `tracker_comparison`.
-
-2. Path-safety scope misses metadata fields that can leak absolute paths.
-
-   Evidence: `docs/API.md` says API must never expose unsafe absolute filesystem paths. `docs/AUTH_SECURITY.md` forbids exposing absolute host/container paths and sensitive paths in logs. `docs/TRAINING_EXPERIMENTS.md` requires model cards include `split_manifest` and metrics/report artifacts. Plan covers relative `weights_path` and `artifacts_path`, but not path-like values inside `metrics_json`, `config_json`, or `metadata_json`.
-
-   Required change: add helper validation/tests for path-like artifact fields inside model cards and metrics artifacts before any backend mutation. Reject absolute paths, traversal, and cloud/local absolute path leaks in imported metadata, not only top-level DB path fields.
-
-3. Backend gates should not be conditional on backend source changes.
-
-   Evidence: Phase 22 validation requires "Valid model card registers a model version", "Valid experiment artifact imports run and metrics are queryable", and invalid/absolute paths reject. `docs/TESTING_QA.md` requires model registry and experiment authorization tests. Plan step 11 runs backend tests only if backend code/API behavior touched, but helper uses existing `POST /api/models`, `PATCH /api/models/{model_id}/activate`, and `POST /api/experiments/import`.
-
-   Required change: always run targeted backend API tests for model registration, experiment import, and API contract in Phase 22, even if implementation only changes training helper code. Fake HTTP helper tests are useful but not enough for this phase.
+3. No-detection smoke does not verify annotated media download.
+   - Evidence: `CV_PIPELINE.md` says no-detection jobs still create annotated output media when possible. `API.md` says completed no-detection jobs must keep CSV and JSON downloads, and result downloads serve annotated output media.
+   - Plan evidence: step 9 verifies completed status, zero detections, CSV headers, and JSON empty detections, but not annotated media/result media availability.
+   - Risk: no-detection flow can pass exports while breaking user-visible annotated output/download behavior. Add media result/download assertion when output creation is possible; document exact blocker if codec/image writer prevents it.
 
 ## Optional improvements
 
-- Add one CLI smoke test using placeholder model card and metrics template through mocked HTTP transport. It should verify route, method, headers redaction, and exact JSON payload shape.
-- Add docs note that helper registers existing files under storage and never uploads `.pt` weights or starts training.
+1. Step 7 fake-model strategy should state what is still real.
+   - Keep fake model acceptable for deterministic automated smoke, but require real backend routes, real DB queue rows, real worker dispatch/write path, real export/download checks. This prevents a mock-heavy smoke from bypassing integration risk.
+
+2. Failed-job smoke can be stronger if it checks both API and storage safety.
+   - Current plan checks safe status/error. Also assert no absolute path or stack trace in job detail/result payload for missing-model/corrupt-media failures.
 
 ## Questions for resolution
 
-- Should helper accept legacy `confidence_threshold_analysis` / `tracker_behavior_comparison` input as compatibility aliases after canonical templates are corrected, or reject them outright?
+1. Risk level placeholder was not resolved by user (`<MEDIUM | HIGH>`). Review treats Phase 23 as high risk because it spans backend API, PostgreSQL queue, shared storage, worker processing, downloads, ownership, and local model availability.
+
+2. Should implementation require a Docker-backed smoke for Phase 23, or is a pytest smoke with real backend routes, PostgreSQL, shared storage, and worker `run_poll_iteration()` enough when real model weights are unavailable?
 
 ## Files consulted
 
-- `C:\Users\Kotletka\.codex\skills\caveman\SKILL.md`
 - `CLAUDE.md`
 - `AGENTS.md`
 - `docs/index.md`
@@ -50,8 +51,8 @@ None.
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
-- `docs/TRAINING_EXPERIMENTS.md`
-- `docs/DATA_MODEL.md`
+- `docs/ARCHITECTURE.md`
 - `docs/API.md`
+- `docs/CV_PIPELINE.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`

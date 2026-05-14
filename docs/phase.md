@@ -1,41 +1,38 @@
-## Phase 22 - Model artifact registration and experiment artifact import utilities
+## Phase 23 - Backend-worker end-to-end integration smoke
 
-**Direction:** Backend / Training Integration
-**Goal:** Bridge offline training artifacts into backend model registry and experiment import flows.
+**Direction:** Backend / CV Worker / QA
+**Goal:** Verify that backend-created jobs are processed by the worker and returned through the API.
 
 ### Scope
 
-- Add script or CLI helper to register a model version from `model_card.json` and relative weights path.
-- Add script or CLI helper to import experiment metrics/artifacts from structured files.
-- Validate model cards and metrics schemas before insertion.
-- Ensure imported model paths and report artifact paths are relative.
-- Support placeholder/null metric values for pre-training or incomplete imports.
-- Ensure YOLO11 fallback is recorded accurately when used.
-- Add documentation for the artifact registration workflow:
-  1. human trains in Kaggle/Colab;
-  2. human downloads weights/metrics/model card;
-  3. human places artifacts under storage;
-  4. admin or helper registers model;
-  5. admin activates model;
-  6. admin imports experiments.
-- Add tests for CLI/helper validation and idempotent imports if supported.
+- Run clean database and shared storage with backend and worker.
+- Upload a valid image through backend API.
+- Create a processing job through backend API.
+- Let worker claim and process the job.
+- Verify job details, summary, detections, tracks, result metadata, and downloads through backend API.
+- Repeat for a valid video fixture when feasible.
+- Verify no-detection fixture behavior.
+- Verify failed-job behavior for corrupted media or missing model file.
+- Verify ownership restrictions for results and downloads.
+- Add integration smoke scripts or pytest markers as practical.
 
 ### Relevant docs
 
-- `docs/TRAINING_EXPERIMENTS.md`
-- `docs/DATA_MODEL.md`
+- `docs/ARCHITECTURE.md`
 - `docs/API.md`
+- `docs/CV_PIPELINE.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Valid model card registers a model version.
-- Invalid or absolute weights paths are rejected.
-- Valid experiment artifact imports run and metrics are queryable.
-- Re-running idempotent import does not create unintended duplicates when idempotency is documented.
-- README/training docs clearly describe the offline-to-app workflow.
+- Image upload -> job -> worker -> result -> download flow works.
+- Video upload -> job -> worker -> result -> download flow works or blocker is documented with exact command/log.
+- No-detection flow completes successfully.
+- Another user cannot access job details or downloads.
+- CSV and JSON exports are downloadable.
+- CPU mode works.
 
 ### Commit
 
-`feat(training-import): add model and experiment artifact registration helpers`
+`test(integration): verify backend worker media processing flow`

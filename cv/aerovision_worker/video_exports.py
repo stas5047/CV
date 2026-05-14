@@ -8,7 +8,7 @@ from typing import Any
 from aerovision_worker.image_processing import CSV_COLUMNS
 from aerovision_worker.model_runtime import LoadedModel
 from aerovision_worker.settings import WorkerSettings
-from aerovision_worker.storage_paths import safe_join_storage_path
+from aerovision_worker.storage_paths import canonical_storage_id, safe_join_storage_path
 from aerovision_worker.video_types import (
     TrackSummary,
     VideoDetection,
@@ -18,10 +18,11 @@ from aerovision_worker.video_types import (
 
 
 def result_paths(job_id: str) -> dict[str, str]:
+    result_job_id = canonical_storage_id(job_id)
     return {
-        "media": f"results/{job_id}/annotated.mp4",
-        "csv": f"results/{job_id}/detections.csv",
-        "json": f"results/{job_id}/detections.json",
+        "media": f"results/{result_job_id}/annotated.mp4",
+        "csv": f"results/{result_job_id}/detections.csv",
+        "json": f"results/{result_job_id}/detections.json",
     }
 
 

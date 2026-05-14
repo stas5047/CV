@@ -1,62 +1,49 @@
-# Phase 22 Planning Review Resolution
+# Phase 23 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude review has no blocking issue. Accepted items update only Phase 22 implementation contract. No source code changes allowed or made in this resolution step.
+Claude planning review is resolved. Accepted items were applied only to Phase 23 planning contract. No source code changed.
 
 ## Resolution table
 
-| ID | Claude review item | Resolution | Reason |
-|---|---|---|---|
-| I1 | Experiment type conflict resolution is too permissive; canonical training schema/templates and backend-facing payloads must use doc slugs. | accepted | Matches `docs/DATA_MODEL.md` required experiment types and `docs/API.md` experiment import contract. |
-| I2 | Path-safety scope misses path-like metadata fields that can leak absolute paths inside model cards and metrics artifacts. | accepted | Matches API/security rules forbidding unsafe absolute path exposure and database/storage path leakage. |
-| I3 | Backend API gates should always run for Phase 22, even when backend source does not change. | accepted | Phase 22 depends on existing admin model/experiment API behavior; docs require registration/import validation. |
-| O1 | Add CLI smoke test using placeholder model card and metrics template through mocked HTTP transport. | accepted | In scope for helper verification and does not change product behavior. |
-| O2 | Add docs note that helper registers existing files under storage and never uploads `.pt` weights or starts training. | accepted | Matches training workflow and storage rules. |
-| Q1 | Should helper accept legacy `confidence_threshold_analysis` / `tracker_behavior_comparison` aliases? | rejected | Product docs define canonical slugs only. Compatibility aliases are extra behavior and not needed for Phase 22. |
+| ID | Claude item | Resolution | Reason | Applied to |
+|---|---|---|---|---|
+| I1 | Clean integration environment is under-specified. | accepted | `docs/phase.md` and `docs/ROADMAP.md` require clean database and shared storage. | `.context/design.md`, `.context/plan.md` |
+| I2 | Ownership smoke misses named result subroutes. | accepted | `docs/API.md` and `docs/AUTH_SECURITY.md` require ownership on summary, detections, tracks, result metadata, and all downloads. | `.context/design.md`, `.context/plan.md` |
+| I3 | No-detection smoke does not verify annotated media download. | accepted | `docs/CV_PIPELINE.md` says no-detection jobs still create annotated output media when possible. | `.context/design.md`, `.context/plan.md` |
+| O1 | Fake-model strategy should state what is still real. | accepted | Clarifies deterministic smoke without weakening backend-route, DB-queue, worker-write, export, and download coverage. | `.context/design.md`, `.context/plan.md` |
+| O2 | Failed-job smoke should check API and storage safety. | accepted | Consistent with API/security rules forbidding stack traces and unsafe absolute paths in API responses. | `.context/design.md`, `.context/plan.md` |
+| Q1 | Risk level placeholder not resolved by user. | duplicate | `.context/research.md` already treats Phase 23 as high integration risk. No contract change needed. | none |
+| Q2 | Docker-backed smoke vs pytest smoke. | accepted | Contract now says pytest smoke is sufficient when it uses real backend routes, PostgreSQL, isolated shared storage, and worker polling; Docker real-inference smoke remains optional/manual when model weights exist. | `.context/design.md`, `.context/plan.md` |
 
 ## Accepted changes applied
 
-- `.context/research.md`
-  - Added review-resolution notes binding implementation to canonical experiment slugs, path-like metadata validation, unconditional backend API gates, mocked CLI smoke test, and docs note.
-- `.context/design.md`
-  - Replaced permissive "align or mapper" decision with canonical schema/template/payload requirement.
-  - Added explicit rejection of legacy aliases for Phase 22.
-  - Added path-like metadata validation before backend mutation.
-  - Made targeted backend API gates unconditional.
-  - Added mocked CLI smoke and docs-note expectations.
-- `.context/plan.md`
-  - Updated task 3 to require canonical doc slugs in schema/templates/backend payloads.
-  - Updated helper/security tests for nested path-like metadata.
-  - Added mocked CLI smoke coverage.
-  - Made backend tests mandatory for Phase 22.
-  - Updated completion criteria.
+- Added clean integration environment requirement: isolated test database/schema and isolated temp/shared storage, or exact blocker if unavailable.
+- Expanded ownership smoke to job detail, summary, detections, tracks, result metadata, annotated media download, CSV download, and JSON download.
+- Added no-detection annotated media result/download assertion when output creation is possible, with blocker requirement when codec/image writer prevents it.
+- Clarified fake-model boundary: only inference output may be faked; backend routes, DB queue rows, worker dispatch/write path, storage writes, exports, and downloads stay real.
+- Strengthened failed-job safety checks: no stack traces or absolute paths in API payloads.
+- Clarified Docker-backed real-inference smoke is not required without valid model weights if pytest smoke covers real backend routes, PostgreSQL, isolated shared storage, and worker polling.
 
 ## Rejected items
 
-- Q1 legacy alias support: rejected for Phase 22. Implementation should correct current training schema/templates to canonical docs slugs and reject legacy input unless user explicitly approves compatibility behavior later.
+None.
 
 ## Duplicate items
 
-- None.
+- Risk level placeholder question. Existing research already classifies Phase 23 as high integration risk.
 
 ## Items needing user decision
 
-- None.
+None.
 
 ## Final contract status
 
-- Phase scope remains Phase 22 only: model artifact registration and experiment artifact import utilities.
-- No frontend work.
-- No CV worker work.
-- No database migration unless documented schema gap is proven during implementation.
-- No new public API route unless existing documented routes cannot support Phase 22 after evidence.
-- Training is not launched from helper, API, or UI.
-- Backend remains authorization authority for model registration, activation, and experiment import.
-- Canonical experiment slugs for Phase 22 are:
-  - `model_comparison`
-  - `threshold_analysis`
-  - `tracker_comparison`
-  - `false_positive_analysis`
-- Helper must validate top-level relative paths and path-like metadata inside imported artifacts before any backend mutation.
-- Targeted backend API tests must run in Phase 22 even when backend source files are unchanged.
+- `.context/research.md`: unchanged; existing high-risk assumption remains valid.
+- `.context/design.md`: updated for accepted review items.
+- `.context/plan.md`: updated for accepted review items.
+- Product docs: unchanged.
+- Source code: unchanged.
+- Phase scope: still Phase 23 only.
+
+Implementation may proceed under updated `.context/design.md` and `.context/plan.md`.

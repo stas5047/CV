@@ -18,7 +18,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from aerovision_worker.model_runtime import LoadedModel
 from aerovision_worker.queue import fail_processing_job, utc_now
 from aerovision_worker.settings import WorkerSettings
-from aerovision_worker.storage_paths import safe_join_storage_path, validate_relative_storage_path
+from aerovision_worker.storage_paths import (
+    canonical_storage_id,
+    safe_join_storage_path,
+    validate_relative_storage_path,
+)
 
 LOGGER = logging.getLogger("aerovision_worker.image_processing")
 
@@ -112,7 +116,7 @@ def process_image_job(
             frame_width=frame_width,
             frame_height=frame_height,
         )
-        result_paths = _result_paths(str(job.id), source_path.suffix)
+        result_paths = _result_paths(canonical_storage_id(job.id), source_path.suffix)
         _write_annotated_image(settings, result_paths["media"], image, detections)
         _write_csv_export(settings, result_paths["csv"], detections, loaded_model, params)
         summary = _build_summary(

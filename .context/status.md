@@ -1,30 +1,60 @@
-# Phase 22 status
+# Phase 23 status
 
-- Current phase: Phase 22 - Model artifact registration and experiment artifact import utilities.
-- Scope kept to training helper, training artifact schemas/templates/tests, and command docs.
-- Product source-of-truth docs were not modified; `docs/phase.md` had review-requested whitespace cleanup only.
-- Backend API/source code was not changed; existing backend model and experiment endpoints remain write boundary and admin authorization authority.
-- No database migration created.
-- Implemented helper commands:
-  - `python -m aerovision_training.register_artifacts --backend-url http://localhost:8000 register-model --model-card storage/models/<model>/model_card.json --weights-path models/<model>/weights.pt`
-  - `python -m aerovision_training.register_artifacts --backend-url http://localhost:8000 import-experiments --metrics storage/models/<model>/metrics.json --artifacts-path reports/<model>`
-- Canonical experiment slugs now used in training artifacts:
-  - `model_comparison`
-  - `threshold_analysis`
-  - `tracker_comparison`
-  - `false_positive_analysis`
-- Helper validates relative paths, path-like metadata, and unsafe absolute/traversal path text before backend mutation.
-- Helper registers existing storage paths only; it does not upload weights or start training.
-- Code review final fixes:
-  - accepted OpenAI important issue OAI-I1: model-card `metrics_json` can no longer carry unsafe absolute path strings under non-path keys.
-  - accepted OpenAI important issue OAI-I2: `docs/phase.md` trailing whitespace removed.
-- Quality gates:
-  - `python -m pytest training/tests` - PASS, 28 passed.
-  - `python -m aerovision_training.validate_artifacts --model-card training/templates/model_card.placeholder.json --metrics training/templates/metrics.placeholder.json` - PASS.
-  - `python -m ruff check .` from `backend/` - PASS.
-  - `python -m pytest tests/test_models_api.py tests/test_experiments_api.py tests/test_api_contract.py` from `backend/` - PASS, 46 passed.
-  - `git diff --check` - PASS, line-ending warnings only.
-- Index/docs:
-  - `training/index.md` already lists Phase 22 helper files and commands; no final-fix index change needed.
-  - `docs/index.md` already lists `docs/phase.md`; no final-fix index change needed.
-- Mistake logs were not updated because no new real mistake occurred during final-fix work.
+- Current phase: Phase 23 - Backend-worker end-to-end integration smoke.
+- Mode: Code Review Resolution + Final Fix.
+- Scope kept to backend/worker integration smoke coverage plus one worker path-compatibility fix found by the smoke.
+- Product source-of-truth docs, research/design/plan files, and original review files were not modified in this final-fix pass.
+- No frontend, training, API contract, database schema, migration, Docker service, or product behavior expansion was added.
+
+## Review resolution
+
+- `.context/review-code-resolution.md` updated first.
+- Accepted important fix: Phase 23 smoke must use PostgreSQL, not SQLite.
+- Accepted important fix: remove trailing whitespace from `docs/phase.md`.
+- Rejected items: none.
+- Duplicate items: none.
+- Items needing user decision: none.
+
+## Fixes applied
+
+- `backend/tests/test_phase23_integration_smoke.py` now uses an isolated PostgreSQL schema with `search_path`, not SQLite.
+- Backend and worker smoke paths share the same PostgreSQL URL and isolated shared storage.
+- `docs/phase.md` trailing whitespace was removed.
+- `backend/index.md` now says the Phase 23 smoke uses an isolated PostgreSQL schema.
+
+## Existing Phase 23 implementation kept
+
+- Automated Phase 23 smoke uses real backend registration/login/model registration/media upload/job creation/result/download routes.
+- Worker `run_poll_iteration()` processes jobs through database/shared storage.
+- Fake inference/tracker output only; no committed weights.
+- Smoke covers image detection success, image no-detection success, video tracking/download success, missing-model failed-job behavior, and cross-owner result/download denial.
+- Worker result paths canonicalize UUID-like job IDs before writing `results/{job_id}/...`; DB updates still use raw DB job IDs.
+
+## Quality gates
+
+- `python -m ruff check .` from `backend/` - PASS.
+- `python -m pytest tests/test_phase23_integration_smoke.py -q` from `backend/` - PASS, 3 passed.
+- `python -m pytest tests/test_phase23_integration_smoke.py tests/test_jobs_api.py tests/test_media_api.py tests/test_api_contract.py -q` from `backend/` - PASS, 42 passed.
+- `python -m ruff check .` from `cv/` - PASS.
+- `python -m pytest tests/test_startup.py tests/test_queue.py tests/test_image_processing.py tests/test_video_processing.py tests/test_storage_paths.py -q` from `cv/` - PASS, 48 passed.
+- `python -m pytest -m postgres -q` from `cv/` - PASS, 3 passed, 80 deselected.
+- `docker compose --env-file .env.example config` - PASS; backend and `cv-worker` share `/app/storage`, `CV_DEVICE=cpu`.
+- `git diff --check -- . ':(exclude).context/review-code-claude.md' ':(exclude).context/review-code-resolution.md'` - PASS.
+
+## Security/privacy
+
+- Smoke checks responses/downloads for no absolute storage root, stack traces, and forbidden CV-boundary terms.
+- Smoke checks cross-owner denial for job detail, summary, detections, tracks, result metadata, media download, CSV download, and JSON download.
+- No secrets, tokens, passwords, raw model weights, generated media, or datasets were added.
+
+## Index/docs
+
+- `backend/index.md` updated for PostgreSQL-backed Phase 23 smoke coverage.
+- `cv/index.md` remains updated for canonical result path ID handling from the original Phase 23 implementation.
+- `docs/index.md` skipped because documentation structure and source-of-truth paths did not change.
+- Mistake logs skipped; no final-state mistake or unresolved near-miss remained.
+
+## Remaining risks
+
+- Docker-backed real-inference E2E with actual YOLO weights was not run; automated smoke uses fake inference by contract because no valid local model artifact was confirmed.
+- Test execution showed worker video tests emit an OpenCV `moov atom not found` warning for corrupted-media coverage; tests still pass.

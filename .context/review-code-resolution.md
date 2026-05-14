@@ -1,58 +1,56 @@
-# Phase 22 Code Review Resolution
+# Phase 23 Code Review Resolution
 
 ## Verdict: FIXED
 
-OpenAI review found two important issues. Claude code review file is absent. No critical issue and no item needed user decision. Accepted fixes were applied and verified.
+All code review items resolved. Accepted fixes applied and verified.
 
 ## Resolution table
 
-| ID | Source | Priority | Review item | Resolution | Reason |
-|---|---|---:|---|---|---|
-| OAI-I1 | `.context/review-code-openai.md` | important | Model registration helper can persist/expose absolute path strings through model-card `metrics_json` when key names are not path-like. | accepted | Product docs forbid unsafe absolute filesystem paths in API responses; helper must validate imported artifact metadata before backend mutation. |
-| OAI-I2 | `.context/review-code-openai.md` | important | Full diff whitespace check fails on `docs/phase.md:3` trailing whitespace. | accepted | Low-risk hygiene fix in touched phase doc; required for clean diff gate. |
+| ID | Source | Priority | Review item | Resolution | Reason | Fix |
+|---|---|---:|---|---|---|---|
+| OAI-I1 | `.context/review-code-openai.md` | important | Phase 23 e2e smoke uses SQLite, not PostgreSQL. | accepted | Phase 23 plan requires real backend routes, PostgreSQL, isolated shared storage, and worker polling. Existing worker PostgreSQL queue tests do not cover backend routes/result writes/download ownership together. | `backend/tests/test_phase23_integration_smoke.py` now creates an isolated PostgreSQL schema, points backend and worker at that schema, and keeps isolated shared storage. |
+| OAI-I2 | `.context/review-code-openai.md` | important | Diff whitespace gate fails on `docs/phase.md:3`. | accepted | Diff cleanliness is low-risk and required before final verification. | Removed trailing whitespace from `docs/phase.md`. |
 
 ## Accepted critical fixes
 
-- None.
+None.
 
 ## Accepted important fixes
 
-- Reject unsafe absolute/traversal path strings anywhere inside model-card artifacts before building model registration payload.
-- Add regression coverage proving non-path metric keys cannot carry absolute path strings into `metrics_json`.
-- Remove trailing whitespace in touched `docs/phase.md`.
+- Update `backend/tests/test_phase23_integration_smoke.py` so the Phase 23 smoke uses a PostgreSQL test schema when PostgreSQL is reachable, with isolated shared storage and same DB URL for backend and worker.
+- Remove trailing whitespace from `docs/phase.md`.
 
 ## Accepted optional fixes
 
-- None.
+None.
 
 ## Rejected items
 
-- None.
+None.
 
 ## Duplicate items
 
-- None.
+None.
 
 ## Items needing user decision
 
-- None.
+None.
 
 ## Fixes applied
 
-- `training/aerovision_training/schemas.py`
-  - Added recursive unsafe path-string validation for all artifact string values.
-  - Model cards and metrics artifacts now reject absolute, traversal, drive-qualified, container/local, and cloud storage path text before backend payload creation.
-- `training/tests/test_artifact_import.py`
-  - Added regression coverage for absolute path strings under non-path model-card metric keys.
-- `training/tests/test_schemas.py`
-  - Added regression coverage for absolute path strings inside metrics artifact metadata text.
-- `docs/phase.md`
-  - Removed trailing whitespace reported by full diff check.
+- Added PostgreSQL schema setup/teardown helpers in `backend/tests/test_phase23_integration_smoke.py`.
+- Replaced SQLite smoke database with isolated PostgreSQL `search_path` schema.
+- Updated worker test settings in the smoke to use the active PostgreSQL URL.
+- Removed trailing whitespace from `docs/phase.md`.
+- Updated `backend/index.md` to describe PostgreSQL-backed Phase 23 smoke coverage.
 
 ## Final verification
 
-- `python -m pytest training/tests` - PASS, 28 passed.
-- `python -m aerovision_training.validate_artifacts --model-card training/templates/model_card.placeholder.json --metrics training/templates/metrics.placeholder.json` - PASS.
 - `python -m ruff check .` from `backend/` - PASS.
-- `python -m pytest tests/test_models_api.py tests/test_experiments_api.py tests/test_api_contract.py` from `backend/` - PASS, 46 passed.
-- `git diff --check` - PASS, line-ending warnings only.
+- `python -m pytest tests/test_phase23_integration_smoke.py -q` from `backend/` - PASS, 3 passed.
+- `python -m pytest tests/test_phase23_integration_smoke.py tests/test_jobs_api.py tests/test_media_api.py tests/test_api_contract.py -q` from `backend/` - PASS, 42 passed.
+- `python -m ruff check .` from `cv/` - PASS.
+- `python -m pytest tests/test_startup.py tests/test_queue.py tests/test_image_processing.py tests/test_video_processing.py tests/test_storage_paths.py -q` from `cv/` - PASS, 48 passed.
+- `python -m pytest -m postgres -q` from `cv/` - PASS, 3 passed, 80 deselected.
+- `docker compose --env-file .env.example config` - PASS.
+- `git diff --check -- . ':(exclude).context/review-code-claude.md' ':(exclude).context/review-code-resolution.md'` - PASS.

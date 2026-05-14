@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from uuid import UUID
 
 
 def validate_relative_storage_path(path: str) -> str:
@@ -26,3 +27,11 @@ def safe_join_storage_path(storage_root: str | Path, relative_path: str) -> Path
     if candidate != root and root not in candidate.parents:
         raise ValueError("Resolved storage path escapes storage root")
     return candidate
+
+
+def canonical_storage_id(value: object) -> str:
+    raw_value = str(value)
+    try:
+        return str(UUID(raw_value))
+    except ValueError:
+        return raw_value
