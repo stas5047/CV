@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 MODEL_CARD_REQUIRED_KEYS = {
@@ -35,8 +35,8 @@ MODEL_METRIC_KEYS = {
 
 EXPERIMENT_TYPES = {
     "model_comparison",
-    "confidence_threshold_analysis",
-    "tracker_behavior_comparison",
+    "threshold_analysis",
+    "tracker_comparison",
     "false_positive_analysis",
 }
 
@@ -54,6 +54,7 @@ NORMALIZED_PATH_REFERENCE_KEYS = {
     "reportartifacts",
     "reportpath",
     "reportpaths",
+    "splitmanifest",
 }
 
 
@@ -70,6 +71,8 @@ def validate_model_card(card: dict[str, Any]) -> None:
     if card["classes"] != ["drone"]:
         raise ArtifactValidationError("classes must contain exactly drone")
     _validate_relative_path(str(card["split_manifest"]), "split_manifest")
+    _validate_no_unsafe_path_strings(card, "model_card")
+    _validate_path_references(card, "model_card")
 
     metrics = card["metrics"]
     if not isinstance(metrics, dict):
@@ -94,6 +97,7 @@ def validate_metrics_artifact(metrics: dict[str, Any]) -> None:
     found_types = {experiment.get("type") for experiment in experiments if isinstance(experiment, dict)}
     if found_types != EXPERIMENT_TYPES:
         raise ArtifactValidationError(f"experiments must contain exactly {sorted(EXPERIMENT_TYPES)}")
+    _validate_no_unsafe_path_strings(metrics, "metrics")
     _validate_path_references(metrics["detection_metrics"], "detection_metrics")
 
     for experiment in experiments:
@@ -113,11 +117,11 @@ def _validate_experiment(experiment: dict[str, Any]) -> None:
     _require_keys(experiment, {"type", "summary", "metrics"}, f"{experiment_type} experiment")
     if experiment_type == "model_comparison":
         _require_keys(experiment, {"models"}, "model_comparison experiment")
-    elif experiment_type == "confidence_threshold_analysis":
+    elif experiment_type == "threshold_analysis":
         thresholds = experiment.get("thresholds")
         if thresholds != [0.25, 0.5, 0.7]:
             raise ArtifactValidationError("confidence threshold analysis must cover 0.25, 0.50, and 0.70")
-    elif experiment_type == "tracker_behavior_comparison":
+    elif experiment_type == "tracker_comparison":
         trackers = set(experiment.get("trackers", []))
         if trackers != {"ByteTrack", "BoT-SORT"}:
             raise ArtifactValidationError("tracker behavior comparison must cover ByteTrack and BoT-SORT")
@@ -137,7 +141,8 @@ def _require_keys(data: dict[str, Any], required: set[str], label: str) -> None:
 
 
 def _validate_relative_path(value: str, label: str) -> None:
-    path = Path(value)
+    normalized = value.replace("\\", "/")
+    path = PurePosixPath(normalized)
     if path.is_absolute() or value.startswith(("/", "\\")) or ":" in value:
         raise ArtifactValidationError(f"{label} must be a relative path")
     if ".." in path.parts:
@@ -164,6 +169,51 @@ def _validate_path_references(value: Any, label: str, *, in_path_reference: bool
 
     if in_path_reference and isinstance(value, str):
         _validate_relative_path(value, label)
+
+
+def _validate_no_unsafe_path_strings(value: Any, label: str) -> None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            _validate_no_unsafe_path_strings(child, f"{label}.{key}")
+        return
+
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            _validate_no_unsafe_path_strings(child, f"{label}[{index}]")
+        return
+
+    if isinstance(value, str) and _is_unsafe_path_string(value):
+        raise ArtifactValidationError(f"{label} must not contain absolute or traversal path text")
+
+
+def _is_unsafe_path_string(value: str) -> bool:
+    stripped = value.strip()
+    if not stripped:
+        return False
+    normalized = stripped.replace("\\", "/")
+    lowered = normalized.lower()
+    path = PurePosixPath(normalized)
+    if path.is_absolute() or stripped.startswith(("/", "\\", "~")):
+        return True
+    if len(normalized) >= 2 and normalized[0].isalpha() and normalized[1] == ":":
+        return True
+    if ".." in path.parts:
+        return True
+    return any(
+        marker in lowered
+        for marker in (
+            "/app/storage",
+            "/content/",
+            "/kaggle/",
+            "c:/storage",
+            "c:/users",
+            "file://",
+            "s3://",
+            "gs://",
+            "dbfs:/",
+            "abfs://",
+        )
+    )
 
 
 def _normalize_metric_key(value: str) -> str:

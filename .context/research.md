@@ -1,11 +1,11 @@
-# Research - Phase 21 Training Pipeline Artifacts
+# Phase 22 Research
 
 ## Current phase
 
-- Current phase: Phase 21 - Training pipeline scripts, notebooks, dataset preparation, and model cards.
-- Direction: Training / Offline CV.
-- Goal: Create offline training workflow artifacts without launching training from the web application.
-- Risk level: user supplied placeholder only; assumed medium for planning because phase creates offline pipeline artifacts, schemas, notebook templates, and Git-ignore-sensitive large-file paths, but should not alter runtime app behavior.
+- Confirmed: `docs/phase.md` identifies current phase as `Phase 22 - Model artifact registration and experiment artifact import utilities`.
+- Confirmed direction: Backend / Training Integration.
+- Confirmed goal: bridge offline training artifacts into backend model registry and experiment import flows.
+- Assumption: user prompt left risk placeholder unresolved; treat phase risk as `MEDIUM` because implementation will add admin-facing artifact import helpers, path validation, and database/API writes.
 
 ## Docs consulted
 
@@ -15,73 +15,92 @@
 - `docs/ROADMAP.md`
 - `docs/phase.md`
 - `docs/TRAINING_EXPERIMENTS.md`
-- `docs/PROJECT_CONTEXT.md`
-- `docs/CV_PIPELINE.md`
-- `docs/ARCHITECTURE.md`
+- `docs/DATA_MODEL.md`
+- `docs/API.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ## Confirmed repository facts
 
 - Git checkout exists.
-- `docs/phase.md` selects Phase 21 and its relevant docs match roadmap Phase 21.
-- Worktree was already dirty before this contract work:
-  - `.context/design.md`
-  - `.context/plan.md`
-  - `.context/research.md`
-  - `.context/review-code-openai.md`
-  - `.context/review-code-resolution.md`
-  - `.context/review-plan-claude.md`
-  - `.context/review-plan-resolution.md`
-  - `.context/status.md`
-  - `docs/phase.md`
-- `.context/research.md`, `.context/design.md`, and `.context/plan.md` existed and were empty at inspection time.
-- Top-level project areas exist: `backend/`, `frontend/`, `cv/`, `training/`, `scripts/`, `storage/`, `docs/`.
-- `training/` contains only `training/index.md`.
-- `training/index.md` says no training scripts, notebooks, dependency manifests, configs, dataset helpers, artifact schemas, or tests exist yet.
-- `.gitignore` ignores `storage/uploads/**`, `storage/results/**`, `storage/reports/**`, `storage/models/**`, `storage/temp/**`, `storage/datasets/**`, model weights (`*.pt`, `*.pth`, `*.onnx`, `*.engine`), and common video outputs.
-- Storage directories exist for `datasets`, `models`, `reports`, `results`, `temp`, and `uploads`.
-- Backend and CV worker code/tests exist by filename, but no source behavior was audited for this planning pass.
-- Frontend has placeholder `Dockerfile` and `index.md` only by file listing.
+- `git status --short` before writing showed modified `.context/*` files and modified `docs/phase.md`.
+- Existing `.context/research.md`, `.context/design.md`, and `.context/plan.md` were 0 bytes before this write.
+- Root contains `backend/`, `frontend/`, `cv/`, `training/`, `docs/`, `scripts/`, Compose files, Makefile, README, `AGENTS.md`, and `CLAUDE.md`.
+- Backend package exists with FastAPI API modules, services, schemas, SQLAlchemy models, Alembic migration, setup command, and tests.
+- Training package exists with dataset split, notebook checks, artifact schemas, artifact validator CLI, templates, README, and tests.
+- Frontend still contains placeholder Dockerfile only; no Phase 22 frontend implementation needed.
+- CV worker exists beyond scaffold, but Phase 22 does not require worker changes.
 
 ## Existing implementation state
 
-- Training surface is unimplemented except folder index.
-- No dataset preparation script exists yet.
-- No deterministic split script exists yet.
-- No `data.yaml` generator/template exists yet.
-- No Kaggle or Colab notebook template exists yet.
-- No local tiny smoke training helper exists yet.
-- No model card schema exists yet.
-- No metrics schema exists yet.
-- No training-specific tests exist yet.
-- Large training artifacts are already ignored by Git through root `.gitignore`.
+- Backend model registry API already exists:
+  - `GET /api/models`
+  - `GET /api/models/{model_id}`
+  - `POST /api/models`
+  - `PATCH /api/models/{model_id}/activate`
+- Backend experiment API already exists:
+  - `GET /api/experiments`
+  - `GET /api/experiments/{experiment_id}`
+  - `POST /api/experiments/import`
+- Existing backend services validate relative model weights paths under `models/` and experiment artifact paths under `reports/`.
+- Existing backend services reject absolute paths and storage-root leakage in API responses.
+- Existing backend enforces admin-only model registration, model activation, and experiment import.
+- Existing database model already includes `model_versions`, `experiment_runs`, and `experiment_metrics`.
+- Existing training validator validates model cards and metrics artifacts but only reports import readiness; it does not register models or import experiments into backend.
+- Existing `training/templates/model_card.placeholder.json` supports nullable metrics.
+- Existing `training/templates/metrics.placeholder.json` covers four documented experiment families with nullable metrics.
+
+## WARNING: CONFLICT
+
+- `docs/DATA_MODEL.md` and `docs/API.md` use experiment type identifiers:
+  - `model_comparison`
+  - `threshold_analysis`
+  - `tracker_comparison`
+  - `false_positive_analysis`
+- Existing `training/aerovision_training/schemas.py` and `training/templates/metrics.placeholder.json` use:
+  - `model_comparison`
+  - `confidence_threshold_analysis`
+  - `tracker_behavior_comparison`
+  - `false_positive_analysis`
+- Impact: current training metrics artifact cannot be posted directly to existing backend experiment import API without a documented mapping or source alignment.
 
 ## Unknowns and assumptions
 
-- Unknown: exact risk level intended by user because request kept `<LOW | MEDIUM | HIGH>` placeholder.
-- Assumption: treat this as medium-risk planning due artifact/schema correctness and large-file safety, but no runtime source changes.
-- Unknown: exact future filenames for new training scripts/notebooks/schemas are not specified by docs.
-- Assumption: implementation should choose minimal filenames under `training/` and update `training/index.md` only if phase implementation changes training commands/files.
-- Unknown: actual Seraphim source folder naming and group metadata format.
-- Assumption: split tool must accept explicit inputs and support group metadata when present, then fall back to deterministic per-image split if absent.
-- Unknown: whether YOLO26 is available in local Ultralytics package at implementation time.
-- Assumption: notebook templates should target YOLO26 first and include a documented YOLO11 fallback path without making fallback primary.
-- Unknown: whether implementation will add a separate training dependency manifest.
-- Assumption: add a training-local dependency manifest or exact install command if runnable scripts/tests need non-stdlib dependencies; do not alter backend/CV dependencies for training-only utilities.
-- Planning review resolution accepted explicit Phase 21 contract coverage for all four documented experiment artifact families: model comparison, confidence threshold analysis, tracker behavior comparison, and false-positive analysis.
-- Planning review resolution accepted only offline artifact validation/import-readiness utility scope for model cards and metrics; backend/database/frontend import execution remains out of scope for this phase.
+- Unknown: whether Phase 22 helper must be a backend-local database CLI, a training-local API client CLI, or both.
+- Assumption: prefer training-local API client helper because backend REST API already owns authorization and validation for model registration and experiment import.
+- Unknown: whether idempotent imports are required. Docs say test idempotency only when supported; existing schema/API do not document uniqueness keys for idempotent imports.
+- Assumption: do not add idempotency unless user approves unique-key behavior or docs change.
+- Unknown: exact admin credential/token workflow for helper.
+- Assumption: helper should prefer an existing admin JWT token from environment or argument and avoid logging tokens/passwords.
+- Unknown: whether README root or `training/README.md` should hold workflow docs.
+- Assumption: update `training/README.md` for detailed artifact workflow; update root `README.md` only if new user-facing commands are added.
+
+## Planning review resolution notes
+
+- Accepted: implementation must make training schema/templates and backend-facing experiment payloads use documented canonical slugs: `model_comparison`, `threshold_analysis`, `tracker_comparison`, `false_positive_analysis`.
+- Rejected for Phase 22: compatibility aliases for current legacy slugs `confidence_threshold_analysis` and `tracker_behavior_comparison`. Add aliases only after explicit user approval.
+- Accepted: helper validation must reject absolute paths, traversal, and local/cloud path leaks in path-like metadata fields inside model cards and metrics artifacts, not only top-level `weights_path` and `artifacts_path`.
+- Accepted: targeted backend API gates for model registration, activation, experiment import, and API contract must run even when backend source code is unchanged.
+- Accepted: add mocked CLI smoke coverage for placeholder model card and metrics template payload shape, route/method, authorization header handling, and redacted output.
+- Accepted: implementation docs must state helper registers existing files under storage and never uploads `.pt` weights or starts training.
 
 ## Files likely relevant for implementation
 
-- `training/` - new training scripts, notebook templates, config/schema artifacts, local smoke helpers, tests if chosen.
-- `training/index.md` - update after new training files/commands exist.
-- `.gitignore` - verify large datasets, weights, notebook outputs, and generated artifacts remain ignored; update only if a gap is found.
-- `storage/datasets/seraphim_subset/data.yaml` - generated artifact, must not be committed if under ignored storage.
-- `storage/datasets/seraphim_subset/split_manifest.csv` - generated artifact, must not be committed if under ignored storage.
-- `storage/models/<model-version>/model_card.json` - generated/validated artifact layout.
-- `storage/models/<model-version>/metrics.json` - generated/validated artifact layout.
-- `docs/phase.md` - already identifies phase; must not be modified in this planning task.
-
-## Conflicts
-
-- No `WARNING: CONFLICT` found among consulted docs for Phase 21.
+- `training/aerovision_training/schemas.py`
+- `training/aerovision_training/validate_artifacts.py`
+- `training/templates/model_card.placeholder.json`
+- `training/templates/metrics.placeholder.json`
+- `training/tests/test_schemas.py`
+- `training/README.md`
+- `training/index.md`
+- `training/pyproject.toml`
+- `backend/app/api/models.py`
+- `backend/app/api/experiments.py`
+- `backend/app/services/models.py`
+- `backend/app/services/experiments.py`
+- `backend/app/schemas/models.py`
+- `backend/app/schemas/experiments.py`
+- `backend/tests/test_models_api.py`
+- `backend/tests/test_experiments_api.py`
+- `backend/tests/test_api_contract.py`
+- `README.md`

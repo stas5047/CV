@@ -1,12 +1,12 @@
-# OpenAI Code Review - Phase 21 Training Pipeline Artifacts
+# OpenAI Code Review - Phase 22 Model Artifact Registration and Experiment Import
 
 ## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Phase 21 stays in offline training scope: training package, dataset splitter, schemas/templates, notebook templates, tests, README, and index updates. No backend API, DB migration, frontend route, or CV worker runtime change found.
+Phase 22 stays in documented scope: training-local helper code, artifact schema/template alignment, training tests, and command docs. No backend source, database migration, frontend, or CV worker change found.
 
-Three changes needed before approval: metrics artifact validation lets absolute report paths through, dataset output can silently corrupt with duplicate filenames or stale files, and `rtk git diff --check` fails.
+Two fixes needed before approval: model-card metric metadata can still carry absolute path strings into the backend model payload, and full diff whitespace check reports a touched docs line.
 
 ## Critical issues
 
@@ -14,21 +14,16 @@ None.
 
 ## Important issues
 
-1. Metrics validator accepts absolute app-facing artifact paths.
-   - Evidence: `.context/plan.md:49` and `.context/plan.md:79` require model card/metrics artifact references to be relative. `.context/design.md:77-78` says avoid absolute host paths in model cards and metrics artifacts. `docs/TRAINING_EXPERIMENTS.md:402-408` says experiment import includes report artifact paths.
-   - Evidence: `training/aerovision_training/schemas.py:69-114` validates metric structure and experiment types, but never calls `_validate_relative_path` for `detection_metrics.confusion_matrix` or any metrics/report artifact reference. `_validate_relative_path` is only used by model-card validation at `training/aerovision_training/schemas.py:58-66`.
-   - Evidence: reviewer probe accepted an absolute path: setting `metrics["detection_metrics"]["confusion_matrix"] = "/app/storage/reports/cm.png"` then calling `validate_metrics_artifact(metrics)` printed `accepted absolute confusion_matrix`.
-   - Impact: offline import-readiness can approve metrics artifacts that later expose container/host paths through admin import/display flows.
+1. Model registration helper can leak absolute paths through `metrics_json`.
+   - Evidence: `.context/review-plan-resolution.md` requires helper validation of path-like metadata inside imported artifacts before backend mutation, and `.context/design.md` says training artifacts/report metadata must not carry absolute local/cloud paths into API responses or database records.
+   - Evidence: `training/aerovision_training/schemas.py` validates path references only when key names look path-like. Extra model metric keys are allowed. Probe: adding `card["metrics"]["source"] = "/app/storage/reports/leak.png"` then calling `build_model_registration_payload(..., weights_path="models/yolo26s/weights.pt")` printed `ACCEPTED /app/storage/reports/leak.png`.
+   - Evidence: `training/aerovision_training/artifact_import.py` copies full `model_card["metrics"]` into `metrics_json`. `backend/app/schemas/models.py` returns `metrics_json` in `ModelResponse`, and existing model service does not scan `metrics_json` for absolute paths.
+   - Impact: a real model card can register successfully and expose a container/host-looking path through model API responses, violating `docs/API.md` and `docs/AUTH_SECURITY.md` absolute-path exposure rules.
+   - Test gap: existing tests cover `plot_path` / `report_path` keys, but not absolute path strings under non-path metadata keys that are still persisted.
 
-2. Dataset writer can produce inconsistent YOLO output with duplicate basenames or stale files.
-   - Evidence: `docs/TRAINING_EXPERIMENTS.md:190` says Seraphim is compiled multi-source data, where duplicate image basenames are plausible. `training/aerovision_training/dataset_split.py:40-43` writes targets using only `item.image_path.name` and `item.label_path.name`, with no collision check before `shutil.copy2`.
-   - Evidence: `training/aerovision_training/dataset_split.py:37` and `training/aerovision_training/dataset_split.py:154-157` create output folders with `exist_ok=True`, but do not clean or reject a non-empty output directory.
-   - Impact: two source files with same basename can overwrite each other silently, and reruns into `storage/datasets/seraphim_subset` can leave stale files not represented by `split_manifest.csv`. Training may consume wrong data while manifest appears valid.
-   - Test gap: `training/tests/test_dataset_split.py` covers determinism and group leakage, but not basename collisions or stale output reuse.
-
-3. Diff whitespace gate fails.
-   - Evidence: `rtk git diff --check` reports `docs/phase.md:3: trailing whitespace` on `**Direction:** Training / Offline CV  `.
-   - Impact: quality gate is not clean.
+2. Full diff whitespace gate reports a touched docs line.
+   - Evidence: `rtk git diff --check` output: `docs/phase.md:3: trailing whitespace. +**Direction:** Backend / Training Integration`.
+   - Impact: `.context/status.md` reports a targeted diff-check PASS while excluding `docs/phase.md`, but `docs/phase.md` is part of this phase diff. Release hygiene gate is not clean.
 
 ## Optional issues
 
@@ -36,26 +31,26 @@ None.
 
 ## Quality gate assessment
 
-- `python -m pytest training/tests` - PASS, 8 tests passed.
+- `rtk git status --short` - PASS for inspection; shows Phase 22 source/docs/context changes plus untracked helper/test files.
+- `rtk git diff --stat` - PASS for inspection; note untracked files are not included by Git diff stat.
+- `rtk git diff` - PASS for inspection; rtk output was truncated, so untracked helper/test files were read directly.
+- `python -m pytest training/tests` - PASS, 26 passed.
 - `python -m aerovision_training.validate_artifacts --model-card training/templates/model_card.placeholder.json --metrics training/templates/metrics.placeholder.json` - PASS.
-- `python -m ruff check training` - PASS.
-- `rtk git diff --check` - FAIL, `docs/phase.md:3: trailing whitespace`.
-- `python -m pip install -e "training[dev]"` - not rerun by reviewer; `.context/status.md:27` reports PASS.
-- Dataset split CLI smoke under `storage/temp/phase21-cli-fixture` - not rerun by reviewer; `.context/status.md:26` reports PASS.
-- Local smoke training - not run by design; `.context/status.md:37` says it needs `ultralytics`, pretrained weights, and tiny dataset contents.
+- `python -m ruff check .` from `backend/` - PASS.
+- `python -m pytest tests/test_models_api.py tests/test_experiments_api.py tests/test_api_contract.py` from `backend/` - PASS, 46 passed.
+- `rtk git diff --check` - FAIL output present for `docs/phase.md:3` trailing whitespace.
+- `rtk git diff --check -- README.md .context/status.md training/README.md training/index.md training/aerovision_training/schemas.py training/templates/metrics.placeholder.json training/tests/test_schemas.py` - PASS.
 
 ## Security/privacy assessment
 
-Applicable because Phase 21 added artifact validators for files later consumed by model/experiment import workflows. No secrets, credentials, real datasets, model weights, generated reports, or media artifacts found in changed files. Main privacy risk is Important issue 1: metrics validation does not reject absolute artifact paths.
+Backend authorization remains authority for model registration, activation, and experiment import. Helper output did not print tokens in tests. Remaining privacy issue: model-card metric payload can carry absolute filesystem path text into `metrics_json` and model API responses.
 
 ## Positive findings
 
-- Training remains offline-only; no web UI/API training launch added.
-- YOLO26 remains primary, YOLO11 appears only as fallback guidance.
-- Single-class `drone` invariant is enforced in model-card validation and dataset `data.yaml`.
-- Metrics template covers all four documented experiment families.
-- Notebook checks enforce pretrained YOLO weights, image size `640`, and seed `42`.
-- Training README and `training/index.md` document commands and human handoff clearly.
+- Training experiment slugs now match documented backend/API slugs: `model_comparison`, `threshold_analysis`, `tracker_comparison`, `false_positive_analysis`.
+- Helper uses existing backend REST endpoints instead of bypassing auth or writing the database directly.
+- Helper registers existing storage paths only; no `.pt` upload or training launch added.
+- Backend model/experiment API tests still pass without backend source changes.
 
 ## Files consulted
 
@@ -65,34 +60,29 @@ Applicable because Phase 21 added artifact validators for files later consumed b
 - `docs/ROADMAP.md`
 - `docs/phase.md`
 - `docs/TRAINING_EXPERIMENTS.md`
-- `docs/PROJECT_CONTEXT.md`
-- `docs/CV_PIPELINE.md`
-- `docs/ARCHITECTURE.md`
+- `docs/DATA_MODEL.md`
+- `docs/API.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
-- `rtk git status --short`
-- `rtk git diff --stat`
-- `rtk git diff`
-- `rtk git diff --check`
+- `README.md`
 - `training/README.md`
 - `training/index.md`
 - `training/pyproject.toml`
-- `training/aerovision_training/__init__.py`
-- `training/aerovision_training/dataset_split.py`
+- `training/aerovision_training/artifact_import.py`
+- `training/aerovision_training/register_artifacts.py`
 - `training/aerovision_training/schemas.py`
-- `training/aerovision_training/validate_artifacts.py`
-- `training/aerovision_training/notebook_checks.py`
-- `training/aerovision_training/smoke_train.py`
 - `training/templates/model_card.placeholder.json`
 - `training/templates/metrics.placeholder.json`
-- `training/notebooks/yolo26n_finetune_template.ipynb`
-- `training/notebooks/yolo26s_finetune_template.ipynb`
-- `training/tests/conftest.py`
-- `training/tests/test_dataset_split.py`
+- `training/tests/test_artifact_import.py`
 - `training/tests/test_schemas.py`
-- `training/tests/test_notebooks.py`
-- `docs/mistakes-codex.md`
+- `backend/app/api/models.py`
+- `backend/app/api/experiments.py`
+- `backend/app/schemas/models.py`
+- `backend/app/schemas/experiments.py`
+- `backend/app/services/models.py`
+- `backend/app/services/experiments.py`

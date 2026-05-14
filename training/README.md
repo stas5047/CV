@@ -1,6 +1,6 @@
 # AeroVision Offline Training Workflow
 
-Phase 21 adds offline-only training artifacts. Web UI, backend API, database migrations, and CV worker runtime do not launch training.
+This folder contains offline-only training artifacts and artifact registration helpers. Web UI, backend API, database migrations, and CV worker runtime do not launch training.
 
 ## Dataset Preparation
 
@@ -77,5 +77,42 @@ Validate import-readiness:
 ```powershell
 python -m aerovision_training.validate_artifacts --model-card training/templates/model_card.placeholder.json --metrics training/templates/metrics.placeholder.json
 ```
+
+## Register Artifacts In App
+
+After cloud training, place downloaded files under storage before registration:
+
+```text
+storage/models/yolo26s-seraphim-subset-v1/weights.pt
+storage/models/yolo26s-seraphim-subset-v1/model_card.json
+storage/models/yolo26s-seraphim-subset-v1/metrics.json
+storage/reports/yolo26s-seraphim-subset-v1/
+```
+
+Use an admin JWT issued by the backend API. Prefer an environment variable so tokens are not written into command history:
+
+```powershell
+$env:AEROVISION_API_TOKEN = "<admin-jwt>"
+```
+
+Register an existing model weights path through the backend API:
+
+```powershell
+python -m aerovision_training.register_artifacts --backend-url http://localhost:8000 register-model --model-card storage/models/yolo26s-seraphim-subset-v1/model_card.json --weights-path models/yolo26s-seraphim-subset-v1/weights.pt
+```
+
+Register and activate in one explicit admin action:
+
+```powershell
+python -m aerovision_training.register_artifacts --backend-url http://localhost:8000 register-model --model-card storage/models/yolo26s-seraphim-subset-v1/model_card.json --weights-path models/yolo26s-seraphim-subset-v1/weights.pt --activate
+```
+
+Import experiment records through the backend API:
+
+```powershell
+python -m aerovision_training.register_artifacts --backend-url http://localhost:8000 import-experiments --metrics storage/models/yolo26s-seraphim-subset-v1/metrics.json --artifacts-path reports/yolo26s-seraphim-subset-v1 --dataset-name "Seraphim Drone Detection Dataset subset" --published
+```
+
+The helper registers existing relative paths under storage. It does not upload `.pt` weights, does not read model weights, does not start training, and does not bypass backend admin authorization.
 
 Artifact paths intended for application import must be relative to storage root. Do not place datasets, weights, generated reports, or training outputs in Git.

@@ -1,61 +1,58 @@
-# Code Review Resolution - Phase 21 Training Pipeline Artifacts
+# Phase 22 Code Review Resolution
 
 ## Verdict: FIXED
 
-OpenAI code review verdict: `APPROVED_WITH_CHANGES`.
-Claude code review file exists but has no review content.
-
-Blocking user decisions: none.
+OpenAI review found two important issues. Claude code review file is absent. No critical issue and no item needed user decision. Accepted fixes were applied and verified.
 
 ## Resolution table
 
-| Priority | ID | Review item | Resolution | Rationale | Fix |
-|---|---|---|---|---|---|
-| important | I1 | Metrics validator accepts absolute app-facing artifact paths. | accepted | Product docs and Phase 21 contract require app-facing artifact references to stay relative and reject absolute/traversal paths. | Added metrics artifact path validation and regression coverage for `detection_metrics.confusion_matrix` plus experiment report artifact references. |
-| important | I2 | Dataset writer can produce inconsistent YOLO output with duplicate basenames or stale files. | accepted | Deterministic dataset preparation must not silently overwrite source files or leave stale files outside `split_manifest.csv`. | Added fail-fast checks for non-empty output directories and duplicate flattened output targets, plus regression tests. |
-| important | I3 | Diff whitespace gate fails on `docs/phase.md`. | accepted | Whitespace gate is a documented quality check failure and fix is low-risk. | Removed trailing whitespace only. |
+| ID | Source | Priority | Review item | Resolution | Reason |
+|---|---|---:|---|---|---|
+| OAI-I1 | `.context/review-code-openai.md` | important | Model registration helper can persist/expose absolute path strings through model-card `metrics_json` when key names are not path-like. | accepted | Product docs forbid unsafe absolute filesystem paths in API responses; helper must validate imported artifact metadata before backend mutation. |
+| OAI-I2 | `.context/review-code-openai.md` | important | Full diff whitespace check fails on `docs/phase.md:3` trailing whitespace. | accepted | Low-risk hygiene fix in touched phase doc; required for clean diff gate. |
 
 ## Accepted critical fixes
 
-None.
+- None.
 
 ## Accepted important fixes
 
-- I1: validate metrics artifact/report paths as relative and traversal-safe.
-- I2: prevent duplicate output target overwrites and stale output directory reuse in dataset split writer.
-- I3: remove trailing whitespace reported by diff check.
+- Reject unsafe absolute/traversal path strings anywhere inside model-card artifacts before building model registration payload.
+- Add regression coverage proving non-path metric keys cannot carry absolute path strings into `metrics_json`.
+- Remove trailing whitespace in touched `docs/phase.md`.
 
 ## Accepted optional fixes
 
-None.
+- None.
 
 ## Rejected items
 
-None.
+- None.
 
 ## Duplicate items
 
-None.
+- None.
 
 ## Items needing user decision
 
-None.
+- None.
 
 ## Fixes applied
 
-- Added failing tests first for metrics artifact path rejection, non-empty output directory rejection, and duplicate output target rejection.
-- Added recursive validation for app-facing metrics/report artifact path fields.
-- Added dataset split guards for non-empty output directories and duplicate flattened image/label output targets.
-- Removed trailing whitespace from `docs/phase.md`.
-- Updated `training/README.md` and `training/index.md` to document the split-output safeguards.
+- `training/aerovision_training/schemas.py`
+  - Added recursive unsafe path-string validation for all artifact string values.
+  - Model cards and metrics artifacts now reject absolute, traversal, drive-qualified, container/local, and cloud storage path text before backend payload creation.
+- `training/tests/test_artifact_import.py`
+  - Added regression coverage for absolute path strings under non-path model-card metric keys.
+- `training/tests/test_schemas.py`
+  - Added regression coverage for absolute path strings inside metrics artifact metadata text.
+- `docs/phase.md`
+  - Removed trailing whitespace reported by full diff check.
 
 ## Final verification
 
-- `python -m pytest training/tests/test_schemas.py::test_metrics_artifact_rejects_absolute_or_traversal_report_paths` - RED before implementation, then PASS.
-- `python -m pytest training/tests/test_dataset_split.py::test_prepare_yolo_dataset_rejects_non_empty_output_dir training/tests/test_dataset_split.py::test_prepare_yolo_dataset_rejects_duplicate_output_targets` - RED before implementation, then PASS.
-- `python -m pytest training/tests` - PASS, 11 passed.
-- `python -m ruff check training` - PASS.
+- `python -m pytest training/tests` - PASS, 28 passed.
 - `python -m aerovision_training.validate_artifacts --model-card training/templates/model_card.placeholder.json --metrics training/templates/metrics.placeholder.json` - PASS.
-- `python -m pip install -e "training[dev]"` - PASS.
-- Dataset split CLI smoke on generated fixture under ignored `storage/temp/phase21-final-fixture` - PASS; fixture removed.
-- `git diff --check` - PASS for whitespace errors; Git reported line-ending warnings only.
+- `python -m ruff check .` from `backend/` - PASS.
+- `python -m pytest tests/test_models_api.py tests/test_experiments_api.py tests/test_api_contract.py` from `backend/` - PASS, 46 passed.
+- `git diff --check` - PASS, line-ending warnings only.

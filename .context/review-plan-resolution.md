@@ -1,48 +1,62 @@
-# Planning Review Resolution - Phase 21 Training Pipeline Artifacts
+# Phase 22 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude planning review verdict was `APPROVED_WITH_CHANGES`. All blocking status: none. Accepted changes are applied only to `.context/` planning contract files. No source code changes are part of this resolution.
+Claude review has no blocking issue. Accepted items update only Phase 22 implementation contract. No source code changes allowed or made in this resolution step.
 
 ## Resolution table
 
-| ID | Claude item | Resolution | Rationale | Applied update |
-|---|---|---|---|---|
-| I1 | Experiment artifact coverage incomplete: plan named tracker behavior and false-positive explicitly but did not explicitly cover model comparison or confidence threshold analysis. | accepted | `docs/TRAINING_EXPERIMENTS.md` requires all four experiment records: model comparison, confidence threshold analysis, tracker behavior comparison, false-positive analysis. No conflict with product docs. | `.context/plan.md` now has explicit steps and checks for all four experiment artifact families; `.context/design.md` and `.context/research.md` reflect same contract. |
-| I2 | Dependency and command reproducibility under-specified. | accepted | Phase validation requires runnable split/schema checks, and component index rules require commands or `not available yet`. If non-stdlib dependencies appear, install path must be reproducible. | `.context/plan.md` adds dependency/command strategy step and validation; `.context/design.md` adds reproducibility decision; `.context/research.md` updates assumption. |
-| O1 | Add explicit validation that notebook templates start from pretrained weights, not scratch. | accepted | `docs/TRAINING_EXPERIMENTS.md` requires training starts from pretrained YOLO weights. Validation should catch drift. | `.context/plan.md` adds notebook-template check; `.context/design.md` adds test strategy item. |
-| O2 | Add small schema fixture for each experiment type. | duplicate | Covered by accepted I1 because all four experiment families now require explicit schema fixture validation. | Applied through I1 updates in `.context/plan.md` and `.context/design.md`. |
-| Q1 | Decide whether Phase 21 includes minimal offline import/validation utility for model cards and metrics, or only schemas/templates. | accepted | `docs/TRAINING_EXPERIMENTS.md` lists import utilities as code-agent responsibility, but Phase 21 must stay offline and not add runtime app behavior. | `.context/plan.md` adds minimal offline artifact validation/import-readiness utility; `.context/design.md` scopes it away from backend routes, DB writes, frontend flows, and runtime training launch; `.context/research.md` records same. |
+| ID | Claude review item | Resolution | Reason |
+|---|---|---|---|
+| I1 | Experiment type conflict resolution is too permissive; canonical training schema/templates and backend-facing payloads must use doc slugs. | accepted | Matches `docs/DATA_MODEL.md` required experiment types and `docs/API.md` experiment import contract. |
+| I2 | Path-safety scope misses path-like metadata fields that can leak absolute paths inside model cards and metrics artifacts. | accepted | Matches API/security rules forbidding unsafe absolute path exposure and database/storage path leakage. |
+| I3 | Backend API gates should always run for Phase 22, even when backend source does not change. | accepted | Phase 22 depends on existing admin model/experiment API behavior; docs require registration/import validation. |
+| O1 | Add CLI smoke test using placeholder model card and metrics template through mocked HTTP transport. | accepted | In scope for helper verification and does not change product behavior. |
+| O2 | Add docs note that helper registers existing files under storage and never uploads `.pt` weights or starts training. | accepted | Matches training workflow and storage rules. |
+| Q1 | Should helper accept legacy `confidence_threshold_analysis` / `tracker_behavior_comparison` aliases? | rejected | Product docs define canonical slugs only. Compatibility aliases are extra behavior and not needed for Phase 22. |
 
 ## Accepted changes applied
 
-- Added explicit Phase 21 contract coverage for all four experiment artifact families: model comparison, confidence threshold analysis, tracker behavior comparison, false-positive analysis.
-- Added dependency/install command strategy requirement when training scripts/tests introduce non-stdlib dependencies.
-- Added notebook-template validation for pretrained YOLO weights and no train-from-scratch drift.
-- Added all-four-experiment schema fixture validation.
-- Scoped import utility work to offline artifact validation/import-readiness only.
+- `.context/research.md`
+  - Added review-resolution notes binding implementation to canonical experiment slugs, path-like metadata validation, unconditional backend API gates, mocked CLI smoke test, and docs note.
+- `.context/design.md`
+  - Replaced permissive "align or mapper" decision with canonical schema/template/payload requirement.
+  - Added explicit rejection of legacy aliases for Phase 22.
+  - Added path-like metadata validation before backend mutation.
+  - Made targeted backend API gates unconditional.
+  - Added mocked CLI smoke and docs-note expectations.
+- `.context/plan.md`
+  - Updated task 3 to require canonical doc slugs in schema/templates/backend payloads.
+  - Updated helper/security tests for nested path-like metadata.
+  - Added mocked CLI smoke coverage.
+  - Made backend tests mandatory for Phase 22.
+  - Updated completion criteria.
 
 ## Rejected items
 
-None.
+- Q1 legacy alias support: rejected for Phase 22. Implementation should correct current training schema/templates to canonical docs slugs and reject legacy input unless user explicitly approves compatibility behavior later.
 
 ## Duplicate items
 
-- O2: schema fixture per experiment type. Duplicate of accepted I1 and applied through that broader experiment-coverage fix.
+- None.
 
 ## Items needing user decision
 
-None.
+- None.
 
 ## Final contract status
 
-Phase 21 implementation contract is ready. Scope remains offline training artifacts only:
-
-- no backend API endpoints;
-- no database migrations or writes from training utilities;
-- no frontend routes or UI;
-- no CV worker queue/inference changes;
-- no web UI/backend training launch;
-- no real datasets, weights, generated reports, or processed media committed;
-- YOLO26 remains primary, YOLO11 fallback only when reported and documented;
-- all outputs remain CV-only and image-space where applicable.
+- Phase scope remains Phase 22 only: model artifact registration and experiment artifact import utilities.
+- No frontend work.
+- No CV worker work.
+- No database migration unless documented schema gap is proven during implementation.
+- No new public API route unless existing documented routes cannot support Phase 22 after evidence.
+- Training is not launched from helper, API, or UI.
+- Backend remains authorization authority for model registration, activation, and experiment import.
+- Canonical experiment slugs for Phase 22 are:
+  - `model_comparison`
+  - `threshold_analysis`
+  - `tracker_comparison`
+  - `false_positive_analysis`
+- Helper must validate top-level relative paths and path-like metadata inside imported artifacts before any backend mutation.
+- Targeted backend API tests must run in Phase 22 even when backend source files are unchanged.

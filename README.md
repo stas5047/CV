@@ -1,6 +1,6 @@
 # AeroVision
 
-AeroVision is documented as a Dockerized full-stack drone computer-vision subsystem for uploaded images and videos. Current repository state includes the repository/runtime scaffold and backend implementation through the Phase 13 API contract audit.
+AeroVision is documented as a Dockerized full-stack drone computer-vision subsystem for uploaded images and videos. Current repository state includes the repository/runtime scaffold, backend APIs, CV worker scaffold, offline training utilities, and model/experiment artifact registration helpers.
 
 ## Current State
 
@@ -25,6 +25,7 @@ This checkout provides:
 - backend experiment import/list/detail API;
 - backend OpenAPI contract checks for documented paths, paginated list schemas, safe FastAPI `detail` errors, and API output boundary scanning.
 - CV worker scaffold with settings, secret-safe logging, startup device selection, database connectivity helpers, safe storage path resolution, Docker entrypoint, and tests.
+- offline training utilities with dataset preparation, artifact validation, model-card/metrics templates, and backend API helpers for registering existing model weights paths and importing experiment metrics.
 
 Not available yet:
 
@@ -109,6 +110,10 @@ Do not commit uploads, generated results, reports, datasets, model weights, or t
 | `python -m pytest` from `cv/` | runs CV worker tests |
 | `python -m ruff check .` from `cv/` | runs CV worker lint checks |
 | `python -m aerovision_worker.main --check-once` from `cv/` | runs CV worker startup smoke checks and exits |
+| `python -m pip install -e "training[dev]"` | installs offline training utilities |
+| `python -m aerovision_training.validate_artifacts --model-card training/templates/model_card.placeholder.json --metrics training/templates/metrics.placeholder.json` | validates offline model card and metrics artifact shape |
+| `python -m aerovision_training.register_artifacts --backend-url http://localhost:8000 register-model --model-card storage/models/<model>/model_card.json --weights-path models/<model>/weights.pt` | registers an existing model weights path through the backend API with admin authorization |
+| `python -m aerovision_training.register_artifacts --backend-url http://localhost:8000 import-experiments --metrics storage/models/<model>/metrics.json --artifacts-path reports/<model>` | imports experiment metrics through the backend API with admin authorization |
 | Frontend tests/build | not available yet |
 
 ## Backend API Notes

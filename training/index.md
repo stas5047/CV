@@ -11,11 +11,13 @@ According to `../docs/`, training is performed outside the running web applicati
 | Path | Purpose |
 |---|---|
 | `index.md` | Training folder summary, current contents, and training-local commands. |
-| `README.md` | Human workflow for offline dataset preparation, cloud notebooks, smoke training, model artifacts, and validation. |
+| `README.md` | Human workflow for offline dataset preparation, cloud notebooks, smoke training, model artifacts, validation, and backend registration/import. |
 | `pyproject.toml` | Training-local package metadata and optional dev/smoke dependencies. |
 | `aerovision_training/dataset_split.py` | Deterministic YOLO dataset preparation with group-aware split support, stale-output safeguards, duplicate-target checks, and `data.yaml` generation. |
 | `aerovision_training/schemas.py` | Model card and metrics artifact validation rules. |
 | `aerovision_training/validate_artifacts.py` | Offline import-readiness CLI for model card and metrics artifacts. |
+| `aerovision_training/artifact_import.py` | Payload builders and backend API client for model registration and experiment import helpers. |
+| `aerovision_training/register_artifacts.py` | CLI that registers existing model weights paths and imports experiment metrics through the backend API. |
 | `aerovision_training/notebook_checks.py` | Notebook-template validation helper. |
 | `aerovision_training/smoke_train.py` | Tiny local YOLO smoke training entry point; not final training evidence. |
 | `templates/model_card.placeholder.json` | Placeholder model card template with nullable metrics. |
@@ -32,5 +34,7 @@ According to `../docs/`, training is performed outside the running web applicati
 | `python -m aerovision_training.dataset_split --images-dir <source-images> --labels-dir <source-labels> --output-dir storage/datasets/seraphim_subset` | Prepares deterministic one-class YOLO dataset split. |
 | `python -m aerovision_training.dataset_split --images-dir <source-images> --labels-dir <source-labels> --metadata-csv <metadata.csv> --group-column source_group_id --output-dir storage/datasets/seraphim_subset` | Prepares group-aware YOLO split when grouping metadata exists. |
 | `python -m aerovision_training.validate_artifacts --model-card training/templates/model_card.placeholder.json --metrics training/templates/metrics.placeholder.json` | Validates model card and metrics artifacts for offline import readiness. |
+| `python -m aerovision_training.register_artifacts --backend-url http://localhost:8000 register-model --model-card storage/models/<model>/model_card.json --weights-path models/<model>/weights.pt` | Registers an existing model weights path through the backend API using an admin JWT from `AEROVISION_API_TOKEN` or `--api-token`. |
+| `python -m aerovision_training.register_artifacts --backend-url http://localhost:8000 import-experiments --metrics storage/models/<model>/metrics.json --artifacts-path reports/<model>` | Imports experiment metrics through the backend API using an admin JWT from `AEROVISION_API_TOKEN` or `--api-token`. |
 | `python -m aerovision_training.smoke_train --data-yaml storage/datasets/seraphim_subset/data.yaml --model yolo26n.pt --epochs 1` | Runs tiny local smoke training only when `ultralytics` and tiny data are available; not final evidence. |
 | `python -m pytest training/tests` | Runs training utility and artifact contract tests from repository root. |

@@ -71,10 +71,21 @@ def test_metrics_artifact_requires_all_documented_experiment_families() -> None:
     experiment_types = {experiment["type"] for experiment in metrics["experiments"]}
     assert experiment_types == {
         "model_comparison",
-        "confidence_threshold_analysis",
-        "tracker_behavior_comparison",
+        "threshold_analysis",
+        "tracker_comparison",
         "false_positive_analysis",
     }
+
+
+def test_metrics_artifact_rejects_legacy_experiment_aliases() -> None:
+    metrics = json.loads(Path("training/templates/metrics.placeholder.json").read_text(encoding="utf-8"))
+    threshold_experiment = next(
+        experiment for experiment in metrics["experiments"] if experiment["type"] == "threshold_analysis"
+    )
+    threshold_experiment["type"] = "confidence_threshold_analysis"
+
+    with pytest.raises(ArtifactValidationError):
+        validate_metrics_artifact(metrics)
 
 
 def test_tracker_behavior_rejects_absolute_accuracy_metrics() -> None:
@@ -82,7 +93,7 @@ def test_tracker_behavior_rejects_absolute_accuracy_metrics() -> None:
     tracker_experiment = next(
         experiment
         for experiment in metrics["experiments"]
-        if experiment["type"] == "tracker_behavior_comparison"
+        if experiment["type"] == "tracker_comparison"
     )
     tracker_experiment["metrics"]["MOTA"] = None
 
@@ -99,6 +110,14 @@ def test_metrics_artifact_rejects_absolute_or_traversal_report_paths() -> None:
 
     metrics["detection_metrics"]["confusion_matrix"] = None
     metrics["experiments"][0]["report_artifacts"] = ["reports/../secrets.json"]
+
+    with pytest.raises(ArtifactValidationError):
+        validate_metrics_artifact(metrics)
+
+
+def test_metrics_artifact_rejects_absolute_path_text_inside_metadata() -> None:
+    metrics = json.loads(Path("training/templates/metrics.placeholder.json").read_text(encoding="utf-8"))
+    metrics["experiments"][0]["notes"] = "generated at /app/storage/reports/leak.png"
 
     with pytest.raises(ArtifactValidationError):
         validate_metrics_artifact(metrics)

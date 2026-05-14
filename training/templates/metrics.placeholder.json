@@ -33,7 +33,7 @@
       }
     },
     {
-      "type": "confidence_threshold_analysis",
+      "type": "threshold_analysis",
       "summary": "Compare recall and false-positive trade-off for final main model.",
       "thresholds": [
         0.25,
@@ -47,7 +47,7 @@
       }
     },
     {
-      "type": "tracker_behavior_comparison",
+      "type": "tracker_comparison",
       "summary": "Compare tracker behavior, processing speed, ID stability, and observed ID switches.",
       "trackers": [
         "ByteTrack",

@@ -1,56 +1,30 @@
-# Status - Phase 21 Training Pipeline Artifacts
+# Phase 22 status
 
-## Current state
-
-- Phase 21 code review resolution fixed.
-- Scope stayed offline training artifacts only.
-- No backend API, database migration, frontend route, or CV worker runtime changes were made.
-- YOLO26 remains primary; YOLO11 appears only as documented fallback guidance in notebook text and metrics guidance.
-
-## Fixes applied after code review
-
-- Metrics artifact validation now rejects absolute and traversal paths for app-facing artifact references such as `detection_metrics.confusion_matrix` and experiment `report_artifacts`.
-- Dataset split preparation now rejects non-empty output directories before writing generated YOLO files.
-- Dataset split preparation now rejects duplicate flattened image or label target names before copying source files.
-- `docs/phase.md` trailing whitespace was removed.
-- `training/README.md` and `training/index.md` now document the new dataset split safeguards.
-
-## Files changed
-
-- Added training package metadata: `training/pyproject.toml`.
-- Added offline training package under `training/aerovision_training/`.
-- Added YOLO26 notebook templates under `training/notebooks/`.
-- Added model card and metrics templates under `training/templates/`.
-- Added training tests under `training/tests/`.
-- Added training workflow notes: `training/README.md`.
-- Updated `training/index.md`, `docs/index.md`, and `.context/review-code-resolution.md`.
-- Updated `docs/mistakes-codex.md` for the earlier real packaging mistake found by install gate.
-
-## Quality gates
-
-- `python -m pytest training/tests/test_schemas.py::test_metrics_artifact_rejects_absolute_or_traversal_report_paths` - RED before implementation, then PASS.
-- `python -m pytest training/tests/test_dataset_split.py::test_prepare_yolo_dataset_rejects_non_empty_output_dir training/tests/test_dataset_split.py::test_prepare_yolo_dataset_rejects_duplicate_output_targets` - RED before implementation, then PASS.
-- `python -m pytest training/tests` - PASS, 11 passed.
-- `python -m ruff check training` - PASS.
-- `python -m aerovision_training.validate_artifacts --model-card training/templates/model_card.placeholder.json --metrics training/templates/metrics.placeholder.json` - PASS.
-- `python -m pip install -e "training[dev]"` - PASS.
-- Dataset split CLI smoke on generated fixture under ignored `storage/temp/phase21-final-fixture` - PASS; fixture removed.
-- `git diff --check` - PASS for whitespace errors; Git reported line-ending warnings only.
-
-## Security and privacy
-
-- Training artifact validators reject absolute and traversal paths for app-facing model card, metrics, report artifact, and confusion-matrix references.
-- No secrets, tokens, credentials, datasets, model weights, generated reports, or media artifacts were added.
-- Generated CLI dataset fixture was removed after the smoke check.
-
-## Index/docs
-
-- `training/index.md` updated because `training/aerovision_training/dataset_split.py` behavior materially changed.
-- `training/README.md` updated because dataset split command behavior changed.
-- `docs/index.md` was not changed during review resolution because no source-of-truth document was created, renamed, or removed.
-- Mistake logs were not updated during review resolution because no new real mistake occurred.
-
-## Remaining risks
-
-- Local smoke training command was not executed because it requires `ultralytics`, pretrained weights, and tiny dataset contents.
-- Notebook templates were validated structurally; cloud training was not run by design.
+- Current phase: Phase 22 - Model artifact registration and experiment artifact import utilities.
+- Scope kept to training helper, training artifact schemas/templates/tests, and command docs.
+- Product source-of-truth docs were not modified; `docs/phase.md` had review-requested whitespace cleanup only.
+- Backend API/source code was not changed; existing backend model and experiment endpoints remain write boundary and admin authorization authority.
+- No database migration created.
+- Implemented helper commands:
+  - `python -m aerovision_training.register_artifacts --backend-url http://localhost:8000 register-model --model-card storage/models/<model>/model_card.json --weights-path models/<model>/weights.pt`
+  - `python -m aerovision_training.register_artifacts --backend-url http://localhost:8000 import-experiments --metrics storage/models/<model>/metrics.json --artifacts-path reports/<model>`
+- Canonical experiment slugs now used in training artifacts:
+  - `model_comparison`
+  - `threshold_analysis`
+  - `tracker_comparison`
+  - `false_positive_analysis`
+- Helper validates relative paths, path-like metadata, and unsafe absolute/traversal path text before backend mutation.
+- Helper registers existing storage paths only; it does not upload weights or start training.
+- Code review final fixes:
+  - accepted OpenAI important issue OAI-I1: model-card `metrics_json` can no longer carry unsafe absolute path strings under non-path keys.
+  - accepted OpenAI important issue OAI-I2: `docs/phase.md` trailing whitespace removed.
+- Quality gates:
+  - `python -m pytest training/tests` - PASS, 28 passed.
+  - `python -m aerovision_training.validate_artifacts --model-card training/templates/model_card.placeholder.json --metrics training/templates/metrics.placeholder.json` - PASS.
+  - `python -m ruff check .` from `backend/` - PASS.
+  - `python -m pytest tests/test_models_api.py tests/test_experiments_api.py tests/test_api_contract.py` from `backend/` - PASS, 46 passed.
+  - `git diff --check` - PASS, line-ending warnings only.
+- Index/docs:
+  - `training/index.md` already lists Phase 22 helper files and commands; no final-fix index change needed.
+  - `docs/index.md` already lists `docs/phase.md`; no final-fix index change needed.
+- Mistake logs were not updated because no new real mistake occurred during final-fix work.
