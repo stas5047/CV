@@ -1,52 +1,43 @@
-## Phase 19 - Worker CSV/JSON exports and no-detection contracts
+## Phase 20 - Worker error handling, logging, and integration hardening
 
-**Direction:** CV Worker / Exports  
-**Goal:** Generate CSV and JSON exports exactly according to API/export contracts.
+**Direction:** CV Worker / QA
+**Goal:** Harden worker behavior before connecting frontend flows.
 
 ### Scope
 
-- Generate CSV export with one row per detection.
-- Include required CSV columns:
-  - job/media/frame/timestamp fields;
-  - class/confidence fields;
-  - bounding box corner fields;
-  - derived center-size fields;
-  - frame dimensions;
-  - track ID;
-  - model version;
-  - tracker type.
-- Generate JSON export with top-level:
-  - `job`;
-  - `media`;
-  - `model`;
-  - `parameters`;
-  - `summary`;
-  - `detections`;
-  - `tracks`.
-- Generate headers-only CSV for no-detection jobs.
-- Generate JSON with empty `detections` array for no-detection jobs.
-- Store `csv_path` and `json_path` as relative paths.
-- Keep exports inside allowed CV output boundary only.
-- Add export contract tests.
+- Audit worker failure handling for:
+  - missing uploaded file;
+  - corrupted image;
+  - corrupted video;
+  - unsupported decode result;
+  - missing model file;
+  - CUDA unavailable;
+  - failed annotated output write;
+  - failed export generation;
+  - database write failures.
+- Store safe `error_message` for failed jobs.
+- Keep stack traces in worker logs only, not unsafe API responses.
+- Ensure successful jobs set `completed_at` and final progress.
+- Ensure failed jobs set `status = failed` and updated timestamp.
+- Ensure no-detection jobs are never marked failed solely because no detections were found.
+- Add logging tests or manual log audit checklist.
+- Add worker integration tests with backend-created jobs where practical.
 
 ### Relevant docs
 
-- `docs/API.md`
 - `docs/CV_PIPELINE.md`
-- `docs/DATA_MODEL.md`
-- `docs/PROJECT_CONTEXT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- CSV export contains all required columns.
-- JSON export contains all required top-level objects/arrays.
-- Derived values are computed correctly from corner coordinates.
-- No-detection CSV has headers only.
-- No-detection JSON has empty `detections` array.
-- Exports do not include forbidden physical-control, targeting, geolocation, or engagement fields.
-- Export tests pass.
+- Failure cases produce safe job error messages.
+- No-detection jobs still complete.
+- Worker logs include device selection, job claim, model loading, processing start/end, exports, and errors.
+- Worker logs do not include secrets or unsafe user-facing absolute paths.
+- Worker test suite passes.
 
 ### Commit
 
-`feat(worker-exports): add CSV JSON exports and no-detection contracts`
+`test(worker): harden CV worker errors logging and integration behavior`

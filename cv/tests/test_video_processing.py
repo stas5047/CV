@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -361,6 +362,32 @@ def test_process_video_job_completes_with_detections_tracks_exports_and_progress
         assert term not in forbidden
 
 
+def test_process_video_job_logs_lifecycle_without_paths(tmp_path: Path, caplog) -> None:
+    storage_root = tmp_path / "storage"
+    write_video(storage_root, "uploads/user-1/media-1.mp4", frames=1)
+    factory = session_factory()
+    insert_video_job(factory, storage_root=storage_root)
+    settings = worker_settings(storage_root)
+    caplog.set_level(logging.INFO, logger="aerovision_worker.video_processing")
+
+    process_video_job(
+        settings,
+        factory,
+        job_id="job-1",
+        worker_id="worker-a",
+        loaded_model=loaded_model([[]]),
+    )
+
+    log_text = caplog.text
+    assert "video_job_started job_id=job-1" in log_text
+    assert "video_exports_written job_id=job-1 csv=true json=true" in log_text
+    assert (
+        "video_job_completed job_id=job-1 frames=1 detections=0 tracks=0 duration_ms="
+        in log_text
+    )
+    assert str(storage_root) not in log_text
+
+
 def test_process_video_job_completes_no_detection_with_empty_exports(tmp_path: Path) -> None:
     storage_root = tmp_path / "storage"
     write_video(storage_root, "uploads/user-1/media-1.mp4", frames=2)
@@ -408,6 +435,7 @@ def test_process_video_job_completes_no_detection_with_empty_exports(tmp_path: P
 )
 def test_process_video_job_fails_safe_for_bad_sources(
     tmp_path: Path,
+    caplog,
     stored_path: str,
     write_source: bool | str,
     expected_error: str,
@@ -420,6 +448,7 @@ def test_process_video_job_fails_safe_for_bad_sources(
     factory = session_factory()
     insert_video_job(factory, storage_root=storage_root, stored_path=stored_path)
     settings = worker_settings(storage_root)
+    caplog.set_level(logging.INFO, logger="aerovision_worker.video_processing")
 
     process_video_job(
         settings,
@@ -433,6 +462,8 @@ def test_process_video_job_fails_safe_for_bad_sources(
     assert job["status"] == "failed"
     assert job["error_message"] == expected_error
     assert str(storage_root) not in job["error_message"]
+    assert f"video_job_failed job_id=job-1 error={expected_error}" in caplog.text
+    assert str(storage_root) not in caplog.text
 
 
 def test_process_video_job_fails_safe_when_writer_unavailable(

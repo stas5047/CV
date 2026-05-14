@@ -86,6 +86,12 @@ def process_image_job(
     started = time.perf_counter()
     try:
         job = _load_image_job(session_factory, job_id=job_id)
+        LOGGER.info(
+            "image_job_started job_id=%s media_id=%s model_id=%s",
+            job.id,
+            job.media_id,
+            loaded_model.metadata.id,
+        )
         source_path = _source_path(settings, job.stored_path)
         if not source_path.is_file():
             raise ImageProcessingError("Source image file is missing")
@@ -127,6 +133,7 @@ def process_image_job(
             summary,
             detections,
         )
+        LOGGER.info("image_exports_written job_id=%s csv=true json=true", job.id)
         try:
             _complete_image_job(
                 session_factory,
@@ -139,7 +146,12 @@ def process_image_job(
             )
         except SQLAlchemyError as exc:
             raise ImageProcessingError("Image job database update failed") from exc
-        LOGGER.info("image_job_completed job_id=%s detections=%s", job.id, len(detections))
+        LOGGER.info(
+            "image_job_completed job_id=%s detections=%s duration_ms=%s",
+            job.id,
+            len(detections),
+            int((time.perf_counter() - started) * 1000),
+        )
     except ImageProcessingError as exc:
         fail_processing_job(
             session_factory,

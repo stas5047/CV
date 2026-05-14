@@ -57,6 +57,12 @@ def process_video_job(
     capture = None
     try:
         job = _load_video_job(session_factory, job_id=job_id)
+        LOGGER.info(
+            "video_job_started job_id=%s media_id=%s model_id=%s",
+            job.id,
+            job.media_id,
+            loaded_model.metadata.id,
+        )
         source = source_path(settings, job.stored_path)
         if not source.is_file():
             raise VideoProcessingError("Source video file is missing")
@@ -121,6 +127,7 @@ def process_video_job(
             result["detections"],
             tracks,
         )
+        LOGGER.info("video_exports_written job_id=%s csv=true json=true", job.id)
         try:
             complete_video_job(
                 session_factory,
@@ -135,11 +142,12 @@ def process_video_job(
         except SQLAlchemyError as exc:
             raise VideoProcessingError("Video job database update failed") from exc
         LOGGER.info(
-            "video_job_completed job_id=%s frames=%s detections=%s tracks=%s",
+            "video_job_completed job_id=%s frames=%s detections=%s tracks=%s duration_ms=%s",
             job.id,
             result["processed_frames"],
             len(result["detections"]),
             len(tracks),
+            int((time.perf_counter() - started) * 1000),
         )
     except VideoProcessingError as exc:
         fail_processing_job(

@@ -1,12 +1,12 @@
-# OpenAI Code Review - Phase 19 Worker CSV/JSON exports and no-detection contracts
+# OpenAI Code Review - Phase 20 Worker error handling, logging, and integration hardening
 
-## Verdict: APPROVED
+## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Phase 19 change is test hardening only. Worker source behavior remains unchanged. Added assertions cover documented CSV/JSON export contract gaps: derived center-size fields, no-detection summary values, track export scope, annotated no-detection video artifact, and forbidden CV-boundary terms.
+Phase 20 source change is narrow: image/video processors now log start, export generation, and completion duration; tests assert those success-path logs omit storage-root absolute paths. Product boundaries stay intact. No backend/frontend/schema/Docker drift found.
 
-No correctness, product-doc, architecture, privacy, or quality-gate defect found.
+Two issues remain: required logging validation is incomplete for worker error/claim/stale paths, and `git diff --check` currently fails.
 
 ## Critical issues
 
@@ -14,7 +14,15 @@ None.
 
 ## Important issues
 
-None.
+1. Missing Phase 20 logging validation for worker errors, job claim, and stale recovery.
+   - Evidence: `docs/phase.md:23` requires logging tests or manual log audit checklist. `docs/phase.md:37` requires logs for device selection, job claim, model loading, processing start/end, exports, and errors. `docs/TESTING_QA.md:396-408` also requires claim, stale recovery, model loading, selected device, processing start/end with duration, export generation, and processing errors.
+   - Evidence: new tests only assert success-path image/video start/export/complete logs in `cv/tests/test_image_processing.py:322-342` and `cv/tests/test_video_processing.py:365-388`.
+   - Evidence: existing tests assert selected device (`cv/tests/test_startup.py:12-29`) and model loading (`cv/tests/test_model_runtime.py:330-335`), but no test or manual audit evidence asserts `job_claimed`, `stale_jobs_recovered`, `image_job_failed`, or `video_job_failed` logs.
+   - Impact: Phase 20 can pass focused tests while required operational/error log coverage remains unverified.
+
+2. `git diff --check` fails on changed phase doc.
+   - Evidence: `git diff --check` reports `docs/phase.md:3: trailing whitespace`.
+   - Impact: quality gate is not clean. Even if this was pre-existing workflow text, current diff still fails whitespace validation.
 
 ## Optional issues
 
@@ -22,26 +30,23 @@ None.
 
 ## Quality gate assessment
 
-- `cd cv; python -m pytest tests/test_image_processing.py tests/test_video_processing.py -q` - PASS (`19 passed`, 176 warnings; warnings are SQLite datetime deprecation plus expected corrupt-video OpenCV stderr).
-- `cd cv; python -m ruff check aerovision_worker tests` - PASS.
-
-Assessment: focused Phase 19 gates are sufficient because only worker export tests changed. Backend, frontend, Docker, and PostgreSQL integration gates not required for this test-only phase.
+- `cd cv; python -m pytest tests/test_image_processing.py::test_process_image_job_logs_lifecycle_without_paths tests/test_video_processing.py::test_process_video_job_logs_lifecycle_without_paths -q` - PASS per `.context/status.md`.
+- `cd cv; python -m pytest tests/test_startup.py tests/test_queue.py tests/test_logging.py tests/test_device.py tests/test_model_runtime.py tests/test_image_processing.py tests/test_video_processing.py -q` - PASS per `.context/status.md` (`57 passed`, `266 warnings`).
+- `cd cv; python -m ruff check aerovision_worker tests` - PASS per `.context/status.md`.
+- `cd cv; python -m pytest -m postgres -q` - not run; acceptable because queue semantics not changed.
+- `git diff --check` - FAIL, verified: `docs/phase.md:3` trailing whitespace.
 
 ## Security/privacy assessment
 
-Applicable because exports are user-downloadable artifacts.
-
-- Added image/video export tests assert JSON does not contain absolute `storage_root`.
-- Added image/video export tests assert forbidden boundary terms are absent: targeting, navigation, interception, geospatial, engagement, payload, weapon, motor, autopilot.
-- No secrets, tokens, credentials, absolute filesystem paths, or out-of-scope control data found in changed tests or reviewed export code paths.
+Added logs include job ID, media ID, model ID, counts, export flags, and duration only. No added absolute storage paths, DB URLs, secrets, tokens, passwords, stack traces, or CV-out-of-scope terms found in changed source. Persisted `error_message` behavior unchanged.
 
 ## Positive findings
 
-- No-detection image test now checks persisted and exported zero/null summary values required by `docs/CV_PIPELINE.md` and `docs/TESTING_QA.md`.
-- No-detection video test now checks same summary values and confirms annotated MP4 result exists when possible.
-- Positive detection export tests now verify derived `center_x`, `center_y`, `bbox_width`, and `bbox_height`.
-- Video export test now verifies `tracks` contains only expected non-null track summary.
-- Focused gates pass after review.
+- Image/video completion logs now include `duration_ms`, satisfying processing end duration requirement for success paths.
+- Export-generation logs added after CSV/JSON writes for both image and video jobs.
+- New tests prove success-path lifecycle logs omit storage-root absolute paths.
+- No-detection success paths unchanged and still covered by existing tests.
+- Backend/worker boundary unchanged; no HTTP job-loop coupling, schema change, or frontend exposure added.
 
 ## Files consulted
 
@@ -50,22 +55,26 @@ Applicable because exports are user-downloadable artifacts.
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- `docs/API.md`
 - `docs/CV_PIPELINE.md`
-- `docs/DATA_MODEL.md`
-- `docs/PROJECT_CONTEXT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
+- `cv/aerovision_worker/image_processing.py`
+- `cv/aerovision_worker/video_processing.py`
+- `cv/aerovision_worker/main.py`
+- `cv/aerovision_worker/queue.py`
+- `cv/aerovision_worker/model_runtime.py`
 - `cv/tests/test_image_processing.py`
 - `cv/tests/test_video_processing.py`
-- `cv/aerovision_worker/image_processing.py`
-- `cv/aerovision_worker/video_exports.py`
-- `cv/aerovision_worker/video_processing.py`
-- `cv/aerovision_worker/video_persistence.py`
+- `cv/tests/test_startup.py`
+- `cv/tests/test_model_runtime.py`
+- `cv/tests/test_logging.py`
 - `rtk git status --short`
 - `rtk git diff --stat`
 - `rtk git diff`
+- `git diff --check`

@@ -1,154 +1,145 @@
-# Phase 19 Design - Worker CSV/JSON exports and no-detection contracts
+# Phase 20 Design - Worker error handling, logging, and integration hardening
 
 ## Phase goal
 
-Generate and persist worker CSV/JSON exports for completed image and video jobs according to documented export contracts, including no-detection jobs.
+Harden CV worker failure handling and logging before frontend flows depend on job status, progress, exports, and safe error messages.
 
 ## Intended behavior from docs
 
 Confirmed facts:
 
-- CSV export contains one row per detection.
-- CSV required columns:
-  - `job_id`
-  - `media_id`
-  - `frame_index`
-  - `timestamp_ms`
-  - `class_id`
-  - `class_name`
-  - `confidence`
-  - `bbox_x1`
-  - `bbox_y1`
-  - `bbox_x2`
-  - `bbox_y2`
-  - `center_x`
-  - `center_y`
-  - `bbox_width`
-  - `bbox_height`
-  - `frame_width`
-  - `frame_height`
-  - `track_id`
-  - `model_version`
-  - `tracker_type`
-- Derived export values come from corner coordinates:
-  - `center_x = bbox_x1 + bbox_width / 2`
-  - `center_y = bbox_y1 + bbox_height / 2`
-  - `bbox_width = bbox_x2 - bbox_x1`
-  - `bbox_height = bbox_y2 - bbox_y1`
-- JSON export contains top-level:
-  - `job`
-  - `media`
-  - `model`
-  - `parameters`
-  - `summary`
-  - `detections`
-  - `tracks`
-- No-detection jobs are successful completed jobs.
-- No-detection CSV exists with headers only.
-- No-detection JSON has `detections: []`.
-- No-detection summary has `total_detections = 0`, `frames_with_detections = 0`, `average_confidence = null`, `maximum_confidence = null`.
-- `processing_jobs.csv_path` and `processing_jobs.json_path` store relative paths only.
-- Exports must remain CV-only: image-space detections, confidence, class label, timestamps, track IDs, model data, and performance metrics.
-- Exports must not include targeting, navigation, geospatial, physical-control, payload, weapon, or engagement data.
+- Worker must handle missing uploads, corrupted media, unsupported decode results, missing model files, CUDA availability problems, annotated output failures, export failures, and DB write failures.
+- Failed jobs store clear safe `error_message`.
+- Failed jobs set `status = failed` and update timestamp fields.
+- Successful jobs set `completed_at` and final progress.
+- No-detection jobs are successful `completed` jobs, not failures.
+- Worker logs include selected device, job claim, model loading, processing start/end, export generation, and errors.
+- Logs must not include passwords, JWT tokens, JWT secrets, database passwords, sensitive environment values, or unsafe absolute paths.
+- API responses must not expose stack traces or unsafe internal paths.
+- Backend and worker coordinate through PostgreSQL and shared storage, not HTTP job-loop calls.
+- Worker stores relative result/export paths only.
 
 Assumptions:
 
-- Existing `results/{job_id}/detections.csv` and `results/{job_id}/detections.json` path pattern remains.
-- Export helper functions may be shared/refined only inside `cv/aerovision_worker/`; no new top-level folders needed.
-- Internal `frame_stride` may remain in worker JSON `parameters` because docs only forbid standard UI exposure; do not add any frontend exposure.
+- Use existing worker error classes and `fail_processing_job` instead of adding schema/status/API concepts.
+- Keep stack traces in logs only when useful for debugging and always behind existing redaction filter.
+- Use safe generic error strings for persisted `error_message`; detailed exception text stays out unless already safe and intentional.
+- Integration hardening can use worker-side tests with DB rows shaped like backend-created jobs.
+
+WARNING: CONFLICT:
+
+- Current-state documentation differs: `docs/index.md` and `backend/index.md` understate worker implementation, while `cv/index.md` and actual worker files show queue/processing/export behavior. No Phase 20 product-rule conflict found.
 
 ## Architecture decisions
 
-- Keep export generation in CV worker, not backend, because `docs/CV_PIPELINE.md` says worker generates CSV/JSON exports.
-- Keep PostgreSQL as metadata store only; export files stay in shared filesystem storage.
-- Keep DB writes atomic at job completion: detections/tracks and `processing_jobs` result paths update in completion persistence.
-- Keep image and video export behavior aligned through same CSV column order and same detection export field names.
-- Keep video track summaries in `tracks` only for detections with tracker-provided IDs.
-- Keep path safety through existing storage path helpers before file writes.
-- Keep failures secret-safe: failed export writes mark job failed with generic worker error message, not absolute path.
+- Keep failure handling inside CV worker modules. Backend remains API/authorization/download authority and does not process worker failures.
+- Keep queue state in existing `processing_jobs` fields. No migration.
+- Keep `fail_processing_job` as canonical failed-state writer.
+- Keep completion persistence atomic per job completion where current code already does so.
+- Keep no-detection path on normal success path; do not special-case it as error handling.
+- Keep logging through `aerovision_worker.logging.configure_logging` and `RedactionFilter`.
+- Prefer focused tests over manual-only audit because failure behavior is deterministic and worker-local.
+- Do not add Celery, Redis, HTTP worker callbacks, frontend UI, new API routes, or new public behavior.
 
 ## Backend impact
 
-Touched only if worker contract reveals backend result/download mismatch.
+Expected impact:
 
-Current expected backend impact:
+- No backend source changes.
+- Backend job/detail/download APIs may surface `error_message` already stored by worker, so worker must keep persisted text safe.
 
-- None for Phase 19 implementation.
-- Backend result/download endpoints consume `csv_path` and `json_path` already stored by worker.
+Do not change:
+
+- Auth, ownership, API routes, schemas, downloads, or admin endpoints unless a proven safety mismatch is found.
 
 ## Frontend impact
 
-Current expected frontend impact:
+Expected impact:
 
-- None. Frontend phases happen later.
-- No Ukrainian UI work in Phase 19.
+- None. Frontend phases are later.
+- No Ukrainian UI work in Phase 20.
 
 ## DB impact
 
-Current expected DB impact:
+Expected impact:
 
 - No schema changes.
-- Worker updates existing `processing_jobs.csv_path`, `processing_jobs.json_path`, `summary_json`, status/progress/completion fields.
-- Worker inserts/clears existing `detections` and `tracks` rows as needed.
-- Relative path invariant must remain intact.
+- Worker updates existing `processing_jobs.status`, `error_message`, `completed_at`, `updated_at`, `progress_percent`, `last_heartbeat_at`, `locked_by`, `locked_at`, result/export paths, and summary fields.
+- Worker inserts/clears existing `detections` and `tracks` only on successful completion.
+
+DB invariants:
+
+- Failed jobs must not store absolute paths or secrets in `error_message`.
+- Completed jobs must use relative result/export paths only.
+- No-detection completed jobs must keep zero/null summary values where applicable.
 
 ## API impact
 
-Current expected API impact:
+Expected impact:
 
 - No route or schema changes.
-- Exports must match API contract so existing download endpoints can serve files safely.
+- Existing API responses must remain safe because worker-persisted `error_message` is safe and stack traces are not stored.
 
 ## Security/privacy impact
 
 Touched security/privacy surfaces:
 
-- Export contents must omit absolute host/container paths.
-- Export contents must omit forbidden CV-boundary fields.
-- Worker error messages must not include `STORAGE_ROOT`, model paths, secrets, tokens, or DB credentials.
-- Relative `csv_path` and `json_path` only.
+- Worker logs.
+- Worker persisted `error_message`.
+- Result/export path persistence.
+- Model path and database error handling.
 
-Not touched:
+Rules:
 
-- Auth, role checks, ownership checks, CORS, upload validation, seeded admin.
+- Do not log secrets, tokens, passwords, password hashes, database passwords, JWT secrets, sensitive env values, or unsafe absolute paths.
+- Do not store stack traces in `processing_jobs.error_message`.
+- Do not expose absolute host/container paths in DB fields or export contents.
+- Do not execute uploaded files.
+- Keep outputs inside CV-only boundary.
 
 ## Test strategy
 
-Focused required checks:
+Focused worker checks:
 
-- Run image export contract tests:
-  - `python -m pytest tests/test_image_processing.py -q`
-- Run video export contract tests:
-  - `python -m pytest tests/test_video_processing.py -q`
-- Run worker lint for changed worker/test files:
-  - `python -m ruff check aerovision_worker tests`
+- `cd cv; python -m pytest tests/test_startup.py tests/test_queue.py tests/test_logging.py tests/test_device.py tests/test_model_runtime.py tests/test_image_processing.py tests/test_video_processing.py -q`
+- `cd cv; python -m ruff check aerovision_worker tests`
+
+Optional integration check when PostgreSQL is reachable:
+
+- `cd cv; python -m pytest -m postgres -q`
 
 Targeted assertions to keep/add:
 
-- CSV fieldnames exactly match documented required columns.
-- CSV has one row per detection.
-- No-detection CSV has headers only.
-- JSON top-level keys exactly include documented objects/arrays.
-- No-detection JSON has empty `detections`.
-- Video JSON has `tracks`, image JSON has `tracks: []`.
-- Derived center-size values are correct.
-- Export paths are relative and under `results/{job_id}/`.
-- Export JSON text does not contain forbidden terms such as `targeting`, `navigation`, `interception`, `geospatial`, `engagement`, `payload`, `weapon`, `motor`, `autopilot`, or absolute `storage_root`.
-- Export write failures mark job failed with safe generic message.
+- Missing image/video source marks job failed with safe message.
+- Corrupt image/video and unsupported decode result mark job failed with safe message.
+- Missing model weights mark job failed with safe message.
+- `CV_DEVICE=auto` falls back to CPU when CUDA unavailable.
+- forced `CV_DEVICE=cuda` fails clearly before unsafe processing.
+- Annotated output write failure marks job failed safely.
+- CSV/JSON export failure marks job failed safely.
+- DB completion write failure marks job failed safely when possible.
+- Failed jobs set `status = failed`, `error_message`, `completed_at`, `updated_at`, and release locks.
+- Successful image/video jobs set `completed_at`, `progress_percent = 100`, and final heartbeat.
+- No-detection image/video jobs stay `completed`.
+- Logs redact database URLs, passwords, tokens, secrets, and absolute paths.
+- Lifecycle log coverage is verified by assertions or a manual log-audit note for selected CV device on startup, worker job claim, stale recovery, model loading, processing start/end with duration, export generation, and worker processing errors.
 
-Broader checks not required for this phase:
+Checks not required unless related files change:
 
-- Full backend suite, unless backend result/download code changes.
-- PostgreSQL queue integration tests, unless queue claim/persistence semantics change.
-- Docker Compose smoke, unless runtime service config changes.
-- Frontend build/tests, because frontend untouched.
+- Backend full suite.
+- Frontend build/tests.
+- Docker Compose smoke.
+- Training checks.
 
 ## Ambiguities or conflicts
 
-No `WARNING: CONFLICT` found.
+WARNING: CONFLICT:
+
+- `docs/index.md` current-state section conflicts with `cv/index.md` and actual worker files about implemented queue/inference/export behavior.
+- `backend/index.md` also says worker queue/CV/export behavior comes later, conflicting with actual worker state.
 
 Ambiguities:
 
-- Docs define JSON top-level keys but do not enumerate all nested JSON fields. Implementation should avoid expanding nested fields beyond already available documented CV metadata.
-- Docs forbid `frame_stride` in standard UI, but Phase 19 JSON `parameters` may include actual processing parameters. If reviewers decide export JSON is also user-facing enough to hide `frame_stride`, that needs explicit decision because API docs list `parameters` broadly.
-- Current implementation appears to already include Phase 19 behavior. Implementation should verify first, then only patch proven gaps.
+- User-provided risk placeholder was unset; plan assumes MEDIUM risk.
+- Docs allow but do not require stack traces in worker logs. Implementation should not add noisy stack traces unless needed to diagnose a known failure, and must never persist them.
+- Docs do not define behavior when the database is unavailable while attempting to mark a job failed. Implementation should log safely and rely on stale recovery once DB connectivity returns, unless an existing retry point can update the job safely.

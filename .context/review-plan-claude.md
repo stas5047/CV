@@ -2,11 +2,9 @@
 
 ## Summary
 
-Phase 19 plan mostly matches docs. Scope stays worker-only. Export files stay filesystem artifacts. DB stores relative `csv_path` and `json_path`. Plan covers CSV columns, JSON top-level keys, no-detection CSV/JSON, CV-only boundary, and focused worker tests.
+Phase 20 plan matches documented worker/QA scope: worker failure handling, safe persisted errors, no-detection success, safe logging, relative paths, and focused worker tests. No architecture mismatch found. Backend/frontend/schema/Docker restraint is correct.
 
-One important test gap remains: no-detection summary contract is documented but not explicit in ordered plan assertions.
-
-Risk level: MEDIUM.
+One important gap: plan does not make required lifecycle logging coverage explicit enough. Phase validation requires specific worker logs, not redaction only.
 
 ## Blocking issues
 
@@ -14,23 +12,21 @@ None.
 
 ## Important issues
 
-1. No-detection summary values lack explicit test/verification in implementation plan.
-
-Evidence:
-- `docs/CV_PIPELINE.md:296-303` requires no-detection jobs to complete with `total_detections = 0`, `frames_with_detections = 0`, `average_confidence = null`, `maximum_confidence = null`, headers-only CSV, and JSON empty `detections`.
-- `docs/DATA_MODEL.md:402-412` repeats no-detection success rules and summary expectations.
-- `docs/TESTING_QA.md:263-271` requires no-detection tests for status, totals, confidence nulls, CSV, and JSON.
-- `.context/plan.md:46-66` lists image/video export assertions for CSV headers, JSON top-level keys, no-detection CSV rows, no-detection `detections: []`, relative paths, and forbidden terms, but does not require assertions for JSON `summary` values or DB `summary_json` values on no-detection jobs.
-
-Required change: add focused assertions during Phase 19 for no-detection image and video summary content, at least `total_detections = 0`, `frames_with_detections = 0`, `average_confidence = null`, and `maximum_confidence = null` in exported JSON `summary` and persisted job summary where available.
+1. Lifecycle logging validation is under-specified.
+   - Evidence: `docs/phase.md` Phase 20 validation requires worker logs include device selection, job claim, model loading, processing start/end, exports, and errors.
+   - Evidence: `docs/TESTING_QA.md` Logging Tests require worker job claim events, stale recovery events, model loading, selected CV device, processing start/end with duration, export generation, and processing errors.
+   - Evidence: `.context/plan.md` step 12 focuses on redaction coverage and says lifecycle/error log messages used by changed code pass through redaction. Step 17 checks redaction again. Neither step requires explicit test/log-audit evidence that all Phase 20 lifecycle events are present.
+   - Risk: implementation can pass redaction tests while still missing required operational logs for processing start/end, export generation, claim, stale recovery, or errors.
+   - Required change: add explicit logging assertion or manual log audit checklist to Phase 20 execution for all lifecycle events named in `docs/phase.md` validation.
 
 ## Optional improvements
 
-1. Implementation step 1 re-reads only `docs/API.md` and `docs/CV_PIPELINE.md` (`.context/plan.md:9-10`). Since this phase also depends on path-field and safety/test contracts, re-reading `docs/DATA_MODEL.md`, `docs/PROJECT_CONTEXT.md`, and `docs/TESTING_QA.md` before final review would reduce drift. This is optional because later plan review step already references all relevant docs (`.context/plan.md:77-84`).
+- If PostgreSQL is not reachable for `python -m pytest -m postgres -q`, final implementation report should mark it `not available yet` or `not run` with exact DB availability reason, not `PASS`.
+- Keep current-state documentation drift visible in final status if it affects reviewer interpretation: `docs/index.md` and `backend/index.md` understate current worker implementation, while `cv/index.md` and actual worker state are later-phase capable.
 
 ## Questions for resolution
 
-None.
+- User risk level placeholder was not concretely set (`<MEDIUM | HIGH>`). Planning artifacts assume MEDIUM. Confirm if HIGH review depth is required before implementation.
 
 ## Files consulted
 
@@ -42,11 +38,8 @@ None.
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
-- `docs/API.md`
 - `docs/CV_PIPELINE.md`
-- `docs/DATA_MODEL.md`
-- `docs/PROJECT_CONTEXT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
-
-Command context:
-- `git status --short`
+- `.context/review-plan-claude.md`

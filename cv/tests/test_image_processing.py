@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -318,6 +319,29 @@ def test_process_image_job_completes_with_detection_exports_and_relative_paths(
     assert len(detections) == 1
 
 
+def test_process_image_job_logs_lifecycle_without_paths(tmp_path: Path, caplog) -> None:
+    storage_root = tmp_path / "storage"
+    write_image(storage_root, "uploads/user-1/media-1.png")
+    factory = session_factory()
+    insert_image_job(factory, storage_root=storage_root)
+    settings = worker_settings(storage_root)
+    caplog.set_level(logging.INFO, logger="aerovision_worker.image_processing")
+
+    process_image_job(
+        settings,
+        factory,
+        job_id="job-1",
+        worker_id="worker-a",
+        loaded_model=loaded_model([]),
+    )
+
+    log_text = caplog.text
+    assert "image_job_started job_id=job-1" in log_text
+    assert "image_exports_written job_id=job-1 csv=true json=true" in log_text
+    assert "image_job_completed job_id=job-1 detections=0 duration_ms=" in log_text
+    assert str(storage_root) not in log_text
+
+
 def test_process_image_job_stores_image_detection_invariants(tmp_path: Path) -> None:
     storage_root = tmp_path / "storage"
     write_image(storage_root, "uploads/user-1/media-1.png")
@@ -389,6 +413,7 @@ def test_process_image_job_completes_no_detection_with_empty_exports(tmp_path: P
 )
 def test_process_image_job_fails_safe_for_missing_or_corrupt_source(
     tmp_path: Path,
+    caplog,
     stored_path: str,
     write_source: bool | str,
     expected_error: str,
@@ -401,6 +426,7 @@ def test_process_image_job_fails_safe_for_missing_or_corrupt_source(
     factory = session_factory()
     insert_image_job(factory, storage_root=storage_root, stored_path=stored_path)
     settings = worker_settings(storage_root)
+    caplog.set_level(logging.INFO, logger="aerovision_worker.image_processing")
 
     process_image_job(
         settings,
@@ -414,6 +440,8 @@ def test_process_image_job_fails_safe_for_missing_or_corrupt_source(
     assert job["status"] == "failed"
     assert job["error_message"] == expected_error
     assert str(storage_root) not in job["error_message"]
+    assert f"image_job_failed job_id=job-1 error={expected_error}" in caplog.text
+    assert str(storage_root) not in caplog.text
 
 
 def test_process_image_job_fails_safe_for_unsafe_stored_source_path(

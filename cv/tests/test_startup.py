@@ -68,7 +68,10 @@ def test_run_worker_reports_forced_cuda_failure_without_database_retry(monkeypat
         raise AssertionError("forced CUDA should fail with device-specific error")
 
 
-def test_run_poll_iteration_loads_model_then_processes_claimed_image_job(monkeypatch) -> None:
+def test_run_poll_iteration_loads_model_then_processes_claimed_image_job(
+    monkeypatch,
+    caplog,
+) -> None:
     settings = WorkerSettings(
         database_url="sqlite+pysqlite:///:memory:",
         stale_job_minutes=10,
@@ -105,6 +108,7 @@ def test_run_poll_iteration_loads_model_then_processes_claimed_image_job(monkeyp
         load_for_job=lambda *args, **kwargs: calls.append(("load_model", kwargs))
         or SimpleNamespace(model=object(), metadata=SimpleNamespace(id="model-1", name="Model 1"))
     )
+    caplog.set_level(logging.INFO, logger="aerovision_worker")
 
     claimed = run_poll_iteration(
         settings,
@@ -118,6 +122,8 @@ def test_run_poll_iteration_loads_model_then_processes_claimed_image_job(monkeyp
     assert calls[2][1]["job_id"] == "job-1"
     assert calls[3][1]["job_id"] == "job-1"
     assert calls[3][1]["worker_id"] == "worker-a"
+    assert "stale_jobs_recovered requeued=1 failed=0" in caplog.text
+    assert "job_claimed job_id=job-1 media_type=image worker_id=worker-a" in caplog.text
 
 
 def test_run_poll_iteration_marks_missing_model_failed_with_safe_error(monkeypatch) -> None:
