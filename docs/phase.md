@@ -1,45 +1,49 @@
-## Phase 28 - Frontend model registry page
+## Phase 29 - Frontend experiments and metrics page
 
 **Direction:** Frontend  
-**Goal:** Implement model list and admin model-management actions.
+**Goal:** Implement experiment visualization with robust empty states.
 
 ### Scope
 
-- Implement `/models` page.
-- Display registered model versions with:
-  - model name;
-  - family;
-  - variant;
-  - active status;
-  - dataset description;
-  - key metrics;
-  - model size when known.
-- Allow regular users to view models only.
-- Show admin-only actions only to admins:
-  - register model;
-  - activate model.
-- Add admin model registration form using existing relative storage paths.
-- Add activation flow and active-status update.
-- Render missing metric values as Ukrainian placeholders or empty states, not raw `null`.
-- Represent YOLO26 and documented YOLO11 fallback accurately.
+- Implement `/experiments` page.
+- Display:
+  - model comparison table;
+  - confidence threshold analysis chart;
+  - tracker behavior comparison table;
+  - false-positive analysis summary;
+  - precision/recall/mAP cards;
+  - FPS/latency chart;
+  - confusion matrix image if available.
+- Use Recharts for frontend charts.
+- Do not use Matplotlib in frontend UI.
+- Use the exact Ukrainian empty-state text for missing experiment sections:
+
+```text
+Дані експерименту ще не завантажено
+```
+
+- Do not render blank chart canvases without explanation.
+- Do not show raw `null` values.
+- Regular users see published experiments only.
+- Admins can see all experiments where backend allows it.
+- Use wording `tracker behavior comparison`, not absolute tracking accuracy.
 
 ### Relevant docs
 
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
 - `docs/TRAINING_EXPERIMENTS.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Authenticated users can view model list.
-- Regular users do not see admin mutation actions.
-- Admin can register and activate model versions.
-- Active model is visually clear.
-- Missing metrics do not show raw `null`.
+- Experiments route is protected.
+- Missing data shows required Ukrainian text.
+- Null metric values do not crash the UI.
+- Recharts render when data exists.
+- Regular user/admin visibility matches backend.
 - Frontend build passes.
 
 ### Commit
 
-`feat(frontend-models): add model registry page and admin actions`
+`feat(frontend-experiments): add experiment metrics and empty states`

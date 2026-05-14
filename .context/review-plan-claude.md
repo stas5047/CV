@@ -1,12 +1,10 @@
-# Phase 28 Planning Review - Frontend Model Registry Page
+# Phase 29 Planning Review
 
 ## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Plan is mostly aligned with Phase 28: protected `/models`, authenticated model list, admin-only register/activate controls, backend REST-only calls, Ukrainian UI, no training launch, no new backend/database scope.
-
-Changes needed before implementation: tighten test/implementation plan around required model display fields and relative weights-path behavior. No blocking product-doc conflict found.
+Plan matches main Phase 29 contract: protected `/experiments`, existing backend REST API, Recharts, Ukrainian UI, prototype used as visual reference only, backend remains visibility authority, no training launch, no forbidden tracker metrics. Changes needed before implementation: make FPS/latency chart explicit, tighten confusion-matrix artifact handling, and avoid copying wrong empty-state literal from `.context/design.md`.
 
 ## Blocking issues
 
@@ -14,30 +12,33 @@ None.
 
 ## Important issues
 
-1. Required model display fields are not fully test-covered.
-   - Evidence: `docs/phase.md` and `docs/FRONTEND_UX.md` require `/models` to show model name, family, variant, active status, dataset description, key metrics, and model size when known.
-   - Evidence: `docs/TRAINING_EXPERIMENTS.md` requires YOLO26 primary and YOLO11 fallback metadata represented when fallback is used.
-   - Plan step 3 mentions metric extraction and fallback badge, but plan step 6 omits explicit tests for dataset description, model size when known, and YOLO11 fallback rendering. Add model fixture coverage for these fields so implementation does not pass with partial cards.
+1. Missing explicit FPS/latency chart implementation step.
+   - Evidence: `docs/phase.md` and `docs/FRONTEND_UX.md` require an FPS/latency chart for `/experiments`.
+   - Evidence: `.context/plan.md` step 4 names model comparison, threshold analysis, tracker behavior, false-positive summary, metric cards, and optional confusion matrix, but does not name an FPS/latency chart.
+   - Risk: implementation may satisfy metric cards/table only and miss required chart surface.
+   - Required change: add explicit FPS/latency chart component and test: chart renders when data exists; exact experiment empty state renders when data missing.
 
-2. Admin weights-path form behavior needs explicit relative-path handling.
-   - Evidence: `docs/phase.md` requires admin model registration form using existing relative storage paths.
-   - Evidence: `docs/API.md` says first implementation registers existing relative paths under model storage.
-   - Evidence: `docs/AUTH_SECURITY.md` and `docs/TESTING_QA.md` require no absolute path exposure and model weights paths to be relative.
-   - Plan hides `weights_path` from display, but does not explicitly require form helper text/client validation for absolute/traversal-looking paths or a test that submitted payload uses a storage-relative path. Backend remains authority, but frontend plan should prevent obvious unsafe input and safely render backend validation errors in Ukrainian.
+2. Confusion matrix artifact handling under-specified.
+   - Evidence: `docs/FRONTEND_UX.md` requires confusion matrix image if available.
+   - Evidence: `docs/API.md` requires no unsafe absolute paths in API responses/UI and file access through safe routes.
+   - Evidence: `.context/research.md` says current API exposes `artifacts_path`, but no documented safe frontend image/download URL exists for experiment artifacts.
+   - Risk: implementation may use or display `artifacts_path` directly, causing broken image src, internal path exposure, or path-bound frontend behavior.
+   - Required change: render confusion matrix only from a documented safe URL or safe metadata field; otherwise show required empty state. Test must assert no raw `artifacts_path`, `/app/storage`, `C:\`, or storage-relative path is shown or used as image src.
 
-3. Activation success path should prove visible active-state update.
-   - Evidence: `docs/phase.md` validation requires active model to be visually clear, and `docs/TESTING_QA.md` model registry tests require admins can activate one model version.
-   - Plan tests activation PATCH call, but does not explicitly test refetch/update makes newly active model visually active and old state no longer misleading. Add a focused assertion after activation mutation/refetch.
+3. WARNING: CONFLICT: empty-state literal differs between `.context/design.md` and docs.
+   - Evidence: `docs/phase.md`, `docs/FRONTEND_UX.md`, and `docs/TESTING_QA.md` require exact text `Р”Р°РЅС– РµРєСЃРїРµСЂРёРјРµРЅС‚Сѓ С‰Рµ РЅРµ Р·Р°РІР°РЅС‚Р°Р¶РµРЅРѕ`.
+   - Evidence: `.context/design.md` quotes a different double-encoded string beginning `Р вЂќР В°...`.
+   - Risk: implementer copying from design will fail required exact-text checks.
+   - Required change: implementation and tests must copy empty-state literal from product docs, not from `.context/design.md`.
 
 ## Optional improvements
 
-- Add one test fixture with missing metrics and one with known metrics/model size, instead of overloading a single fixture.
-- Keep admin form labels precise: storage-relative model weights path, no examples with `/app/storage`, drive letters, or host paths.
-- Keep `GET /models?limit=100` acceptable for this phase, but preserve API helper shape so pagination can be extended later without page rewrite.
+- Add a focused visual smoke check against `prototype/experiments.jsx` after build, limited to layout structure: tabs, comparison split, threshold chart/table, tracker table, false-positive section, and empty state. Do not treat prototype mock metrics as contract.
+- Add case-insensitive text assertions for forbidden tracker terms: `MOTA`, `IDF1`, `HOTA`, `tracking accuracy`, `targeting`, `navigation`, `interception`, plus Ukrainian equivalents if implementation introduces them.
 
 ## Questions for resolution
 
-- User prompt left risk as `<MEDIUM | HIGH>`. Existing research assumes MEDIUM. Confirm only if team wants HIGH-risk gates beyond frontend lint/test/build.
+- Should confusion matrix display be deferred until backend/API exposes a safe experiment artifact URL, with required empty state shown meanwhile?
 
 ## Files consulted
 
@@ -52,5 +53,6 @@ None.
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
 - `docs/TRAINING_EXPERIMENTS.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
+- `prototype/index.md`
+- `prototype/experiments.jsx`

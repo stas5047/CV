@@ -9,14 +9,12 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { JobDetailsPage } from "./pages/JobDetailsPage";
 import { JobsPage } from "./pages/JobsPage";
 import { ModelsPage } from "./pages/ModelsPage";
+import { ExperimentsPage } from "./pages/ExperimentsPage";
 import { UploadPage } from "./pages/UploadPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
-import {
-  AdminPage,
-  ExperimentsPage,
-} from "./pages/placeholders";
+import { AdminPage } from "./pages/placeholders";
 
 function AppRoutes() {
   return (

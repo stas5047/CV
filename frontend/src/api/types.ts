@@ -129,6 +129,44 @@ export interface ModelListResponse {
   offset: number;
 }
 
+export type ExperimentType =
+  | "model_comparison"
+  | "threshold_analysis"
+  | "tracker_comparison"
+  | "false_positive_analysis";
+
+export interface ExperimentMetric {
+  id: string;
+  experiment_run_id: string;
+  metric_name: string;
+  metric_value: number | null;
+  metric_unit: string | null;
+  metadata_json: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ExperimentRun {
+  id: string;
+  name: string;
+  experiment_type: ExperimentType | string;
+  description: string | null;
+  model_version_id: string | null;
+  dataset_name: string | null;
+  config_json: Record<string, unknown>;
+  artifacts_path: string | null;
+  is_published: boolean;
+  created_by_user_id: string | null;
+  created_at: string;
+  metrics: ExperimentMetric[];
+}
+
+export interface ExperimentListResponse {
+  items: ExperimentRun[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface ModelCreateRequest {
   name: string;
   model_family: "YOLO26" | "YOLO11";

@@ -1,5 +1,12 @@
 # Codex Mistake Log
 
+## 2026-05-15 - Phase 29 frontend Ukrainian text was committed as mojibake
+
+- Mistake: Phase 29 `/experiments` visible Ukrainian strings and test expectations were corrupted into mojibake, and tests imported the implementation empty-state constant instead of asserting the docs literal.
+- Impact: Frontend gates passed while the page failed the Ukrainian UI and exact experiment empty-state requirements.
+- Fix: Replaced corrupted strings with real Ukrainian, set the exact docs-required empty-state literal, and changed tests to assert that literal directly.
+- Prevention: For Ukrainian UI work, scan touched frontend files for mojibake fragments and keep tests anchored to docs-required literals rather than implementation constants.
+
 ## 2026-05-14 - Phase 25 Playwright storage state written with BOM
 
 - Mistake: Wrote temporary Playwright storage-state JSON with PowerShell `Set-Content -Encoding UTF8`, which produced a BOM.

@@ -1,38 +1,36 @@
-# Phase 28 Planning Review Resolution - Claude
+# Phase 29 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude review found no blocking product-doc conflict. Accepted changes tighten Phase 28 frontend implementation and tests only. No source code changed.
+Claude planning review is resolved. No item needs user decision because product docs already decide safe behavior for all blocking/important points.
 
 ## Resolution table
 
-| ID | Claude item | Resolution | Reason | Contract update |
+| ID | Claude item | Resolution | Rationale | Contract update |
 |---|---|---|---|---|
-| I1 | Required model display fields are not fully test-covered. | accepted | `docs/phase.md`, `docs/FRONTEND_UX.md`, `docs/TRAINING_EXPERIMENTS.md`, and `docs/TESTING_QA.md` require model name, family, variant, active state, dataset description, key metrics, model size when known, and YOLO11 fallback metadata when used. | Updated `.context/design.md` and `.context/plan.md` test coverage. |
-| I2 | Admin weights-path form behavior needs explicit relative-path handling. | accepted | Product docs require existing storage-relative model paths, no absolute path exposure, and backend authority. Client guard is allowed as UX/security defense while backend remains final validator. | Updated `.context/design.md` and `.context/plan.md` form/test contract. |
-| I3 | Activation success path should prove visible active-state update. | accepted | `docs/phase.md` requires active model visually clear; `docs/TESTING_QA.md` requires admins can activate one model version. Test must catch stale active-state UI. | Updated `.context/design.md` and `.context/plan.md` activation assertions. |
-| O1 | Use one fixture with missing metrics and one with known metrics/model size. | accepted | Low-risk way to prove missing and present metric behavior separately. | Added to `.context/plan.md`. |
-| O2 | Keep admin form labels precise; no absolute path examples. | duplicate | Covered by accepted I2. | No separate change. |
-| O3 | Keep `GET /models?limit=100` acceptable, preserve helper shape for later pagination. | duplicate | Existing plan already uses `GET /models?limit=100` through focused API helpers and avoids endpoint changes. Pagination extension is outside Phase 28 unless implementation needs a small typed helper option. | No separate change. |
-| Q1 | Confirm MEDIUM vs HIGH risk if team wants stronger gates. | rejected | User gave no HIGH-risk requirement. Current contract already marks MEDIUM assumption and includes relevant frontend lint/test/build gates. Asking would add no needed decision for Phase 28. | No change. |
+| I1 | Missing explicit FPS/latency chart implementation step | accepted | `docs/phase.md` and `docs/FRONTEND_UX.md` require FPS/latency chart for `/experiments`. | `.context/plan.md` now names FPS/latency chart component, empty-state behavior, tests, and review check. `.context/design.md` now includes FPS/latency visual structure and tests. |
+| I2 | Confusion matrix artifact handling under-specified | accepted | `docs/API.md` forbids unsafe path exposure; no documented safe experiment artifact image route exists. | `.context/plan.md` and `.context/design.md` now allow image rendering only from documented safe API-served URL/safe metadata field; otherwise required empty state. Tests must assert no raw path or unsafe image `src`. |
+| I3 | Empty-state literal differs between `.context/design.md` and docs | accepted | Product docs are authoritative and require exact text from `docs/FRONTEND_UX.md` / `docs/TESTING_QA.md`. | `.context/design.md` now uses exact `Дані експерименту ще не завантажено`; `.context/plan.md` points tests to product docs. |
+| O1 | Optional visual smoke against prototype layout | accepted | User explicitly requires frontend based on `@prototype`; smoke stays visual only and does not promote mock metrics to contract. | `.context/plan.md` review step now includes focused prototype layout comparison after build. |
+| O2 | Optional forbidden-term assertions, including tracker/targeting terms | accepted | Aligns with CV-only boundary and tracker metric restrictions in docs. | `.context/plan.md` now requires text search/test coverage for forbidden English terms and Ukrainian equivalents if introduced. |
+| Q1 | Should confusion matrix be deferred until backend/API exposes safe artifact URL? | duplicate | Same safe artifact policy as I2. Display is deferred unless safe documented URL/metadata exists; empty state is rendered meanwhile. | Same as I2. |
 
 ## Accepted changes applied
 
-- `.context/design.md`: added explicit fixture/display coverage for dataset description, model size, metrics, and YOLO11 fallback metadata.
-- `.context/design.md`: added admin weights-path client validation requirements for absolute-looking Unix paths, Windows drive paths, and traversal-looking paths, while preserving backend authority.
-- `.context/design.md`: added safe Ukrainian rendering requirement for backend validation errors.
-- `.context/design.md`: added activation refetch/update assertion requiring newly active model to be visually active and previous active state not misleading.
-- `.context/plan.md`: expanded `ModelPageParts.tsx` scope to include required display fields and weights-path helper/client guard.
-- `.context/plan.md`: expanded `models-page.test.tsx` scope for required fields, split metric fixtures, unsafe path rejection, and active-state update after activation.
+- Added explicit FPS/latency chart requirement to final implementation plan and design test strategy.
+- Tightened confusion matrix contract: no raw `artifacts_path`, no storage-relative image `src`, no absolute paths; render image only from documented safe API-served URL/safe metadata field.
+- Corrected exact experiment empty-state literal in `.context/design.md`.
+- Added test expectations for FPS/latency chart, confusion matrix empty state, unsafe path absence, and exact empty text.
+- Added review expectation for focused prototype visual comparison without accepting prototype mock metric semantics.
+- Expanded forbidden tracker/safety wording checks.
 
 ## Rejected items
 
-- Q1 risk confirmation: rejected as unnecessary. Phase remains MEDIUM assumption with frontend lint/test/build gates. No broader HIGH-risk gates added.
+- None.
 
 ## Duplicate items
 
-- O2 is duplicate of I2.
-- O3 is already covered by existing focused model API helper plan and documented endpoint use.
+- Q1 duplicates I2 after resolution: both are same safe confusion matrix artifact policy.
 
 ## Items needing user decision
 
@@ -40,7 +38,8 @@ Claude review found no blocking product-doc conflict. Accepted changes tighten P
 
 ## Final contract status
 
-- Final implementation contract is scoped to Phase 28 only.
-- Source code must not change during this planning-resolution step.
-- Implementation may touch only the model registry frontend surface, model API helper/types, focused tests, and required frontend index/docs updates during the later implementation phase if repository policy requires them.
-- Backend, database, CV worker, training, experiments page, admin page, and product docs remain out of scope for Phase 28 implementation unless a later review finds a direct Phase 28 blocker.
+- Implementation remains scoped to Phase 29 only.
+- No source code changes made.
+- Backend/API contract unchanged.
+- Frontend must consume existing `/api/experiments?limit=100`, use Recharts, preserve Ukrainian visible UI, and keep backend as visibility authority.
+- Final implementation may proceed using updated `.context/research.md`, `.context/design.md`, `.context/plan.md`, and this resolution file.

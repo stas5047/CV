@@ -1,129 +1,127 @@
-# Phase 28 Design - Frontend Model Registry Page
+# Design
 
-## Phase goal
+## Phase Goal
 
-Build the production `/models` frontend page for viewing registered model versions and, for admins only, registering and activating models through existing backend REST endpoints.
+Implement Phase 29 frontend contract for `/experiments`: protected Ukrainian experiments and metrics page that displays imported experiment results, uses Recharts, handles missing/null data with required empty states, and follows prototype visual direction without treating prototype mock data as API contract.
 
-## Intended behavior from docs
+## Intended Behavior From Docs
 
-Confirmed facts:
+- `/experiments` remains protected for authenticated users.
+- Page displays:
+  - model comparison table
+  - confidence threshold analysis chart
+  - tracker behavior comparison table
+  - false-positive analysis summary
+  - precision/recall/mAP cards
+  - FPS/latency chart
+  - confusion matrix image if available
+- Charts use Recharts only.
+- Matplotlib is not used in frontend UI.
+- Missing section data shows exact text:
 
-- `/models` is a protected frontend route.
-- Authenticated users can view registered model versions.
-- Regular users must not see admin-only mutation actions.
-- Admin users can register model versions and activate one model.
-- Models list must show:
-  - model name;
-  - family, including YOLO26 or documented YOLO11 fallback;
-  - variant;
-  - active status;
-  - dataset description;
-  - key metrics;
-  - model size when known.
-- Missing metric values must render Ukrainian placeholders or empty states, not raw `null`.
-- Visible UI text must be Ukrainian. Technical labels such as `YOLO`, `mAP`, `FPS`, `JSON` may remain English.
-- Frontend calls only backend REST API.
-- Backend remains authorization source of truth.
-- UI must not expose unsafe absolute filesystem paths.
-- Training is not launched from UI or API.
-- Model registration uses existing relative storage paths. Large `.pt` upload through UI is optional and not required.
-- YOLO26 is primary. YOLO11 appears only as documented fallback metadata.
+```text
+Дані експерименту ще не завантажено
+```
 
-## Architecture decisions
+- Blank charts are not rendered.
+- Raw `null`/`undefined` are not displayed.
+- Regular users see published experiments only through backend API.
+- Admins see all experiments where backend allows it.
+- Tracker copy uses `tracker behavior comparison`, not absolute tracking accuracy.
+- UI must not expose absolute filesystem paths or imply targeting/navigation/interception.
 
-- Replace only the Phase 28 placeholder route with a real page. Do not touch experiments/admin later-phase placeholders.
-- Add a focused `frontend/src/api/models.ts` module for model list, detail if needed, create, and activate calls using existing `apiRequest`.
-- Keep API types aligned with existing backend schema. Extend `frontend/src/api/types.ts` only for `ModelCreateRequest` if needed.
-- Implement `frontend/src/pages/ModelsPage.tsx` as page orchestrator with TanStack Query.
-- Put formatting, metric extraction, status badge, list, empty/error/loading states, and admin form helpers in `frontend/src/pages/models/ModelPageParts.tsx` if needed for file size and review clarity.
-- Keep prototype as visual guide:
-  - page header with admin action;
-  - collapsible/conditional admin registration form;
-  - active model accent marker;
-  - compact model rows/cards;
-  - metric bars;
-  - clear empty state.
-- Do not copy prototype mock behavior that conflicts with docs, especially fake datasets or local-only activation simulation.
-- Use existing design system and dependencies:
-  - Tailwind CSS v3 syntax;
-  - shadcn-style `Button` and `Input`;
-  - `@radix-ui/react-icons`;
-  - no new third-party package.
-- Use `DESIGN_VARIANCE=8`, `MOTION_INTENSITY=6`, `VISUAL_DENSITY=4` only within existing project constraints: asymmetric but readable model list, CSS transitions only, no added animation dependency.
-- Model fixtures and assertions must explicitly cover dataset description, model size when known, full metric display, and YOLO11 fallback metadata so the page cannot pass with partial model cards.
+## Architecture Decisions
 
-## Frontend impact
+- Add frontend-only API helper for experiments using existing `apiRequest`.
+- Add experiment response types to `frontend/src/api/types.ts` matching current backend schema.
+- Replace placeholder `ExperimentsPage` with real page module and import it from `App.tsx`.
+- Keep data fetching client-side with TanStack Query, consistent with existing frontend pages.
+- Request `GET /api/experiments?limit=100`; do not create new endpoints.
+- Group runs by documented `experiment_type`:
+  - `model_comparison`
+  - `threshold_analysis`
+  - `tracker_comparison`
+  - `false_positive_analysis`
+- Build small local mapping helpers for metric aliases and safe display formatting.
+- Use prototype as visual reference:
+  - tabbed sections
+  - dark dashboard cards
+  - compact metric strips
+  - model comparison chart/table split
+  - threshold chart with adjacent values
+  - FPS/latency chart with adjacent performance values
+  - tracker behavior notice
+  - false-positive summary blocks
+- Override prototype conflicts:
+  - use Recharts, not prototype SVG chart helpers
+  - avoid MOTA/IDF1/HOTA/absolute tracking accuracy labels
+  - avoid mock-only fake data unless tests inject it
+- Use Radix icons already installed; do not add new icon package.
+- Use Tailwind v3 syntax and existing `av-*` component classes.
+- Keep motion minimal and CSS-only because no motion dependency is installed.
 
-- `/models` changes from placeholder to production page.
-- New frontend API helper likely needed for:
-  - `GET /models?limit=100`
-  - `POST /models`
-  - `PATCH /models/{model_id}/activate`
-- Existing upload/dashboard model API calls can remain unchanged unless deduplication is minimal and low-risk.
-- Existing `App.tsx` import should point to the new `ModelsPage`; later placeholders remain in `placeholders.tsx`.
-- Tests should cover user view, admin actions, loading/error/empty states, no raw `null`, no `weights_path` display, and activation/register API calls.
+## Backend Impact
 
-## Backend impact
+- No backend source change planned.
+- Frontend consumes existing experiment list endpoint and current schema.
 
-- No backend source changes planned.
-- Use existing backend model endpoints only.
-- Backend remains responsible for auth, admin checks, path safety, and relative path validation.
+## Frontend Impact
 
-## DB impact
+- Add `frontend/src/api/experiments.ts`.
+- Extend `frontend/src/api/types.ts`.
+- Add `frontend/src/pages/ExperimentsPage.tsx`.
+- Likely add `frontend/src/pages/experiments/experimentPageUtils.ts`.
+- Likely add `frontend/src/pages/experiments/ExperimentPageParts.tsx`.
+- Update `frontend/src/App.tsx` import to use real page instead of placeholder.
+- Add `frontend/src/test/experiments-page.test.tsx`.
 
-- No database changes planned.
-- Existing `model_versions` storage and constraints remain source of truth.
+## DB Impact
 
-## API impact
+- None.
 
-- No new routes, payload fields, or response fields.
-- Use documented/current endpoints:
-  - `GET /api/models`
-  - `POST /api/models`
-  - `PATCH /api/models/{model_id}/activate`
-- Request body must match existing `ModelCreateRequest`.
+## API Impact
 
-## Security/privacy impact
+- None. Use existing `/api/experiments`.
 
-- Hide register/activate controls from non-admin users.
-- Still handle backend `403` as final authority.
-- Do not display `weights_path` in model cards/list because it is an internal relative storage reference.
-- Admin form may accept a relative weights path because backend API requires it for registration; label it clearly as storage-relative path and do not accept absolute examples.
-- Add lightweight client validation for the admin weights path before submit:
-  - reject absolute-looking Unix paths such as `/app/storage/...`;
-  - reject Windows drive paths such as `C:\...`;
-  - reject traversal-looking paths containing `..`;
-  - submit only the storage-relative value to the backend.
-- Backend remains the authority for final relative-path validation, and backend validation errors must render as safe Ukrainian form errors without exposing unsafe paths.
-- Do not log tokens, passwords, secrets, or model storage internals.
-- Do not show absolute filesystem paths from any error or response.
-- Do not expose training launch controls.
+## Security/Privacy Impact
 
-## Test strategy
+- Protected route remains behind `ProtectedRoute`.
+- Frontend does not enforce experiment visibility beyond display; backend remains authority.
+- Do not display `artifacts_path` raw.
+- Do not display absolute host/container paths.
+- Do not use `artifacts_path` or storage-relative paths as image `src`.
+- Render confusion matrix image only from a documented safe API-served URL or safe metadata field. Until that exists, render the required empty state for the confusion matrix section.
+- Do not surface raw backend errors directly; map to Ukrainian error message.
+- Do not expose admin-only import UI in this phase.
+- Do not add training launch controls.
+- Do not display forbidden output fields or CV claims beyond documented metrics.
 
-- Add focused frontend route tests for `/models`.
-- Verify guest redirect remains protected route behavior.
-- Verify regular user:
-  - sees model list;
-  - sees dataset description, model family, variant, active status, key metrics, model size when known, and YOLO11 fallback metadata when present;
-  - sees active status and metrics;
-  - does not see register or activate controls;
-  - does not trigger admin endpoints.
-- Verify admin:
-  - sees register control;
-  - submits model registration body matching backend schema;
-  - cannot submit absolute-looking or traversal-looking weights paths from the client form;
-  - activates inactive model through documented PATCH endpoint;
-  - sees refresh/update after mutation, with the newly activated model visually active and the previously active model no longer shown as active.
-- Verify loading skeleton, API error state with retry, empty state, and missing metrics placeholder.
-- Verify UI never renders raw `null`, `undefined`, `frame_stride`, `/app/storage`, Windows absolute paths, or raw `weights_path`.
-- Run:
+## Test Strategy
+
+- Add frontend route/component tests for `/experiments`.
+- Mock `GET /api/experiments` responses for:
+  - loading skeleton
+  - API error
+  - empty list
+  - published/user-visible data
+  - null metric values
+  - all four experiment types
+  - FPS/latency chart renders when data exists
+  - confusion matrix section uses empty state when no safe URL exists
+  - tracker comparison without forbidden metric wording
+- Assert:
+  - route redirects guests through existing auth behavior
+  - required empty-state text appears for missing sections
+  - no raw `null`, `undefined`, `frame_stride`, `artifacts_path`, `/app/storage`, `storage/`, or `C:\` appears or is used as an image `src`
+  - Recharts-backed chart content renders when data exists
+  - regular UI text is Ukrainian except accepted technical labels
+- Relevant quality gates:
   - `npm run lint`
-  - `npm test`
+  - `npm test -- experiments-page.test.tsx` if Vitest target filtering works; otherwise `npm test`
   - `npm run build`
 
-## Ambiguities or conflicts
+## Ambiguities Or Conflicts
 
-- WARNING: CONFLICT: `docs/index.md` describes frontend state as Phase 24, but `frontend/index.md`, `docs/phase.md`, and actual code indicate Phase 28 is next after Phase 27. Plan follows `docs/phase.md`.
-- User prompt left phase title and risk placeholders unresolved. Current phase inferred from `docs/phase.md`; risk marked MEDIUM assumption.
-- Prototype contains mock model names/dataset strings. Prototype index says those are not contracts, so only visual structure should carry into implementation.
+- WARNING: CONFLICT: prototype `prototype/experiments.jsx` shows MOTA/custom SVG chart patterns that conflict with `docs/TRAINING_EXPERIMENTS.md`, `docs/FRONTEND_UX.md`, and backend metric safety. Implementation must follow docs and use prototype only for visual composition.
+- Confusion matrix display lacks documented safe frontend URL contract. Show it only from a documented safe API-served URL or safe metadata field; otherwise render required empty state.
+- Exact experiment metric names are flexible/import-dependent. Use alias mapping and empty states instead of hard failures.

@@ -1,26 +1,23 @@
-# Verdict: APPROVED_WITH_CHANGES
+# Verdict: BLOCKED
 
 ## Summary
 
-Phase 28 implementation adds the protected `/models` frontend page, model registry API helpers, admin registration/activation UI, focused tests, and `frontend/index.md` update. Core route protection, admin-only controls, relative-path client guard, active-state refresh, model display fields, and current frontend gates are in place.
+Phase 29 adds the protected `/experiments` page, experiment API helper/types, Recharts sections, safe confusion-matrix fallback, focused tests, and frontend index update. Architecture shape is mostly right: frontend calls only `/api/experiments?limit=100`, route remains protected, and no training/import UI was added.
 
-Two important frontend UX defects remain: some visible model-page text is English, and activation failures are silent. No critical blocker found.
+Blocking issue: production-visible Phase 29 text is not real Ukrainian text. The empty-state literal also does not match the exact docs string in UTF-8, and tests assert the implementation constant instead of the documented literal, so gates pass while the user-facing requirement fails.
 
 ## Critical issues
 
-None.
+1. `/experiments` renders mojibake instead of real Ukrainian, including the required exact experiment empty-state text.
+   - Evidence: `docs/FRONTEND_UX.md:37` requires visible frontend UI text to be Ukrainian. `docs/FRONTEND_UX.md:313-316` requires exact empty-state text: `Дані експерименту ще не завантажено`.
+   - Evidence: UTF-8 source check showed `docsContainsRequired=True` for `docs/FRONTEND_UX.md`, but `frontend/src/pages/experiments/experimentPageUtils.ts` had `containsRequired=False`, `literalLength=66`, `requiredLength=35`, `equal=False` for `EXPERIMENT_EMPTY_TEXT` at line 3.
+   - Evidence: affected visible text appears across `frontend/src/pages/ExperimentsPage.tsx:78`, `frontend/src/pages/ExperimentsPage.tsx:85`, `frontend/src/pages/experiments/ExperimentPageParts.tsx:40-43`, `frontend/src/pages/experiments/ExperimentPageParts.tsx:47-54`, and error/empty labels in the same component file.
+   - Evidence: `frontend/src/test/experiments-page.test.tsx:8` imports `EXPERIMENT_EMPTY_TEXT` from implementation and assertions at lines 178, 230, and 279 only compare UI to that same implementation constant. The test never checks the docs-required literal, so it cannot catch this regression.
+   - Impact: Phase 29 fails core frontend language and exact empty-state requirements. Users see broken text rather than Ukrainian.
 
 ## Important issues
 
-1. Visible English text remains on the production `/models` page.
-   - Evidence: `frontend/src/pages/models/ModelPageParts.tsx:80` renders `backend API` in a user-facing error message; `frontend/src/pages/models/ModelPageParts.tsx:228` renders `YOLO registry`; `frontend/src/pages/models/ModelPageParts.tsx:149-150` renders `Precision` and `Recall`.
-   - Why it matters: `docs/FRONTEND_UX.md` requires visible UI text, errors, labels, and helper text to be Ukrainian, with only accepted technical labels such as `FPS`, `mAP`, `YOLO`, `CSV`, and `JSON` explicitly allowed. `docs/phase.md` also scopes Phase 28 as Ukrainian frontend work. This repeats a prior status-resolved class of issue: `.context/status.md` says Phase 27 replaced visible `backend API` wording.
-   - Expected fix: localize these labels/messages, keeping accepted technical tokens where needed, for example `Реєстр YOLO`, Ukrainian wording for backend connection, and Ukrainian metric labels where practical.
-
-2. Admin model activation failure has no user-visible error state and no regression test.
-   - Evidence: `frontend/src/pages/ModelsPage.tsx:51-58` defines `activateMutation` with `onMutate`, `onSuccess`, and `onSettled`, but no `onError` handling or displayed error state. `frontend/src/test/models-page.test.tsx` covers successful activation but not failed activation.
-   - Why it matters: `docs/FRONTEND_UX.md` requires failed API requests and admin/user-facing errors to be clear and Ukrainian. Phase 28 includes admin activation as core behavior, so a backend `403`, `404`, or `500` currently leaves the user with no explanation after the button resets.
-   - Expected fix: add safe Ukrainian activation error feedback and a focused failed-activation test.
+None beyond the blocking language/encoding defect.
 
 ## Optional issues
 
@@ -28,35 +25,23 @@ None.
 
 ## Quality gate assessment
 
-- `rtk git status --short`: PASS for inspection; shows expected Phase 28 frontend/context changes plus existing forbidden review-resolution file modification not read.
-- `rtk git diff --stat`: PASS for inspection.
-- `rtk git diff -- ...allowed paths...`: PASS for inspection; skipped `.context/review-code-resolution.md` per user rule.
-- `npm test -- models-page.test.tsx` from `frontend/`: PASS, 6 tests passed.
-- `npm run lint` from `frontend/`: PASS.
-- `npm test` from `frontend/`: PASS, 39 tests passed.
-- `npm run build` from `frontend/`: PASS.
-
-Coverage gap: no test asserts activation failure feedback, and tests permit visible English strings noted above.
+- `npm test -- experiments-page.test.tsx` PASS, 5 tests passed.
+- `npm run lint` PASS.
+- `npm test` PASS, 45 tests passed.
+- `npm run build` PASS with Vite chunk-size warning only.
+- Gate caveat: tests pass but miss the documented Ukrainian literal because they assert implementation text.
 
 ## Security/privacy assessment
 
-Applicable because Phase 28 touches admin model registration/activation UI.
-
-- Regular users do not see registration or activation controls in tests.
-- Backend remains authority for `POST /api/models` and `PATCH /api/models/{model_id}/activate`.
-- Model cards do not display `weights_path`; tests assert absence of raw `weights_path`, relative weight path, `/app/storage`, Windows drive prefix, `null`, `undefined`, and `frame_stride`.
-- Client rejects empty, absolute, Windows-drive, and `..` weights paths before submit, while backend validation remains final.
-- No training launch control, secret display, token logging, or storage path construction found in the new frontend code.
+No security/privacy defect found in touched Phase 29 code. The page uses the protected route, calls backend REST only, does not expose `artifacts_path` or storage paths in reviewed/tested states, keeps confusion matrix as empty state without a safe artifact URL, and does not add training launch/import UI.
 
 ## Positive findings
 
-- `/models` remains protected and wired inside existing authenticated shell.
-- Admin-only form/action visibility matches docs and tests.
-- New API helper uses documented endpoints only: `GET /models?limit=100`, `POST /models`, and `PATCH /models/{model_id}/activate`.
-- Model cards cover name, family, variant, active state, dataset fields, metrics, size, FPS, and documented YOLO11 fallback display.
-- Missing metric values render Ukrainian placeholder text instead of raw `null`.
-- Active model state is refetched after activation and covered by regression test.
-- Implementation follows prototype structure without copying mock-only behavior into product contracts.
+- `/experiments` is wired inside existing `ProtectedRoute` and `AppShell`.
+- Recharts components are used for model comparison, threshold analysis, and FPS/latency.
+- Tracker comparison filters forbidden `mota`, `idf1`, `hota`, and `tracking accuracy` metric names before display.
+- Missing/null section data renders empty states instead of blank charts.
+- Frontend does not add API endpoints or backend/database scope.
 
 ## Files consulted
 
@@ -68,7 +53,6 @@ Applicable because Phase 28 touches admin model registration/activation UI.
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
 - `docs/TRAINING_EXPERIMENTS.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
@@ -76,20 +60,17 @@ Applicable because Phase 28 touches admin model registration/activation UI.
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
 - `prototype/index.md`
-- `prototype/models.jsx`
+- `prototype/experiments.jsx`
 - `frontend/package.json`
 - `frontend/index.md`
 - `frontend/src/App.tsx`
-- `frontend/src/api/client.ts`
-- `frontend/src/api/models.ts`
 - `frontend/src/api/types.ts`
-- `frontend/src/auth/useAuth.ts`
-- `frontend/src/layout/AppShell.tsx`
-- `frontend/src/pages/ModelsPage.tsx`
-- `frontend/src/pages/models/ModelPageParts.tsx`
-- `frontend/src/pages/models/modelPageUtils.ts`
-- `frontend/src/pages/placeholders.tsx`
-- `frontend/src/test/models-page.test.tsx`
+- `frontend/src/api/experiments.ts`
+- `frontend/src/pages/ExperimentsPage.tsx`
+- `frontend/src/pages/experiments/ExperimentPageParts.tsx`
+- `frontend/src/pages/experiments/experimentPageUtils.ts`
 - `frontend/src/test/setup.ts`
-- `backend/app/api/models.py`
-- `backend/app/schemas/models.py`
+- `frontend/src/test/experiments-page.test.tsx`
+- `backend/app/api/experiments.py`
+- `backend/app/schemas/experiments.py`
+- `backend/app/services/experiments.py`
