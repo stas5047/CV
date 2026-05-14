@@ -1,44 +1,48 @@
-# Status - Phase 17 Image Processing Pipeline
+# Phase 18 Status
 
-## Current state
+## Implemented
 
-Phase 17 implemented for CV worker image jobs only.
+- Updated CV worker queue claiming to include image and video jobs, with claimed media type returned for dispatch.
+- Added worker dispatch so image jobs still use image processing and video jobs use the new video processor.
+- Added video processing pipeline:
+  - reads uploaded video through safe shared-storage relative paths;
+  - validates missing/corrupt/unreadable video cases safely;
+  - processes frames in order with job-scoped Ultralytics tracker persistence;
+  - uses ByteTrack by default and passes BoT-SORT when selected;
+  - fails safely when tracker runtime support is unavailable;
+  - writes annotated MP4 output under `results/{job_id}/annotated.mp4`;
+  - updates progress/heartbeat during processing;
+  - stores video detection rows with frame index, timestamp, bbox, confidence, model, tracker, and nullable track IDs;
+  - writes track summaries for non-null track IDs;
+  - writes CSV/JSON exports including top-level `tracks`;
+  - completes no-detection video jobs successfully.
+- Split video implementation across focused worker modules to avoid a large mixed-responsibility file.
+- Updated CV worker index for current video-processing capability.
 
-## Completed
+## Code Review Final Fix
 
-- Added image-only queue claiming so video jobs remain queued for later video phase.
-- Added image processing module for safe source path resolution, image decode, YOLO inference adapter, detection conversion, annotation, CSV export, JSON export, summary metrics, and completed-job finalization.
-- Added safe failure handling for missing source image, corrupted image decode, annotated output creation failure, CSV export creation failure, and JSON export creation failure.
-- Final code-review fix added safe failure handling for unsafe DB-stored source paths, result output directory creation failures, and image-job database finalization failures where the worker can still record a failed state.
-- Added job-scoped detection cleanup before completed retry finalization to avoid duplicate detection rows.
-- Wired `run_poll_iteration` to load resolved model then process claimed image jobs.
-- Added worker tests for successful image jobs, detection invariants, no-detection success, export contracts, artifact failures, safe error messages, and image-only queue claiming.
-- Updated `cv/index.md` to reflect current worker state and command behavior.
+- Resolved `.context/review-code-openai.md` review items in `.context/review-code-resolution.md`.
+- Accepted important fix: added regression coverage for intermediate video heartbeat/progress updates before final completion.
+- Accepted optional fix: added no-detection video assertion that annotated MP4 result media is recorded and exists.
+- No source behavior changes were needed; fixes are test-only.
 
-## Quality gates
+## Validation
 
-- `cd cv; python -m pytest tests/test_image_processing.py` -> PASS, 11 passed.
-- `cd cv; python -m ruff check aerovision_worker/image_processing.py tests/test_image_processing.py` -> PASS.
-- `cd cv; python -m ruff check .` -> PASS.
-- `cd cv; python -m pytest` -> PASS, 71 passed.
-- `cd cv; python -m pytest -m postgres` -> PASS, 3 passed, 68 deselected.
-- `git diff --check` from repo root -> FAIL, unrelated existing trailing whitespace in `docs/phase.md:3`.
+- `cd cv; python -m ruff check .` -> PASS
+- `cd cv; python -m pytest` -> PASS (`81 passed`)
+- `cd cv; python -m pytest -m postgres` -> PASS (`3 passed`)
+- `cd cv; python -m pytest tests\test_video_processing.py` -> PASS (`8 passed`)
+- `git diff --check` -> FAIL, unrelated existing trailing whitespace in `docs/phase.md:3`; left untouched because it is outside accepted review fixes.
 
-## Security/privacy
+## Security and Safety
 
-- DB result/export paths remain relative under `results/{job_id}/`.
-- Source media paths are validated with existing relative-path safety helpers before filesystem access.
-- Unsafe DB-stored source paths and result directory failures are converted to fixed safe failed-job messages.
-- Failed job messages are fixed safe strings and do not include absolute host/container paths.
-- CSV/JSON exports contain CV-only image-space detection data and no targeting/navigation/control fields.
-- No secrets, tokens, passwords, or database passwords added to logs or exports.
+- DB result paths remain relative.
+- Video source/result paths use existing safe storage join/validation.
+- Worker failure messages avoid absolute paths, tracebacks, tokens, secrets, and DB URLs.
+- JSON exports remain limited to CV/image-space detections, model data, parameters, summaries, and track summaries.
+- No backend API, frontend, DB migration, training, Docker, or product-doc changes were made.
 
-## Deviations
+## Remaining Risks
 
-- None from `.context/design.md`, `.context/plan.md`, or `.context/review-plan-resolution.md`.
-
-## Remaining risks
-
-- Video processing, ByteTrack/BoT-SORT tracking, video progress cadence, and track summaries remain later-phase work.
-- Real Ultralytics result-object behavior is covered through adapter-shaped tests, not real model inference smoke with weights.
-- Repo whitespace check still reports unrelated trailing whitespace in `docs/phase.md:3`; not changed because it was outside accepted review fixes.
+- Unit tests use generated tiny videos and fake tracker outputs; real YOLO/Ultralytics tracker behavior still needs runtime smoke with actual model artifacts in later integration/QA.
+- OpenCV MP4 encoding depends on available codec support; implementation fails safely if writer cannot open.

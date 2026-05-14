@@ -2,9 +2,9 @@
 
 ## Summary
 
-Phase 17 plan matches image-processing scope and key docs: worker-only image path, shared-storage reads/writes, YOLO inference through existing runtime, original-pixel boxes, image detection invariants, no-detection success, CSV/JSON exports, and relative result paths.
+Phase 18 plan matches documented scope: CV worker video processing only, no backend/API/frontend/schema/training expansion, PostgreSQL queue plus shared storage, relative paths, progress/heartbeat, ByteTrack default, BoT-SORT when supported, CSV/JSON exports, no-detection success, and CV-only output boundary.
 
-Changes needed before implementation: remove risky valid-video failure option, add required summary fields, and add tests for output/export failure handling.
+One important gap remains: plan does not explicitly require persistent tracker state across sequential frames. Without that, per-frame calls can satisfy detection tests while producing unstable or missing track summaries.
 
 ## Blocking issues
 
@@ -12,31 +12,27 @@ None.
 
 ## Important issues
 
-1. Valid video jobs may be marked failed during image-only phase.
-
-Evidence: `.context/plan.md` step 8 says non-image jobs may be rejected with safe failed status. `docs/CV_PIPELINE.md` defines video as supported runtime input and has separate video processing flow. `docs/API.md` allows jobs for uploaded image or video media. `docs/phase.md` scopes Phase 17 to image processing only, not changing valid video-job semantics. Failing a valid queued video job because Phase 17 image implementation claimed it would create false processing failures. Plan should require image-only claiming/filtering or explicit deferral behavior that does not convert valid future video work into failed processing errors.
-
-2. Summary metric plan omits available required fields.
-
-Evidence: `.context/plan.md` step 16 lists summary values but omits `original_filename`, source file size, and model size MB. `docs/CV_PIPELINE.md` Processing Summary Metrics requires original filename, file size, and model size MB when available. `docs/DATA_MODEL.md` stores `media_files.original_filename`, `media_files.file_size_bytes`, and `model_versions` metadata/weights path needed to calculate or source these values. Add these to implementation and tests, with model size nullable only when not available.
-
-3. Failure tests do not cover output/export write failures.
-
-Evidence: `.context/plan.md` step 6 covers missing and corrupted inputs only. `docs/CV_PIPELINE.md` CV Runtime Error Handling explicitly requires handling failed output media creation, failed CSV export creation, and failed JSON export creation. Since Phase 17 creates annotated image, CSV, and JSON artifacts, plan needs relevant mocked failure tests or a documented reason a specific failure cannot be simulated.
+1. Tracker lifecycle not explicit enough for video tracking.
+   - Evidence: `.context/plan.md` step 7 says "Run YOLO/tracking call per frame"; step 8 says "Use ByteTrack as default tracker"; no step requires preserving tracker state across frames or using runtime persistence/config so IDs can remain associated over time.
+   - Doc rule: `docs/CV_PIPELINE.md` requires video processing to "apply tracking with ByteTrack by default", store `track_id` when provided, and create per-job/track summaries. `docs/TESTING_QA.md` requires video tracking includes track IDs when available and track summaries are created.
+   - Risk: implementation may call detection/tracking independently per frame, causing no stable track IDs or fragmented summaries while still passing basic per-frame detection tests.
+   - Needed plan change: require persistent tracker state for each video job, and add test where same fake track appears across multiple frames and produces one summary row with correct first/last frame and frame count.
 
 ## Optional improvements
 
-1. Add assertion that completed/failed finalization updates `updated_at` if this is not already handled by SQLAlchemy/server defaults. `docs/DATA_MODEL.md` defines `processing_jobs.updated_at` as last update timestamp.
+1. Add one test for unknown or unsupported tracker runtime behavior.
+   - Evidence: `.context/design.md` says requested tracker failure should mark job failed safely, not silently fallback. `.context/plan.md` verifies `botsort` is passed but does not explicitly test unsupported runtime failure.
+   - Value: prevents false reporting that BoT-SORT ran when runtime support is absent.
 
-2. In retry cleanup, consider job-scoped stale result-file cleanup or overwrite behavior. `.context/plan.md` step 17 handles duplicate detection rows/result refs, but stale artifact files can still accumulate. This is optional because docs require safe storage cleanup later, not immediate physical deletion.
+2. Add export test for `tracks` top-level array content, not only key existence.
+   - Evidence: `docs/API.md` requires JSON export top-level `tracks`; `docs/CV_PIPELINE.md` requires track summary rows. Plan step 17 checks top-level keys but not that exported track summaries match persisted rows.
 
 ## Questions for resolution
 
-1. For Phase 17, should worker queue selection skip non-image jobs until video phase, or should non-image jobs remain queued with a safe "not processed by this phase" behavior? Plan should pick one non-failing behavior before coding.
+None. Important issue can be resolved inside plan before implementation.
 
 ## Files consulted
 
-- `C:\Users\Kotletka\.codex\skills\caveman\SKILL.md`
 - `CLAUDE.md`
 - `AGENTS.md`
 - `docs/index.md`
@@ -45,7 +41,9 @@ Evidence: `.context/plan.md` step 6 covers missing and corrupted inputs only. `d
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
+- `.context/review-plan-claude.md`
 - `docs/CV_PIPELINE.md`
+- `docs/ARCHITECTURE.md`
 - `docs/DATA_MODEL.md`
 - `docs/API.md`
 - `docs/TESTING_QA.md`

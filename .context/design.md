@@ -1,173 +1,138 @@
-# Design - Phase 17 Image Processing Pipeline
+# Phase 18 Design Contract
 
 ## Phase goal
 
-Implement end-to-end CV worker processing for image jobs only.
-
-Confirmed from docs: worker must read uploaded image from shared storage, validate decode, run YOLO inference, convert detections to original-resolution pixel coordinates, write annotated image output, store detection rows, create CSV/JSON exports, calculate summary metrics, update job result paths/progress/status, fail corrupted or missing media safely, and treat no-detection images as successful completed jobs.
+Implement Phase 18 only: video job processing in the CV worker, including readable video validation, frame-by-frame inference, ByteTrack default tracking, optional BoT-SORT when runtime support exists, progress/heartbeat updates, annotated MP4 result output, detection rows, track summary rows, CSV/JSON exports, summary metrics, safe errors, and no-detection success.
 
 ## Intended behavior from docs
 
-Confirmed behavior:
+Confirmed:
 
-- Input is uploaded image already validated by backend, but worker must still handle missing/unreadable/corrupted/decode-failed files.
-- Image detections must use:
-  - `frame_index = 0`
-  - `timestamp_ms = 0`
-  - `track_id = null`
-- Bounding boxes must be stored/exported as original-resolution image-space pixels.
-- Detection task is single-class `drone`.
-- Processing output must stay CV-only: boxes, confidence, class, frame/timestamp, image-space centers, model data, FPS/latency/summary metrics.
-- No-detection is success, not failure.
-- No-detection image jobs must have:
-  - `status = completed`
-  - `total_detections = 0`
-  - `frames_with_detections = 0`
-  - `average_confidence = null`
-  - `maximum_confidence = null`
-  - CSV with headers only
-  - JSON with empty `detections`
-- Completed jobs must store only relative paths for annotated media, CSV, and JSON.
-- Completed image-job summaries must include sanitized original filename, source file size, and model size MB when available.
-- Worker must not expose public API routes and must not call backend API for job loop.
-- Worker must use resolved model version from existing model runtime priority.
+- Worker reads uploaded video from shared storage using relative DB paths only.
+- Worker must handle missing, corrupted, unreadable, or decode-failing videos as failed jobs with safe `error_message`.
+- Worker reads or verifies frame count, FPS, width, height, and duration when available.
+- Worker processes frames in order.
+- Worker uses YOLO detection frame by frame.
+- ByteTrack is default for video.
+- BoT-SORT is supported only when runtime support is available.
+- Tracking must preserve tracker state across frames for each video job so stable IDs can produce meaningful track summaries.
+- Annotated video should be MP4 when possible.
+- Progress and heartbeat update every configured 30 frames or 2 seconds by default, whichever comes first.
+- Video detections include frame index, timestamp in milliseconds, bbox in original frame pixel coordinates, class `drone`, confidence, model data, tracker type, and `track_id` when available.
+- Track IDs may be null when the tracker does not associate an ID.
+- Worker creates one `tracks` summary row per job/track ID when tracks exist.
+- No-detection video jobs complete successfully and still create annotated output when possible, CSV headers, JSON with empty `detections`, zero summaries, and no error.
+- Worker writes only CV/image-space data. No targeting, navigation, geospatial, interception, or hardware-control outputs.
+
+Assumptions:
+
+- Use OpenCV for video decode/encode because dependency already exists and docs require `opencv-python-headless`.
+- Use generated test videos rather than committed fixtures.
+- Use worker-local fakes for model/tracking tests; do not require real model weights in unit tests.
 
 ## Architecture decisions
 
-Confirmed architecture:
-
-- Keep backend as authorization/download boundary.
-- Keep worker coordination through PostgreSQL plus shared storage.
-- Keep image processing outside claim transaction.
-- Reuse existing worker settings, model runtime, queue helpers, and storage path utilities.
-- Use `opencv-python-headless`/NumPy for image read, annotation, and write.
-- Use pandas or stdlib CSV for CSV export; either is allowed by existing deps. Contract requires CSV columns, not library.
-- Use short DB transactions for:
-  - reading job/media/model metadata needed for processing;
-  - inserting detection rows;
-  - marking job completed/failed and storing paths/summary.
-- Do not add video processing, ByteTrack behavior, track summaries, frontend UI, backend route changes, schema changes, or training utilities in this phase.
-- Do not fail valid video jobs only because Phase 17 is image-only. Prefer image-only queue claiming/filtering so video jobs remain queued for the later video-processing phase.
-
-Implementation shape:
-
-- Replace placeholder failure path in `run_poll_iteration` with image processing for image jobs once model preflight succeeds.
-- Preserve safe model-loading failure behavior.
-- Add image-specific processing helper(s) with clear inputs: claimed job ID, worker ID, settings, session factory, loaded model.
-- Ensure image processing only handles image media. Non-image/video jobs must use non-failing deferral behavior in this phase.
-- Generate result files under `results/{job_id}/...` and store those relative paths.
-- Insert detection rows linked to `job_id` and `media_file_id`.
-- Clear stale prior result paths/detections only if retrying same job after stale recovery can otherwise duplicate rows. If implemented, cleanup must be job-scoped.
+- Add media-type dispatch in the worker after job claim. The queue should claim queued jobs for supported media, then `main.py` dispatches images to existing image processor and videos to the new video processor.
+- Keep video processing out of `image_processing.py` because that file is already over 500 lines and image/video processing have separate responsibilities.
+- Reuse existing model loading, safe path, heartbeat, and job failure helpers.
+- Keep all processing outside the claim transaction. Existing `claim_next_job` already commits before processing; Phase 18 must preserve this.
+- Write result paths under `results/{job_id}/`: `annotated.mp4`, `detections.csv`, `detections.json`.
+- Initialize and keep tracker runtime/configuration for the whole video job, not as independent per-frame stateless calls.
+- Use a small internal representation for video detections and track summaries so CSV/JSON exports and DB inserts use one consistent source.
+- Clear stale detection/track rows for the job before inserting final rows, matching image reprocessing behavior.
+- Do not add Celery, Redis, REST worker polling, frontend changes, API changes, training changes, or live/RTSP input.
 
 ## Backend impact
 
-No backend API changes planned.
+Confirmed no backend product behavior change is intended.
 
-Backend result APIs should begin returning actual worker-produced summaries, detections, result metadata, and downloads through existing routes.
+Backend may be inspected because:
+
+- Existing schema and result endpoints are the contract for detection/track rows and download paths.
+- Existing job creation already stores video tracker parameters.
+
+No backend route/schema change should be part of this phase unless implementation discovers a direct contract mismatch. If such mismatch appears, stop and report `WARNING: CONFLICT`.
 
 ## Frontend impact
 
-No frontend changes planned.
-
-Frontend remains placeholder and does not affect this phase.
+No frontend code is touched in this phase.
 
 ## DB impact
 
-No schema or migration changes planned.
+No migration is intended.
 
-Worker will write existing fields/tables:
+Worker writes existing tables only:
 
-- `processing_jobs.status`
-- `processing_jobs.progress_percent`
-- `processing_jobs.summary_json`
-- `processing_jobs.result_media_path`
-- `processing_jobs.csv_path`
-- `processing_jobs.json_path`
-- `processing_jobs.error_message`
-- `processing_jobs.completed_at`
-- `processing_jobs.last_heartbeat_at`
-- `processing_jobs.updated_at`
+- `processing_jobs`
 - `detections`
+- `tracks`
 
-No `tracks` rows for image jobs.
+Required DB invariants:
+
+- Result paths remain relative.
+- `detections` rows use original frame pixel coordinates.
+- `tracks` rows summarize video tracker IDs only and do not represent physical trajectories.
+- No binary video/export data is stored in PostgreSQL.
 
 ## API impact
 
-No route or response schema changes planned.
+No API route or response schema change is intended.
 
-Existing API/export contracts constrain generated CSV/JSON content:
-
-- CSV required columns from `docs/API.md`.
-- JSON top-level keys: `job`, `media`, `model`, `parameters`, `summary`, `detections`, `tracks`.
-- No absolute storage paths in API responses or exports.
+Existing results endpoints should begin returning real video detections/tracks/download availability once worker writes documented rows and artifacts.
 
 ## Security/privacy impact
 
-Touched surface: worker file paths, logs, exports, and DB path writes.
+Touched:
 
-Requirements:
+- Shared-storage reads/writes.
+- DB path fields.
+- Worker logs/errors.
+- JSON/CSV exports.
 
-- Validate DB-stored media/model paths before filesystem access.
-- Write only relative paths back to database.
-- Prevent path traversal through all result/export paths.
-- Do not log secrets, raw tokens, DB passwords, or absolute storage paths.
-- Error messages stored on failed jobs must be clear but safe, without host/container absolute paths.
-- Exports must not include forbidden targeting/navigation/control/geospatial fields.
-- User-uploaded files are decoded/read only, never executed.
+Rules:
+
+- Reject unsafe source/result paths.
+- Never store or expose absolute host/container paths.
+- Safe job errors must not include storage root, model path, raw traceback, secrets, tokens, or DB URL.
+- JSON exports must not include forbidden external fields such as targeting, navigation, interception, geospatial data, motor/payload/flight-control commands, or engagement decisions.
+- User-uploaded media is decoded only, never executed.
 
 ## Test strategy
 
-Relevant tests only:
+Worker tests:
 
-- Worker unit tests for successful image job:
-  - decodes image;
-  - uses mocked loaded model output;
-  - inserts detections with frame/timestamp/track rules;
-  - writes annotated image;
-  - writes CSV and JSON exports;
-  - stores relative result paths;
-  - marks job completed with progress 100.
-- Worker unit tests for no-detection image:
-  - zero detection rows;
-  - headers-only CSV;
-  - JSON empty `detections`;
-  - completed status and null confidence summary.
-- Worker unit tests for failures:
-  - missing source file;
-  - corrupted/unreadable image;
-  - annotated output write failure;
-  - CSV export write failure;
-  - JSON export write failure;
-  - if a specific artifact failure cannot be simulated cleanly, document the reason in the test or implementation notes.
-- Export tests:
-  - CSV has all required columns;
-  - JSON has required top-level keys and no forbidden fields.
-- Regression tests:
-  - existing queue/model/startup tests adjusted away from placeholder failure.
+- Update queue tests so video jobs are claimable in Phase 18.
+- Add dispatcher tests that image jobs still call image processor and video jobs call video processor.
+- Add video unit tests with generated tiny videos and fake model/tracker outputs:
+  - successful video job writes annotated MP4, CSV, JSON, detections, tracks, summary, progress 100;
+  - detections include frame indices and millisecond timestamps;
+  - track IDs are stored when provided and may be null;
+  - one fake track persists across multiple frames and produces one summary row with correct first frame, last frame, and frame count;
+  - track summary rows aggregate first/last frame, frame count, average confidence, max confidence;
+  - no-detection video completes with empty exports and zero summaries;
+  - missing/corrupt/unreadable video fails safely;
+  - output writer failure fails safely;
+  - unsupported tracker runtime behavior fails safely and does not silently claim BoT-SORT ran;
+  - progress/heartbeat updates during multi-frame processing;
+  - JSON export `tracks` content matches persisted track summaries;
+  - exports contain only API contract keys and no absolute paths or forbidden safety-boundary text.
 
-Relevant commands:
+Relevant gates:
 
 - `cd cv; python -m ruff check .`
 - `cd cv; python -m pytest`
-- `cd cv; python -m pytest tests/test_startup.py tests/test_model_runtime.py tests/test_queue.py`
-- `cd cv; python -m pytest -m postgres` only if PostgreSQL integration env is reachable.
+- `cd cv; python -m pytest -m postgres` when PostgreSQL is reachable, because queue claiming changes.
 
-No frontend gates, backend full suite, or Docker full-stack gates required for this planning phase unless implementation touches those surfaces later.
+Not planned:
+
+- Frontend build/tests.
+- Backend full suite unless implementation changes backend files.
+- Docker Compose smoke unless runtime/dependency/container files change.
 
 ## Ambiguities or conflicts
 
-No `WARNING: CONFLICT` found among consulted docs for Phase 17.
-
-Ambiguities:
-
-- Exact annotated image file extension/name is not specified.
-- Exact summary JSON key spelling is not fully specified.
-- Exact Ultralytics result object shape is runtime-library-specific.
-- Exact retry cleanup behavior for detection rows/result files is not specified.
-- Exact queue-deferral mechanics for non-image jobs depend on existing `claim_next_job` shape, but valid video jobs must not be failed during Phase 17.
-
-Resolution approach:
-
-- Keep choices local and documented in implementation comments/tests where needed.
-- Prefer existing API/backend test expectations where they already imply keys/paths.
-- Avoid adding new public contract fields beyond docs.
+- No doc conflict found.
+- Risk level was not supplied in prompt; assumed `HIGH`.
+- Docs do not define exact internal file names. Proposed new worker module names are implementation-owned, not product/API contracts.
+- Docs do not define exact MP4 codec. Implementation should try a broadly available OpenCV codec and fail safely if writer cannot open.
+- Docs allow BoT-SORT only when supported. Implementation should not silently claim BoT-SORT worked when runtime support is absent.

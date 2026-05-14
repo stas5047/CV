@@ -67,6 +67,7 @@ def insert_job(
     locked_at: datetime | None = None,
     started_at: datetime | None = None,
     deleted_at: datetime | None = None,
+    media_type: str = "image",
 ) -> str:
     job_id = job_id or uuid4().hex
     media_id = f"media-{job_id}"
@@ -78,7 +79,7 @@ def insert_job(
                 values (:id, :media_type, :deleted_at)
                 """
             ),
-            {"id": media_id, "media_type": "image", "deleted_at": deleted_at},
+            {"id": media_id, "media_type": media_type, "deleted_at": deleted_at},
         )
         session.execute(
             text(
@@ -196,7 +197,7 @@ def test_claim_next_job_returns_none_when_queue_empty() -> None:
     assert claimed is None
 
 
-def test_claim_next_job_leaves_video_jobs_queued_for_later_phase() -> None:
+def test_claim_next_job_claims_oldest_supported_media_job_including_video() -> None:
     factory = session_factory()
     now = datetime(2026, 5, 14, 12, 0, tzinfo=UTC)
     video_id = insert_video_job(factory, created_at=now - timedelta(minutes=2))
@@ -205,8 +206,10 @@ def test_claim_next_job_leaves_video_jobs_queued_for_later_phase() -> None:
     claimed = claim_next_job(factory, worker_id="worker-a", now=now)
 
     assert claimed is not None
-    assert claimed.id == image_id
-    assert fetch_job(factory, video_id)["status"] == "queued"
+    assert claimed.id == video_id
+    assert claimed.media_type == "video"
+    assert fetch_job(factory, video_id)["status"] == "processing"
+    assert fetch_job(factory, image_id)["status"] == "queued"
 
 
 def test_update_job_heartbeat_updates_only_matching_processing_owner() -> None:

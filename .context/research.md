@@ -1,18 +1,15 @@
-# Research - Phase 17 Image Processing Pipeline
+# Phase 18 Research Contract
 
 ## Current phase
 
-Confirmed current phase from `docs/phase.md`: **Phase 17 - Image processing pipeline**.
-
-Phase direction: CV Worker / Image Processing.
-
-Phase goal: implement end-to-end image job processing.
-
-Risk level: not provided by user. Assumption: **HIGH**, because worker will write DB records, result files, exports, and final job status.
+- Confirmed: `docs/phase.md` sets current phase to `Phase 18 - Video processing and tracking pipeline`.
+- Direction: CV Worker / Video Processing.
+- Goal: implement end-to-end video job processing with progress updates and tracking.
+- Risk level: assumption `HIGH`; user prompt left risk as placeholder, and phase touches video decode/encode, YOLO runtime, tracking, DB writes, exports, and worker queue dispatch.
 
 ## Docs consulted
 
-Required first reads:
+Initial required docs:
 
 - `AGENTS.md`
 - `CLAUDE.md`
@@ -20,112 +17,94 @@ Required first reads:
 - `docs/ROADMAP.md`
 - `docs/phase.md`
 
-Relevant docs from phase:
+Phase 18 relevant docs from `docs/phase.md`:
 
 - `docs/CV_PIPELINE.md`
+- `docs/ARCHITECTURE.md`
 - `docs/DATA_MODEL.md`
 - `docs/API.md`
 - `docs/TESTING_QA.md`
 
-Existing `.context` artifacts checked:
+Relevant context artifacts:
 
-- `.context/status.md`
-- `.context/research.md`
-- `.context/design.md`
-- `.context/plan.md`
-- `.context/review-plan-claude.md`
-- `.context/review-plan-resolution.md`
-
-Confirmed fact: checked `.context` files above were empty at read time.
-
-## Planning review resolution facts
-
-Claude planning review items were resolved in `.context/review-plan-resolution.md`.
-
-Accepted facts that affect implementation research:
-
-- Phase 17 must not mark valid video jobs as failed only because video processing is later-phase work.
-- Image-only queue behavior should prefer claiming/filtering image jobs only, leaving video jobs queued for the later video phase where practical.
-- Completed image-job summaries must include sanitized original filename, source file size, and model size MB when available.
-- Artifact creation failures for annotated output, CSV export, and JSON export are required worker error cases for this phase.
+- `.context/status.md` - empty.
+- `.context/review-plan-resolution.md` - empty.
+- `.context/review-plan-claude.md` - empty.
 
 ## Confirmed repository facts
 
-- Git checkout exists.
-- `git status --short` before this contract showed modified `.context/*` files and modified `docs/phase.md`.
-- Repository has root `docker-compose.yml`, `docker-compose.gpu.yml`, `.env.example`, `Makefile`, `README.md`, `backend/`, `cv/`, `frontend/`, `training/`, `scripts/`, and `docs/`.
-- `frontend/` is still placeholder-only for product UI.
-- `training/` contains only `index.md`.
-- `backend/` contains implemented FastAPI APIs, SQLAlchemy models, Alembic migration, result/download APIs, and tests.
-- `cv/pyproject.toml` already includes `numpy`, `opencv-python-headless`, `pandas`, `torch`, `ultralytics`, SQLAlchemy, psycopg, Pydantic, pytest, and Ruff.
-- `cv/index.md` states worker currently has settings, logging, device selection, DB connectivity, storage path safety, startup checks, PostgreSQL queue claiming, heartbeat/progress helpers, stale recovery, polling, model metadata resolution, safe model weights path handling, lazy Ultralytics loading, model caching, and placeholder failure after model preflight.
-- `cv/aerovision_worker/main.py` currently claims jobs, loads model metadata/runtime, then fails claimed jobs with `PLACEHOLDER_PROCESSING_ERROR`.
-- `cv/aerovision_worker/queue.py` provides `claim_next_job`, `update_job_heartbeat`, `recover_stale_jobs`, and `fail_processing_job`.
-- `cv/aerovision_worker/model_runtime.py` resolves model priority: job model, active DB model, then `ACTIVE_MODEL_ID`; resolves safe weights path; loads and caches Ultralytics model.
-- `cv/aerovision_worker/storage_paths.py` validates relative paths and joins under configured storage roots.
-- `backend/app/db/models.py` has required tables/fields for `processing_jobs`, `detections`, `tracks`, and path checks.
+- Git checkout is dirty before this planning work.
+- `git status --short` showed existing modifications in `.context/*` files and `docs/phase.md`.
+- Existing top-level areas include `backend/`, `frontend/`, `cv/`, `training/`, `docs/`, `scripts/`, Compose files, `.env.example`, and `Makefile`.
+- `frontend/` remains placeholder-only per `docs/index.md` and current file list.
+- `cv/pyproject.toml` already includes `opencv-python-headless`, `numpy`, `pandas`, `torch`, `ultralytics`, SQLAlchemy, psycopg, Pydantic, pytest, and Ruff.
+- Backend schema already includes `detections.track_id`, `tracks`, processing job progress/heartbeat/lock fields, result paths, CSV path, JSON path, and summary JSON.
+- Backend job creation accepts video jobs with `tracker_type` values `bytetrack` and `botsort`; image jobs reject client-provided tracker type.
+- Backend result APIs already expose detections, tracks, result metadata, and safe downloads without exposing internal paths.
+- CV worker currently has no committed video processing module.
+- `cv/tests/conftest.py` is not present.
 
 ## Existing implementation state
 
-Confirmed implemented for this phase dependency chain:
-
-- Queue claim exists and uses PostgreSQL `FOR UPDATE SKIP LOCKED` when dialect is PostgreSQL.
-- Claim transaction is short; processing happens after claim.
-- Worker has heartbeat update helper with progress bounds.
-- Worker can fail owned processing jobs with safe error message.
-- Worker can recover stale processing jobs.
-- Worker can select/load/cache model by documented priority.
-- Worker can reject unsafe and missing model weights paths without logging absolute paths.
-- Backend result APIs already consume `summary_json`, `result_media_path`, `csv_path`, `json_path`, `detections`, and `tracks`.
-
-Confirmed not implemented yet:
-
-- Image decode/read in worker.
-- YOLO inference execution for image jobs.
-- Detection normalization into DB `detections` rows.
-- Annotated image output generation.
-- CSV export generation.
-- JSON export generation.
-- Completed image job status update with result/export paths and summary.
-- No-detection image completion.
-- Corrupted/missing/unreadable image handling inside worker image pipeline.
-- Worker tests specific to image processing outputs.
+- `cv/aerovision_worker/queue.py` claims only queued image jobs because `_select_next_queued_job_id` filters `mf.media_type = 'image'`.
+- `cv/tests/test_queue.py` has an explicit test that video jobs remain queued for a later phase; Phase 18 should replace that expectation.
+- `cv/aerovision_worker/main.py` always dispatches claimed jobs to `process_image_job`; no media-type dispatcher exists.
+- `cv/aerovision_worker/image_processing.py` implements image source validation, OpenCV decode, YOLO inference, original pixel bbox storage, annotated image output, CSV export, JSON export, no-detection success, safe failure, and job completion.
+- `cv/aerovision_worker/image_processing.py` is about 552 lines, above the AGENTS review threshold; adding video code there would increase mixed responsibility risk.
+- `cv/aerovision_worker/model_runtime.py` resolves job model, active DB model, then `ACTIVE_MODEL_ID`, caches loaded models by model ID and device, and hides absolute model paths in errors/logs.
+- `cv/aerovision_worker/storage_paths.py` validates relative paths and safe joins under storage root.
+- `cv/aerovision_worker/settings.py` exposes configured heartbeat frame/time intervals needed by Phase 18.
+- Existing worker tests use small SQLite schemas and runtime-generated temp files. PostgreSQL queue tests exist behind `pytest -m postgres`.
+- Current worker index says video inference, tracking, and track summaries are not implemented yet.
 
 ## Unknowns and assumptions
 
 Confirmed unknowns:
 
-- Installed Ultralytics result object details must be handled behind a small adapter or mocked in tests.
-- Exact annotated-image drawing method is not specified beyond producing annotated image when possible.
-- Exact output image extension is not specified. Assumption: preserve uploaded image extension when safe, or write `.jpg`/`.png` consistently under `results/{job_id}/` if implementation documents only relative DB path.
-- Exact JSON export internal field detail is not exhaustively specified beyond required top-level keys and CV-only boundary.
-- Exact summary key names are not fully fixed by docs. Assumption: use documented metric names converted to stable snake_case keys already expected by backend tests where present.
-- Phase 17 is image-only. Video tracking, track summaries, and video progress cadence are later-phase work.
+- No real YOLO26 weights or video fixtures are committed, and large model/media artifacts must not be committed.
+- Docs do not prescribe internal Python module names for video processing or tracking helpers.
+- Docs do not require exact video codec beyond "preferably MP4" for annotated output.
+- Docs say BoT-SORT is supported when runtime support is available; they do not require silent fallback when unavailable.
 
-Assumptions for implementation:
+Implementation assumptions:
 
-- Worker may use existing SQLAlchemy raw SQL style from `queue.py` and `model_runtime.py`.
-- Image jobs are identified by joined `media_files.media_type = 'image'`; non-image jobs should not be processed by Phase 17 image path.
-- DB writes for detections, result paths, exports, summary, and final status should happen in short transactions after media/model processing, not while running inference.
-- Tests should use mocked model output and small in-memory image fixtures, not real YOLO weights.
-- No-detection jobs still create annotated output if decode succeeds, headers-only CSV, JSON with empty `detections`, `status = completed`, `progress_percent = 100`, and null confidence summary values.
+- Use runtime-generated tiny video fixtures and fake model/tracker outputs in tests.
+- Use OpenCV `VideoCapture` for decode and `VideoWriter` for annotated MP4 output when possible.
+- Use Ultralytics tracking support for ByteTrack/BoT-SORT through the loaded model when available, while tests may use fakes with the same minimal interface.
+- If the requested tracker cannot run, mark the job failed with a safe, non-path-leaking error instead of silently using a different tracker.
+- Keep frame stride at the already stored internal value, default `1`; do not expose new frontend/API behavior.
 
 ## Files likely relevant for implementation
 
-Existing files:
+Existing files to modify:
 
-- `cv/aerovision_worker/main.py`
 - `cv/aerovision_worker/queue.py`
+- `cv/aerovision_worker/main.py`
+- `cv/aerovision_worker/image_processing.py`
 - `cv/aerovision_worker/model_runtime.py`
-- `cv/aerovision_worker/storage_paths.py`
 - `cv/aerovision_worker/settings.py`
-- `cv/pyproject.toml`
-- `cv/tests/test_startup.py`
-- `cv/tests/test_model_runtime.py`
+- `cv/aerovision_worker/storage_paths.py`
 - `cv/tests/test_queue.py`
-- `cv/tests/test_storage_paths.py`
-- `backend/app/db/models.py`
-- `backend/app/services/results.py`
-- `backend/tests/test_jobs_api.py`
+- `cv/tests/test_queue_postgres.py`
+- `cv/tests/test_startup.py`
+- `cv/tests/test_image_processing.py`
+- `cv/pyproject.toml`
+- `cv/index.md`
 
-Potential new worker/test files may be justified for decomposition, but exact new file names are not dictated by docs and should be chosen only during implementation.
+Likely new implementation-owned files:
+
+- `cv/aerovision_worker/video_processing.py`
+- `cv/tests/test_video_processing.py`
+
+Files to inspect only unless tests show integration drift:
+
+- `backend/app/db/models.py`
+- `backend/app/services/jobs.py`
+- `backend/app/services/results.py`
+- `backend/app/schemas/jobs.py`
+- `backend/tests/test_jobs_api.py`
+- `backend/tests/test_api_contract.py`
+
+## Conflicts
+
+- No `WARNING: CONFLICT` found between Phase 18 docs and current code. Current code is incomplete for Phase 18, not conflicting with the docs.

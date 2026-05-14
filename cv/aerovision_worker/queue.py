@@ -14,6 +14,7 @@ STALE_TIMEOUT_ERROR = "Worker heartbeat timed out"
 @dataclass(frozen=True)
 class ClaimedJob:
     id: Any
+    media_type: str
 
 
 @dataclass(frozen=True)
@@ -34,9 +35,10 @@ def claim_next_job(
 ) -> ClaimedJob | None:
     claimed_at = now or utc_now()
     with session_factory.begin() as session:
-        job_id = _select_next_queued_job_id(session)
-        if job_id is None:
+        queued_job = _select_next_queued_job(session)
+        if queued_job is None:
             return None
+        job_id = queued_job["id"]
         result = session.execute(
             text(
                 """
@@ -61,7 +63,7 @@ def claim_next_job(
         )
         if result.rowcount != 1:
             return None
-        return ClaimedJob(id=job_id)
+        return ClaimedJob(id=job_id, media_type=str(queued_job["media_type"]))
 
 
 def update_job_heartbeat(
@@ -184,21 +186,22 @@ def fail_processing_job(
     return result.rowcount == 1
 
 
-def _select_next_queued_job_id(session: Session) -> Any | None:
+def _select_next_queued_job(session: Session) -> dict[str, Any] | None:
     statement = """
-        select pj.id
+        select pj.id, mf.media_type
         from processing_jobs pj
         join media_files mf on mf.id = pj.media_file_id
         where pj.status = 'queued'
           and pj.deleted_at is null
           and mf.deleted_at is null
-          and mf.media_type = 'image'
+          and mf.media_type in ('image', 'video')
         order by pj.created_at asc
         limit 1
     """
     if session.get_bind().dialect.name == "postgresql":
         statement = f"{statement} for update skip locked"
-    return session.execute(text(statement)).scalar_one_or_none()
+    row = session.execute(text(statement)).mappings().one_or_none()
+    return None if row is None else dict(row)
 
 
 def _requeue_stale_job(session: Session, *, job_id: Any, recovered_at: datetime) -> int:

@@ -87,7 +87,8 @@ def test_run_poll_iteration_loads_model_then_processes_claimed_image_job(monkeyp
     monkeypatch.setattr(
         worker_main,
         "claim_next_job",
-        lambda *args, **kwargs: calls.append(("claim", kwargs)) or SimpleNamespace(id="job-1"),
+        lambda *args, **kwargs: calls.append(("claim", kwargs))
+        or SimpleNamespace(id="job-1", media_type="image"),
     )
     monkeypatch.setattr(
         worker_main,
@@ -133,7 +134,7 @@ def test_run_poll_iteration_marks_missing_model_failed_with_safe_error(monkeypat
     monkeypatch.setattr(
         worker_main,
         "claim_next_job",
-        lambda *args, **kwargs: SimpleNamespace(id="job-1"),
+        lambda *args, **kwargs: SimpleNamespace(id="job-1", media_type="image"),
     )
     monkeypatch.setattr(
         worker_main,
@@ -180,3 +181,91 @@ def test_run_poll_iteration_returns_false_when_no_job_claimed(monkeypatch) -> No
     claimed = run_poll_iteration(settings, object(), worker_id="worker-a")
 
     assert claimed is False
+
+
+def test_run_poll_iteration_dispatches_claimed_video_job(monkeypatch) -> None:
+    settings = WorkerSettings(database_url="sqlite+pysqlite:///:memory:")
+    calls: list[tuple[str, object]] = []
+
+    monkeypatch.setattr(
+        worker_main,
+        "recover_stale_jobs",
+        lambda *args, **kwargs: SimpleNamespace(requeued=0, failed=0),
+    )
+    monkeypatch.setattr(
+        worker_main,
+        "claim_next_job",
+        lambda *args, **kwargs: SimpleNamespace(id="job-1", media_type="video"),
+    )
+    monkeypatch.setattr(
+        worker_main,
+        "process_video_job",
+        lambda *args, **kwargs: calls.append(("process_video", kwargs)) or None,
+    )
+    model_runtime = SimpleNamespace(
+        load_for_job=lambda *args, **kwargs: SimpleNamespace(
+            model=object(),
+            metadata=SimpleNamespace(id="model-1", name="Model 1"),
+        )
+    )
+
+    claimed = run_poll_iteration(
+        settings,
+        object(),
+        worker_id="worker-a",
+        model_runtime=model_runtime,
+    )
+
+    assert claimed is True
+    assert calls[0][0] == "process_video"
+    assert calls[0][1]["job_id"] == "job-1"
+    assert calls[0][1]["worker_id"] == "worker-a"
+
+
+def test_run_poll_iteration_fails_unknown_claimed_media_type(monkeypatch) -> None:
+    settings = WorkerSettings(database_url="sqlite+pysqlite:///:memory:")
+    calls: list[tuple[str, object]] = []
+    now = datetime(2026, 5, 14, 12, 0, tzinfo=UTC)
+
+    monkeypatch.setattr(worker_main, "utc_now", lambda: now)
+    monkeypatch.setattr(
+        worker_main,
+        "recover_stale_jobs",
+        lambda *args, **kwargs: SimpleNamespace(requeued=0, failed=0),
+    )
+    monkeypatch.setattr(
+        worker_main,
+        "claim_next_job",
+        lambda *args, **kwargs: SimpleNamespace(id="job-1", media_type="audio"),
+    )
+    monkeypatch.setattr(
+        worker_main,
+        "fail_processing_job",
+        lambda *args, **kwargs: calls.append(("fail", kwargs)) or True,
+    )
+    model_runtime = SimpleNamespace(
+        load_for_job=lambda *args, **kwargs: SimpleNamespace(
+            model=object(),
+            metadata=SimpleNamespace(id="model-1", name="Model 1"),
+        )
+    )
+
+    claimed = run_poll_iteration(
+        settings,
+        object(),
+        worker_id="worker-a",
+        model_runtime=model_runtime,
+    )
+
+    assert claimed is True
+    assert calls == [
+        (
+            "fail",
+            {
+                "job_id": "job-1",
+                "worker_id": "worker-a",
+                "error_message": "Claimed job media type is unsupported",
+                "now": now,
+            },
+        )
+    ]

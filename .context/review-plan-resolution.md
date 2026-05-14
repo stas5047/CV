@@ -1,38 +1,27 @@
-# Planning Review Resolution - Phase 17 Image Processing Pipeline
-
-## Verdict: READY_FOR_IMPLEMENTATION
-
-Claude planning review was evaluated against `docs/CV_PIPELINE.md`, `docs/DATA_MODEL.md`, `docs/API.md`, `docs/TESTING_QA.md`, `docs/phase.md`, and existing Phase 17 `.context` contract files.
-
-No source code changes are authorized by this resolution. Accepted items update only the Phase 17 implementation contract.
+# Verdict: READY_FOR_IMPLEMENTATION
 
 ## Resolution table
 
-| ID | Claude item | Resolution | Reason | Applied to |
-|---|---|---|---|---|
-| IMPORTANT-1 | Valid video jobs may be marked failed during image-only phase. | accepted | Product docs support video jobs, but Phase 17 is image-only. Valid video jobs must not become failed only because video processing is later-phase work. | `.context/design.md`, `.context/plan.md`, `.context/research.md` |
-| IMPORTANT-2 | Summary metric plan omits `original_filename`, source file size, and model size MB. | accepted | `docs/CV_PIPELINE.md` requires these summary metrics when available. Data is available from `media_files` and model metadata/weights path where practical. | `.context/design.md`, `.context/plan.md`, `.context/research.md` |
-| IMPORTANT-3 | Failure tests do not cover output media, CSV, or JSON creation failures. | accepted | `docs/CV_PIPELINE.md` requires safe handling for failed output media creation and failed CSV/JSON export creation. | `.context/design.md`, `.context/plan.md` |
-| OPTIONAL-1 | Add assertion/finalization handling for `updated_at`. | accepted | `docs/DATA_MODEL.md` defines `processing_jobs.updated_at` as last update timestamp. Phase 17 finalization should preserve this contract through existing DB mechanism or explicit update. | `.context/plan.md` |
-| OPTIONAL-2 | Clean up stale result files on retry. | rejected | Physical stale artifact cleanup is not required by Phase 17 docs and can expand scope. Job-scoped DB/result-reference cleanup remains required to avoid duplicate rows/refs. Later safe storage cleanup remains documented admin/runtime work. | none |
-| QUESTION-1 | Should non-image jobs be skipped or left queued instead of failed? | duplicate | Resolved by IMPORTANT-1. Final contract: Phase 17 must not fail valid video jobs; implementation should claim/filter image jobs only where practical, leaving video jobs queued for later video phase. | `.context/design.md`, `.context/plan.md` |
+| Item | Claude severity | Resolution | Contract update |
+|---|---|---|---|
+| Tracker lifecycle not explicit enough for video tracking | Important | accepted | `.context/design.md` and `.context/plan.md` now require job-scoped persistent tracker state and a multi-frame stable-track test. |
+| Add test for unknown or unsupported tracker runtime behavior | Optional | accepted | `.context/design.md` and `.context/plan.md` now require safe failure when requested tracker runtime support is unavailable. |
+| Add export test for `tracks` top-level array content | Optional | accepted | `.context/design.md` and `.context/plan.md` now require JSON `tracks` content to match persisted track summaries. |
 
 ## Accepted changes applied
 
-- Phase 17 contract now requires non-image/video jobs to avoid false failure during image-only implementation.
-- Plan now prefers image-only worker claiming/filtering; valid video jobs remain queued for later video phase where practical.
-- Plan now forbids marking valid video jobs failed only because Phase 17 does not implement video processing.
-- Summary contract now includes sanitized original filename, source file size, and model size MB when available.
-- Tests now include output media write failure, CSV export write failure, and JSON export write failure or a documented reason if a specific failure cannot be simulated.
-- Completion/failure finalization now must keep `processing_jobs.updated_at` correct through existing DB behavior or explicit update, with assertion where practical.
+- Added persistent tracker lifecycle requirement for Phase 18 video processing.
+- Added test requirement for one fake track across multiple frames producing one summary row with correct first frame, last frame, and frame count.
+- Added unsupported tracker runtime behavior requirement: fail safely, do not silently fall back or report unsupported BoT-SORT as successful.
+- Added JSON export test requirement that `tracks` content matches persisted track summary rows.
 
 ## Rejected items
 
-- OPTIONAL-2: physical cleanup of stale result files on retry. Rejected as phase creep. Phase 17 still must avoid duplicate DB detections/result references for job-scoped retry behavior.
+None.
 
 ## Duplicate items
 
-- QUESTION-1 duplicates IMPORTANT-1 after choosing image-only queue filtering / non-failing deferral.
+None.
 
 ## Items needing user decision
 
@@ -40,15 +29,8 @@ None.
 
 ## Final contract status
 
-Phase 17 implementation contract is ready.
-
-Scope remains worker-only image processing:
-
-- no backend API changes;
-- no database schema/migration changes;
-- no frontend changes;
-- no video/tracking implementation;
-- no training utilities;
-- no new runtime service;
-- no CV output beyond image-space detection data;
-- no source code changes during planning review resolution.
+- `.context/research.md`: unchanged; accepted items refine implementation/test contract only.
+- `.context/design.md`: updated for persistent tracker state, unsupported tracker safe failure, and exported track-summary content testing.
+- `.context/plan.md`: updated for persistent tracker state, unsupported tracker safe failure, and exported track-summary content testing.
+- Scope remains Phase 18 only: CV worker video processing and tracking pipeline. No source code, backend API, frontend, database migration, training, Docker, or product-doc changes.
+- No accepted item conflicts with `docs/CV_PIPELINE.md`, `docs/API.md`, `docs/DATA_MODEL.md`, `docs/ARCHITECTURE.md`, or `docs/TESTING_QA.md`.

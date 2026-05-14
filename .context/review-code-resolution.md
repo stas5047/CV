@@ -1,14 +1,11 @@
-# Code Review Resolution - Phase 17 Image Processing Pipeline
-
-## Verdict: FIXED
-
-OpenAI and Claude code reviews were evaluated against `docs/CV_PIPELINE.md`, `docs/DATA_MODEL.md`, `docs/API.md`, `docs/TESTING_QA.md`, `.context/design.md`, `.context/plan.md`, and `.context/review-plan-resolution.md`.
+# Verdict: FIXED
 
 ## Resolution table
 
-| ID | Review source | Priority | Item | Resolution | Reason |
-|---|---|---|---|---|---|
-| OPENAI-IMPORTANT-1 | `.context/review-code-openai.md` | important | Output/path/database-adjacent failures can bypass job failure finalization and leave image jobs stuck in `processing` until stale recovery. | accepted | `docs/CV_PIPELINE.md` requires safe handling for failed output media creation, failed CSV/JSON export creation, database write failures, and worker crash/stale recovery. Unsafe DB paths and result directory creation failures should fail the claimed image job immediately with safe messages when possible. |
+| Item | Source | Priority | Resolution | Reason |
+|---|---|---:|---|---|
+| Missing regression coverage for mid-processing video heartbeat/progress updates | `.context/review-code-openai.md` | important | accepted | Docs require progress/heartbeat during video processing; existing test only proves final completion progress. |
+| No-detection video test does not assert annotated output media exists | `.context/review-code-openai.md` | optional | accepted | Low-risk test-only fix; docs require annotated output when possible even with zero detections. |
 
 ## Accepted critical fixes
 
@@ -16,13 +13,11 @@ None.
 
 ## Accepted important fixes
 
-- Convert unsafe DB-stored source path validation failures into `ImageProcessingError` so `process_image_job()` marks the claimed job `failed`.
-- Convert output directory creation failures from `_output_path()` into `ImageProcessingError` with safe message.
-- Add regression tests for unsafe stored source path and output directory creation failure.
+- Add video processing test coverage proving at least one intermediate heartbeat/progress update occurs before final completion, with progress below `100`.
 
 ## Accepted optional fixes
 
-None.
+- Add no-detection video test assertion for `result_media_path` and annotated MP4 file existence.
 
 ## Rejected items
 
@@ -38,16 +33,13 @@ None.
 
 ## Fixes applied
 
-- Wrapped DB-stored `media_files.stored_path` validation in `ImageProcessingError`, so unsafe source paths mark claimed image jobs as `failed` with safe error text.
-- Wrapped result output directory creation in `ImageProcessingError`, so storage directory failures mark claimed image jobs as `failed` with safe error text.
-- Converted SQLAlchemy finalization failures during image job completion into `ImageProcessingError` where the worker can still record a safe failure state.
-- Added regression tests for unsafe stored source paths and result output directory creation failure.
+- Added regression coverage in `cv/tests/test_video_processing.py` that monkeypatches `video_processing.update_job_heartbeat`, records in-loop progress updates, and asserts an intermediate update below `100` before final completion.
+- Added no-detection video assertions that `result_media_path` is `results/job-1/annotated.mp4` and the annotated MP4 exists in shared storage.
 
 ## Final verification
 
-- `cd cv; python -m pytest tests/test_image_processing.py` -> PASS, 11 passed.
-- `cd cv; python -m ruff check aerovision_worker/image_processing.py tests/test_image_processing.py` -> PASS.
+- `cd cv; python -m pytest tests\test_video_processing.py` -> PASS, `8 passed`.
 - `cd cv; python -m ruff check .` -> PASS.
-- `cd cv; python -m pytest` -> PASS, 71 passed.
-- `cd cv; python -m pytest -m postgres` -> PASS, 3 passed, 68 deselected.
-- `git diff --check` from repo root -> FAIL, unrelated existing trailing whitespace in `docs/phase.md:3`.
+- `cd cv; python -m pytest` -> PASS, `81 passed`.
+- `cd cv; python -m pytest -m postgres` -> PASS, `3 passed, 78 deselected`.
+- `git diff --check` -> FAIL, unrelated pre-existing trailing whitespace in `docs/phase.md:3`; not changed because accepted review fixes were test-only and user forbade fixes outside accepted resolution.
