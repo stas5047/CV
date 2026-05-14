@@ -17,6 +17,7 @@ This file is a navigation map for agents and maintainers. Update it whenever doc
 | [README.md](../README.md) | Current local setup notes, implemented backend API notes, Compose validation commands, and storage bootstrap command. |
 | [backend/index.md](../backend/index.md) | Backend folder summary, current contents, and backend-local commands. |
 | [frontend/index.md](../frontend/index.md) | Frontend folder summary, current contents, and frontend-local commands. |
+| [prototype/index.md](../prototype/index.md) | Static frontend UX prototype summary, current contents, and prototype-local commands. |
 | [cv/index.md](../cv/index.md) | CV worker folder summary, current contents, and CV-worker-local commands. |
 | [training/index.md](../training/index.md) | Training folder summary, current contents, and training-local commands. |
 | [mistakes-codex.md](mistakes-codex.md) | Codex mistake log for real mistakes and near-misses. |
@@ -80,7 +81,9 @@ The `backend/` folder contains the implemented FastAPI backend foundation, datab
 
 The `cv/` folder contains the Phase 14 worker scaffold with a Python package, dependency manifest, settings, secret-safe logging, device selection, database connectivity helpers, storage path safety, startup checks, Docker entrypoint, and worker tests. It does not yet contain queue claiming, inference, tracking, exports, or result writes.
 
-The `frontend/` folder contains a buildable placeholder Dockerfile only. It does not yet contain product application scaffolds, dependency manifests, source packages, or UI.
+The `frontend/` folder contains the Phase 24 Vite React TypeScript scaffold with Tailwind CSS, shadcn/ui baseline config, React Router, TanStack Query, typed auth API client, token-backed auth state, `/login`, `/register`, protected routing, admin route guard, authenticated shell, placeholder protected routes for later phases, and frontend route/auth tests. Its Dockerfile remains the Phase 1 placeholder until final runtime wiring in Phase 32.
+
+The `prototype/` folder contains a static browser-loaded frontend UX prototype with React UMD, Babel-loaded JSX, CSS, and mock in-memory data. It is a UI reference only and is separate from the production `frontend/` application and Docker runtime.
 
 The `training/` folder contains the Phase 21 offline training workflow artifacts: deterministic YOLO dataset preparation, model card and metrics templates, artifact validators, YOLO26 notebook templates, a tiny local smoke-training entry point, and training-specific tests. Training remains outside the running web application.
 

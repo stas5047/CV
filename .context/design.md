@@ -1,120 +1,142 @@
-# Phase 23 Design
+# Design - Phase 24 Frontend scaffold, API client, auth, and protected routing
 
-## Phase Goal
+## Phase goal
 
-Verify backend-created processing jobs can move through worker processing and be observed through backend API result/download endpoints. This phase is QA/integration focused. It must not add new product behavior.
+Create the production frontend foundation under `frontend/` using React, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Router, TanStack Query, and the backend `/api` contract. Implement only auth pages, auth state, API client base, protected route wrapper, admin route guard, and route placeholders needed to prove routing.
 
-## Intended Behavior From Docs
+## Intended behavior from docs
 
 Confirmed:
 
-- User uploads valid image/video through backend API.
-- Backend validates upload, stores file under shared storage, and creates `media_files`.
-- Backend creates `processing_jobs` with status `queued`; no long processing in request path.
-- Worker claims queued jobs through PostgreSQL/shared storage, not backend HTTP.
-- Worker marks claimed jobs `processing`, writes heartbeat/progress, writes detections/tracks/summaries/result media/CSV/JSON, and marks jobs `completed` or `failed`.
-- Backend returns job detail, summary, detections, tracks, result metadata, and downloads through documented `/api/jobs/*` endpoints.
-- No-detection jobs complete successfully and keep CSV/JSON downloads.
-- Corrupted media or missing model file become failed jobs with safe error message.
-- Regular users cannot access another user's job details or downloads.
-- CPU mode must work.
-- Outputs remain CV-only: image-space boxes, confidence, class, frame/timestamp, track ID, model/performance data only.
+- Visible frontend UI text must be Ukrainian.
+- Code identifiers, route names, API fields, database fields, logs, and developer comments stay English.
+- Required frontend routes include `/login`, `/register`, `/dashboard`, `/upload`, `/jobs`, `/jobs/:jobId`, `/models`, `/experiments`, and `/admin`.
+- Protected routes redirect unauthenticated users to `/login`.
+- Admin routes reject or redirect non-admin users.
+- Guests must not see authenticated dashboard navigation.
+- Admin navigation appears only for admin users.
+- Login page needs email input, password input, login button, registration link when public registration is enabled or appropriate registration UX, error display, and loading state.
+- Registration page needs email, password, confirm password, registration button, login link, validation messages, and visible minimum password length rule.
+- Public registration disabled state should redirect to login or show a Ukrainian notice.
+- Frontend logout may delete local JWT because backend logout endpoint is optional and currently absent.
+- Backend remains authorization source of truth. Frontend hiding controls is not security enforcement.
+- API responses, UI text, and exports must stay inside CV-only boundary and must not imply targeting, navigation, interception, or hardware control.
 
 Assumptions:
 
-- Automated smoke can use synthetic fixtures and a deterministic fake model to prove integration wiring without committed weights.
-- Manual/Docker smoke can require external real model weights; if absent, record blocker with exact command/log.
+- Because no registration-settings endpoint exists, the register page cannot know disabled-registration state before submit unless implementation later adds a documented backend capability. For Phase 24, map `403` from `POST /api/auth/register` to a Ukrainian disabled-registration notice.
+- Use `localStorage` or equivalent browser storage for the JWT in this phase unless implementation review chooses a safer documented pattern. Do not store passwords or user secrets beyond the access token.
+- Route placeholders for later pages should be minimal Ukrainian protected/admin shells, not full Phase 25-31 feature pages.
 
-## Architecture Decisions
+## Architecture decisions
 
-- Keep backend and worker decoupled. Integration test must coordinate through database rows and shared storage, not backend-to-worker HTTP calls.
-- Smoke must start from a clean integration environment: isolated test database/schema and isolated temp/shared storage for automated tests, or an exact Docker/local blocker if that cannot be prepared.
-- Prefer a deterministic automated integration smoke that exercises:
-  - backend upload API;
-  - backend job creation API;
-  - worker `run_poll_iteration()` or equivalent worker entry point against same clean database/shared storage;
-  - backend job/result/download APIs after worker completion.
-- Use real backend routes and auth in the smoke. Do not seed database rows directly for main success flow except required model/admin setup when no API-safe setup exists.
-- If a fake model is used, the smoke still must use real backend routes, real database queue rows, real worker dispatch/write path, real storage writes, and real backend export/download checks.
-- Use PostgreSQL-backed smoke where available for queue semantics; if local automation uses SQLite for speed, keep PostgreSQL queue marker test as required companion coverage.
-- A pytest smoke with real backend routes, PostgreSQL, isolated shared storage, and worker `run_poll_iteration()` is sufficient for Phase 23 when real model weights are unavailable. Docker-backed real-inference smoke remains optional/manual and should report exact blockers when weights, codecs, or runtime support are missing.
-- Do not add frontend checks. Frontend is placeholder and not part of this phase.
-- Do not commit media/model artifacts. Generate tiny fixtures during test/smoke runtime and write only under ignored temp/storage paths.
+- Production frontend must live under `frontend/`; do not convert `prototype/` into production code.
+- Use prototype as visual reference:
+  - dark dashboard surface;
+  - compact left icon sidebar for authenticated layout;
+  - mobile top bar/drawer;
+  - `AeroVision` brand mark;
+  - muted slate/charcoal palette with green accent around `#3d8b6a`;
+  - compact metric/card/table visual grammar;
+  - skeletons, badges, empty/error blocks, progress primitives where needed.
+- Do not copy prototype mock state, mock data, demo credentials, edit/tweaks panel, UMD/Babel loading pattern, or inline global `window.*` module style.
+- Use React Router for route definitions and redirects.
+- Use TanStack Query for `/api/auth/me` current-user query and future API calls.
+- Build a small API client around `VITE_API_BASE_URL`, JSON requests, `Authorization: Bearer <token>`, typed error normalization, and file-download compatibility for later phases.
+- Build auth provider/state around token persistence, login mutation, register mutation, current-user query, and logout token deletion.
+- Keep route guards thin:
+  - `ProtectedRoute` waits for current-user query when token exists;
+  - redirects guests to `/login`;
+  - rejects inactive/missing users by clearing token and redirecting;
+  - `AdminRoute` checks `user.role === "admin"` and shows/redirects with Ukrainian forbidden handling.
+- shadcn/ui components should be customized to match the prototype, not left as generic defaults.
+- No emoji in markup, text, alt text, or code-generated UI symbols.
+- Keep frontend away from PostgreSQL, shared storage internals, direct CV inference, and absolute filesystem paths.
 
-## Backend Impact
+## Backend impact
 
-- Touched only if smoke exposes a backend bug in existing upload/job/result/download behavior.
-- No new API routes, request fields, response fields, roles, status values, or product flows.
-- Existing route contracts from `docs/API.md` remain unchanged.
+- No backend source changes in this phase.
+- Frontend consumes existing backend auth endpoints:
+  - `POST /api/auth/login`
+  - `POST /api/auth/register`
+  - `GET /api/auth/me`
+- Frontend may define typed client wrappers for other existing endpoints, but must not create calls to undocumented or unimplemented routes.
+- Backend `POST /api/auth/logout` is not currently implemented; frontend logout must use client token deletion.
 
-## Frontend Impact
+## Frontend impact
 
-- None. No frontend source, routing, UI, text, or build changes in Phase 23.
+- Create Vite React TypeScript scaffold.
+- Add dependency manifest and scripts for dev, build, lint/typecheck, and test if test tooling is added.
+- Add Tailwind and shadcn/ui baseline.
+- Add production source structure for app shell, routes, auth, API client, shared UI, and utilities.
+- Leave `frontend/Dockerfile` replacement out of Phase 24 unless implementation uncovers a direct scaffold need; Docker runtime finalization belongs to Phase 32.
+- Implement `/login` and `/register` fully for Phase 24.
+- Implement authenticated shell/guard wiring enough to verify protected and admin routing.
+- Add minimal Ukrainian placeholders for later protected pages only when needed for route tests.
+- Keep later feature pages out of scope:
+  - no real dashboard metrics;
+  - no upload flow;
+  - no jobs table/details;
+  - no models management;
+  - no experiments charts;
+  - no admin data panels.
 
-## DB Impact
+## DB impact
 
-- No schema or migration changes expected.
-- Integration smoke uses existing tables:
-  - `users`
-  - `media_files`
-  - `model_versions`
-  - `processing_jobs`
-  - `detections`
-  - `tracks`
-- Any discovered schema mismatch must be reported as blocker before adding fields.
+- No database schema, migration, seed, or persistence changes.
 
-## API Impact
+## API impact
 
 - No API contract changes.
-- Smoke validates existing:
-  - auth login/register or seeded user flow;
-  - `POST /api/media`;
-  - `POST /api/jobs`;
-  - `GET /api/jobs/{job_id}`;
-  - result summary/detections/tracks/result metadata;
-  - CSV/JSON/media downloads.
+- Client types must mirror current backend schemas or be generated from/checked against backend OpenAPI if implementation chooses that route.
+- Do not invent request fields, response fields, routes, filters, or settings endpoints.
 
-## Security/Privacy Impact
+## Security/privacy impact
 
-- Smoke must verify owner-only access for job detail, summary, detections, tracks, result metadata, annotated media download, CSV download, and JSON download.
-- Smoke must verify downloads never expose absolute storage paths.
-- Test logs and artifacts must not include raw tokens, passwords, JWT secrets, database passwords, or absolute host paths in user-facing API responses.
-- Missing-model/corrupt-media failures must return safe API-visible messages, not stack traces or absolute paths.
+- Do not log or display passwords, JWTs, token storage contents, backend stack traces, database passwords, or sensitive environment values.
+- Do not hard-code demo credentials from prototype.
+- Do not expose raw backend error details when they are unsafe; map known auth errors to Ukrainian UI messages.
+- Enforce guest-only UX for login/register by redirecting authenticated users away from guest auth pages or preventing duplicate auth submissions.
+- Enforce admin route visibility and route guard in frontend, while documenting that backend authorization remains authoritative.
+- Token storage must be cleared on logout, invalid token, inactive-user response, or `/api/auth/me` unauthorized response.
 
-## Test Strategy
+## Test strategy
 
-Relevant gates for this phase:
+Relevant checks only:
 
-- `docker compose --env-file .env.example config` -> Compose contract.
-- Backend targeted tests for jobs/media/results/downloads after any backend change.
-- CV targeted tests for queue, image processing, video processing, and startup after any worker change.
-- PostgreSQL queue integration marker when PostgreSQL is reachable: `python -m pytest -m postgres` from `cv/`.
-- New/updated Phase 23 smoke command, if added, must cover:
-  - clean database/schema and isolated shared storage setup/teardown;
-  - image upload -> job -> worker -> completed -> summary/detections/result/downloads;
-  - no-detection image -> completed -> zero detections -> CSV/JSON available -> annotated media result/download when output creation is possible;
-  - video flow when fixture/codec/model support is feasible, otherwise documented blocker;
-  - missing model or corrupted media -> failed job with safe error and no stack trace or absolute path in API payloads;
-  - cross-owner access denied for job detail, summary, detections, tracks, result metadata, annotated media download, CSV download, and JSON download;
-  - CPU worker mode.
+- Frontend dependency install: after scaffold exists, run chosen package install command.
+- Frontend lint/typecheck/build: run configured commands from `frontend/`.
+- Frontend route/component tests if scaffolded:
+  - `/login` renders Ukrainian login form;
+  - `/register` renders Ukrainian registration form;
+  - short password validation appears in Ukrainian;
+  - failed login shows Ukrainian error;
+  - disabled registration `403` maps to Ukrainian notice/error;
+  - protected route redirects guest to `/login`;
+  - admin nav hidden for `user`;
+  - `/admin` rejects non-admin;
+  - admin nav visible for `admin`.
+- Manual browser smoke when dev server exists:
+  - login page loads;
+  - registration page loads;
+  - protected placeholders redirect guests;
+  - authenticated shell matches prototype layout at desktop and mobile widths.
+- Manual browser smoke is mandatory after the Vite dev server starts. If the dev server cannot start, record the exact failing command as a blocker.
+- Backend-backed auth smoke is required when the backend is available:
+  - submit login with seeded admin or a test user;
+  - verify token storage;
+  - verify `/api/auth/me` loads the current user;
+  - verify a protected route renders after auth;
+  - verify logout clears the token;
+  - verify disabled registration `403` maps to a Ukrainian notice.
+- If the backend is unavailable, record the exact blocker instead of treating route-only tests as sufficient.
+- Add a text-search review gate for Ukrainian UI coverage, raw prototype mock credentials/actions, emoji, `frame_stride`, absolute-path display, and targeting/navigation/interception wording.
+- Backend tests are not required for this frontend-only phase unless frontend work reveals a backend contract mismatch.
 
-Not relevant:
+## Ambiguities or conflicts
 
-- Frontend lint/typecheck/build.
-- Training artifact validation.
-- Experiment UI checks.
-- GPU smoke unless user explicitly requests GPU.
-
-## Ambiguities Or Conflicts
-
-WARNING: CONFLICT
-
-- `docs/index.md` and `README.md` describe CV worker queue/inference/export as not yet available.
-- `cv/index.md` and worker source/tests show those capabilities are implemented.
-- This planning contract treats Phase 23 as integration verification of existing backend + worker capabilities, not implementation of missing worker feature work.
-
-Ambiguities:
-
-- Real YOLO weights are not confirmed, so full real-inference Docker smoke may be blocked.
-- Phase docs allow image and video fixture checks, but video is "when feasible"; implementation must document exact blocker if codec/model/runtime prevents it.
-- Docs do not mandate a specific smoke harness file path; implementation should use existing `scripts/`, `backend/tests/`, or `cv/tests/` areas only and avoid new top-level folders.
+- No `WARNING: CONFLICT` found among consulted Phase 24 docs.
+- User prompt used placeholders for phase title and risk level. Current phase was identified from `docs/phase.md`; risk level remains an assumption.
+- Prototype is a UI reference only, while docs remain source of truth for product behavior. Any prototype behavior absent from docs must not be treated as required product behavior.
+- Docs mention registration link when public registration is enabled, but no backend endpoint exposes that setting to frontend. Phase 24 should handle disabled registration through `403` from register attempt unless a documented settings endpoint is later added.
+- Planning review resolution leaves risk level as the documented `MEDIUM` assumption because the user did not specify `HIGH`.

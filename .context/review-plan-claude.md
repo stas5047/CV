@@ -1,10 +1,12 @@
-# Verdict: APPROVED_WITH_CHANGES
+# Independent Planning Review - Phase 24
+
+## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Plan matches Phase 23 direction: backend-worker integration smoke only, no frontend/schema/API/product behavior. Main architecture boundary is respected: backend API creates jobs, worker processes through PostgreSQL/shared storage, backend serves results/downloads.
+Plan matches Phase 24 scope: React/Vite/TypeScript scaffold, Tailwind/shadcn baseline, API client, auth state, protected routes, admin guard, `/login`, `/register`, and minimal Ukrainian placeholders for later routes.
 
-Changes needed before implementation: make clean DB/shared-storage smoke explicit, expand ownership checks to all result subroutes, and verify no-detection annotated media download when worker can create it.
+No product-doc mismatch, architecture mistake, backend/frontend boundary violation, CV-safety issue, or security blocker found. One important validation gap should be fixed before implementation: backend-backed auth smoke is required by phase validation but not made explicit enough in the plan.
 
 ## Blocking issues
 
@@ -12,34 +14,42 @@ None.
 
 ## Important issues
 
-1. Clean integration environment is under-specified.
-   - Evidence: `docs/phase.md` scope says "Run clean database and shared storage with backend and worker."
-   - Plan evidence: steps 2 and 16 cover Compose config and a new smoke command, but no explicit clean database/shared-storage setup or teardown contract for the smoke harness.
-   - Risk: smoke can pass against dirty local state, stale result files, or pre-existing model/job rows. Add explicit clean test database/schema and isolated temp/shared storage setup for automated smoke, or document exact Docker/local blocker.
+1. Backend-backed auth smoke is missing as a required validation step.
 
-2. Ownership smoke misses named result subroutes.
-   - Evidence: `AUTH_SECURITY.md` says ownership checks apply to summaries, detections, tracks, annotated media downloads, CSV downloads, JSON downloads. `API.md` lists result endpoints: summary, detections, tracks, result metadata, media download, CSV download, JSON download.
-   - Plan evidence: step 11 says "second user attempts job detail/result/download" and "all cross-owner result/detail/download requests"; it does not explicitly include `/summary`, `/detections`, and `/tracks`.
-   - Risk: protected result data could leak even if main detail/download endpoints pass. Add explicit cross-owner checks for job detail, summary, detections, tracks, result metadata, media download, CSV download, and JSON download.
+   Evidence:
+   - `docs/phase.md:28-35` requires auth smoke flow against backend: frontend install, lint/typecheck/build, Ukrainian login/register, protected redirects, non-admin `/admin` rejection, and "Auth smoke flow works against backend."
+   - `.context/plan.md:35-39` runs route/component tests "if configured" and manual browser smoke "if dev server exists", but does not require submitting login/register against the real backend or verifying `/api/auth/me` after token storage.
+   - `docs/API.md:98-100` defines the auth contract this phase must consume: register conditional, login guest-only, `/api/auth/me` protected.
 
-3. No-detection smoke does not verify annotated media download.
-   - Evidence: `CV_PIPELINE.md` says no-detection jobs still create annotated output media when possible. `API.md` says completed no-detection jobs must keep CSV and JSON downloads, and result downloads serve annotated output media.
-   - Plan evidence: step 9 verifies completed status, zero detections, CSV headers, and JSON empty detections, but not annotated media/result media availability.
-   - Risk: no-detection flow can pass exports while breaking user-visible annotated output/download behavior. Add media result/download assertion when output creation is possible; document exact blocker if codec/image writer prevents it.
+   Required change: make implementation validation explicitly include a backend-backed auth smoke when backend is available: login with seeded/admin or test user, token stored, `/api/auth/me` loads current user, protected route renders after auth, logout clears token, and disabled registration `403` shows Ukrainian notice. If backend is unavailable, record exact blocker rather than treating route-only tests as sufficient.
+
+2. Manual browser smoke is too conditional for a newly scaffolded Vite app.
+
+   Evidence:
+   - Phase 24 creates the frontend scaffold and validation requires rendered pages (`docs/phase.md:6-19`, `docs/phase.md:28-35`).
+   - `.context/plan.md:39` says "Run manual browser smoke if dev server exists"; after successful scaffold/install, a dev server should exist.
+
+   Required change: make manual browser smoke mandatory after `npm run dev`/equivalent starts, covering `/login`, `/register`, guest protected redirect, user shell, admin guard, and mobile shell. If the dev server cannot start, record the failing command as a blocker.
 
 ## Optional improvements
 
-1. Step 7 fake-model strategy should state what is still real.
-   - Keep fake model acceptable for deterministic automated smoke, but require real backend routes, real DB queue rows, real worker dispatch/write path, real export/download checks. This prevents a mock-heavy smoke from bypassing integration risk.
+1. Explicitly state whether `frontend/Dockerfile` remains placeholder for Phase 32 or is updated in Phase 24.
 
-2. Failed-job smoke can be stronger if it checks both API and storage safety.
-   - Current plan checks safe status/error. Also assert no absolute path or stack trace in job detail/result payload for missing-model/corrupt-media failures.
+   Evidence:
+   - `.context/research.md:29-33` notes `frontend/Dockerfile` is currently a placeholder.
+   - Phase 24 validation does not require Compose/frontend container launch, so deferring Dockerfile work is acceptable if documented.
+
+2. Add a quick text-search review gate for Ukrainian UI and forbidden prototype carryover.
+
+   Evidence:
+   - `docs/FRONTEND_UX.md:29-47` requires Ukrainian visible text.
+   - `.context/design.md:34-41` says prototype is visual reference only and mock credentials/actions must not be copied.
 
 ## Questions for resolution
 
-1. Risk level placeholder was not resolved by user (`<MEDIUM | HIGH>`). Review treats Phase 23 as high risk because it spans backend API, PostgreSQL queue, shared storage, worker processing, downloads, ownership, and local model availability.
+1. Risk level was provided as placeholder `<MEDIUM | HIGH>` in the prompt. `.context/research.md` assumes `MEDIUM`; confirm if this should be treated as `HIGH` before implementation.
 
-2. Should implementation require a Docker-backed smoke for Phase 23, or is a pytest smoke with real backend routes, PostgreSQL, shared storage, and worker `run_poll_iteration()` enough when real model weights are unavailable?
+2. Should Phase 24 update `frontend/Dockerfile`, or explicitly defer Dockerfile replacement to Phase 32 runtime finalization?
 
 ## Files consulted
 
@@ -51,8 +61,7 @@ None.
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
-- `docs/ARCHITECTURE.md`
+- `docs/FRONTEND_UX.md`
 - `docs/API.md`
-- `docs/CV_PIPELINE.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`

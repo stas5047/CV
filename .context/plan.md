@@ -1,118 +1,47 @@
-# Phase 23 Plan
+# Plan - Phase 24 Frontend scaffold, API client, auth, and protected routing
 
-## Scope
+1. `@role/developer-frontend` Verify no existing frontend scaffold files beyond `frontend/Dockerfile` and `frontend/index.md`; record any new user changes before editing. Verifiable by `git status --short` and `rg --files frontend`.
 
-Only Phase 23: backend-worker end-to-end integration smoke. No frontend work, no schema changes, no new product APIs, no product-doc edits, no training work.
+2. `@role/developer-frontend` Scaffold a Vite React TypeScript app under `frontend/` with package manifest, TypeScript config, Vite config, `index.html`, and `src/` entrypoint. Verifiable by expected scaffold files existing and no source files outside `frontend/` changed except documented Docker/index updates if needed.
 
-## Ordered Atomic Steps
+3. `@role/developer-frontend` Add required frontend dependencies for this phase: React, React DOM, Vite, TypeScript, Tailwind CSS, shadcn/ui baseline dependencies, React Router, TanStack Query, form validation tooling if used, and exactly one approved icon import family after dependency verification. Verifiable by `frontend/package.json`.
 
-1. `@role/tester` Re-check repo state.
-   - Run: `git status --short`
-   - Verify: only expected pre-existing modified files plus planned Phase 23 test/script changes appear.
+4. `@role/developer-frontend` Configure Tailwind and shadcn/ui baseline to match prototype visual direction: dark charcoal/slate surfaces, green accent, compact radius, dashboard typography, no emoji, responsive layout tokens. Verifiable by Tailwind/shadcn config and CSS variables/classes.
 
-2. `@role/tester` Confirm Compose contract.
-   - Run: `docker compose --env-file .env.example config`
-   - Verify: command passes; backend and `cv-worker` both mount `/app/storage`; `CV_DEVICE=cpu`.
+5. `@role/developer-frontend` Build shared UI primitives needed for Phase 24 only: button, input/form field, alert/error block, skeleton/loading state, app logo mark, and route placeholder shell. Verifiable by components imported by auth pages and route guards.
 
-3. `@role/tester` Define clean integration environment.
-   - Use isolated test database/schema and isolated temp/shared storage for automated smoke.
-   - Ensure setup removes stale jobs, stale model rows, stale result files, and generated media for the smoke scope only.
-   - If clean environment cannot be prepared, stop and document exact Docker/local blocker.
-   - Verify: smoke cannot pass because of pre-existing local state.
+6. `@role/developer-frontend` Implement API base client using `VITE_API_BASE_URL`, JSON request/response handling, bearer token injection, typed normalized errors, and no logging of tokens or passwords. Verifiable by `frontend/src/api/*` and tests or typecheck.
 
-4. `@role/tester` Pick smoke harness location from existing repo areas.
-   - Prefer existing `scripts/` for manual Docker/API smoke or existing `backend/tests/` / `cv/tests/` for pytest smoke.
-   - Verify: no new top-level folder.
+7. `@role/developer-frontend` Add auth API wrappers matching current backend schemas only: `login(email,password)`, `register(email,password)`, `getCurrentUser()`. Do not add logout API call because current backend has no `POST /api/auth/logout`. Verifiable by route strings and request/response types.
 
-5. `@role/developer-backend` Map existing backend API setup helpers needed by smoke.
-   - Read only current auth/media/jobs/model helpers/tests.
-   - Verify: smoke can create/login user, upload media, create job, query results, and download files through existing endpoints.
+8. `@role/developer-frontend` Implement auth token storage, logout token deletion, current-user query, invalid-token cleanup, and authenticated-user context/provider. Verifiable by auth provider tests or route smoke.
 
-6. `@role/developer-cv-worker` Map worker callable path for deterministic smoke.
-   - Use existing worker queue/poll/processing entry points.
-   - Verify: smoke can run one worker iteration against same database/storage used by backend API.
+9. `@role/developer-frontend` Implement React Router route tree for `/login`, `/register`, `/dashboard`, `/upload`, `/jobs`, `/jobs/:jobId`, `/models`, `/experiments`, and `/admin`. Later-phase routes get minimal Ukrainian placeholders only. Verifiable by route tests/build.
 
-7. `@role/tester` Build clean test fixture strategy.
-   - Use generated valid PNG image fixture.
-   - Use generated tiny MP4 fixture only if OpenCV codec support is available; otherwise document exact blocker.
-   - Do not commit generated media.
-   - Verify: uploaded media pass backend validation.
+10. `@role/developer-frontend` Implement `ProtectedRoute` for authenticated routes: guests redirect to `/login`; token-present state waits for `/api/auth/me`; inactive/unauthorized responses clear token and redirect. Verifiable by route tests.
 
-8. `@role/tester` Build deterministic model strategy.
-   - For automated smoke, use test-only fake model object if no valid local YOLO weights are available.
-   - Fake model may replace only inference output; smoke must still use real backend routes, real database queue rows, real worker dispatch/write path, real storage writes, and real backend export/download checks.
-   - For manual Docker real-inference smoke, require external valid weights under ignored `storage/models/`.
-   - Verify: no model weights are committed.
+11. `@role/developer-frontend` Implement `AdminRoute` and admin navigation visibility: users cannot see admin nav and cannot access `/admin`; admins can see admin nav. Verifiable by route tests.
 
-9. `@role/developer-backend` Add or update integration smoke for image success flow.
-   - Flow: register/login user -> upload valid image -> register/activate model if needed -> create job -> run worker iteration -> fetch job detail/summary/detections/result metadata -> download media/CSV/JSON.
-   - Verify: job reaches `completed`, progress is `100`, result refs available, downloads return 200, API response text has no absolute storage path.
+12. `@role/developer-frontend` Implement `/login` page based on prototype visual style and docs: email, password, submit, registration link, loading, Ukrainian validation/errors, and no hard-coded demo credentials. Verifiable by component tests and manual render.
 
-10. `@role/developer-cv-worker` Add or update integration smoke for no-detection flow.
-   - Flow: upload no-detection fixture -> create job -> run worker iteration -> fetch summary/detections/tracks/downloads.
-   - Verify: status `completed`, `total_detections = 0`, empty detections/tracks, CSV headers exist, JSON `detections` array is empty, annotated media result/download exists when output creation is possible.
-   - If annotated media cannot be created because of codec/image writer limits, document exact command/log blocker.
+13. `@role/developer-frontend` Implement `/register` page based on prototype visual style and docs: email, password, confirm password, minimum 8-character rule, login link, Ukrainian validation/errors, role fixed by backend, and `403` disabled-registration notice. Verifiable by component tests.
 
-11. `@role/developer-cv-worker` Add or update integration smoke for failed-job behavior.
-    - Use missing model file or corrupted accepted media fixture.
-    - Verify: worker marks job `failed`; backend job detail/result exposes safe error/status; API response has no stack trace or absolute path.
+14. `@role/developer-frontend` Implement authenticated shell based on prototype: compact desktop icon sidebar, mobile top bar/drawer, Ukrainian nav labels, admin item conditional on role, logout action. Verifiable by route tests and manual responsive smoke.
 
-12. `@role/developer-auth-security` Add or update ownership smoke.
-    - Flow: second user attempts job detail/result/download for first user's completed job.
-    - Verify: cross-owner requests for job detail, summary, detections, tracks, result metadata, annotated media download, CSV download, and JSON download return not found/forbidden behavior without leaking existence or paths.
+15. `@role/developer-auth-security` Review frontend auth/security behavior: no password/token logging, no prototype demo credentials, no frontend-only authorization claims, no absolute paths, no CV targeting/navigation/interception wording. Verifiable by code review and text search.
 
-13. `@role/developer-cv-worker` Add video smoke if feasible.
-    - Flow: upload valid tiny video -> create job -> run worker iteration -> fetch detail/progress/summary/detections/tracks/downloads.
-    - Verify: job completes, annotated MP4/CSV/JSON available, progress updates observed when practical, track rows exist when fake/real tracker produces IDs.
-    - If not feasible: record blocker with exact codec/model/runtime reason and command/log.
+16. `@role/tester` Run frontend install from `frontend/`. Verifiable command: chosen install command returns `PASS`; if package manager cannot run, record exact blocker.
 
-14. `@role/tester` Run targeted backend gates if backend tests/scripts changed.
-    - From `backend/`: `python -m ruff check .`
-    - From `backend/`: `python -m pytest tests/test_jobs_api.py tests/test_media_api.py tests/test_api_contract.py`
-    - Verify: PASS or exact blocker.
+17. `@role/tester` Run frontend lint/typecheck/build from `frontend/`. Verifiable commands must be exact package scripts and return `PASS`.
 
-15. `@role/tester` Run targeted worker gates if worker tests/scripts changed.
-    - From `cv/`: `python -m ruff check .`
-    - From `cv/`: `python -m pytest tests/test_startup.py tests/test_queue.py tests/test_image_processing.py tests/test_video_processing.py`
-    - Verify: PASS or exact blocker.
+18. `@role/tester` Run route/component tests if configured. Verifiable tests cover login, register, protected redirect, admin guard, admin nav visibility, logout token cleanup, `/api/auth/me` current-user handling through mocked client behavior, disabled-registration `403`, and Ukrainian auth error states.
 
-16. `@role/tester` Run PostgreSQL queue integration when PostgreSQL is reachable.
-    - From `cv/`: `python -m pytest -m postgres`
-    - Verify: PASS, or `not available yet`/blocker with exact database connection reason.
+19. `@role/tester` Run mandatory manual browser smoke after the Vite dev server starts: `/login`, `/register`, guest protected redirect, user shell, admin route guard, mobile width shell. If the dev server cannot start, record the exact failing command as a blocker.
 
-17. `@role/tester` Run new Phase 23 smoke command.
-    - Command depends on chosen harness in step 4.
-    - Verify: clean environment setup, image success, no-detection including annotated media when possible, failed-job safety, complete result-route ownership, CPU mode all pass.
+20. `@role/tester` Run backend-backed auth smoke when backend is available: submit login with seeded admin or a test user, verify token storage, verify `/api/auth/me` loads current user, verify protected route renders after auth, verify logout clears token, and verify disabled registration `403` shows a Ukrainian notice. If backend is unavailable, record the exact blocker rather than treating route-only tests as sufficient.
 
-18. `@role/code-reviewer` Review Phase 23 changes only.
-    - Verify: no product API/schema/frontend/training behavior added.
-    - Verify: backend/worker boundary remains PostgreSQL/shared-storage only.
-    - Verify: CV-only output boundary preserved.
-    - Verify: no secrets, tokens, raw passwords, absolute paths, generated media, or weights in tracked files.
+21. `@role/tester` Run text-search review gates for Ukrainian visible UI coverage, forbidden prototype mock credentials/actions, emoji, `frame_stride`, absolute-path display, and targeting/navigation/interception wording. Verifiable by exact search commands and review notes.
 
-19. `@role/docs-maintainer` Decide docs/index updates.
-    - Product docs must not be modified in this planning task.
-    - During implementation, update only component index/README if a new smoke command is added and docs update is explicitly in scope.
-    - Verify: no product docs changed without user approval.
+22. `@role/docs-maintainer` Update only frontend-local implementation docs if commands/files changed: `frontend/index.md` and root README command status if required by repo conventions. Do not modify product docs. `frontend/Dockerfile` replacement is deferred to Phase 32 unless a direct Phase 24 scaffold need is discovered and documented. Verifiable by diff limited to implementation docs, not `docs/*.md`.
 
-20. `@role/tester` Final status report.
-    - Include files changed.
-    - Include command results as `PASS`/`FAIL`/`not available`.
-    - Include security/privacy result.
-    - Include documented blockers, especially missing weights or video codec limits.
-
-## Relevant Checks Only
-
-- `docker compose --env-file .env.example config`
-- Backend targeted lint/tests only if backend area changes.
-- Worker targeted lint/tests only if worker area changes.
-- PostgreSQL queue marker when database reachable.
-- New Phase 23 smoke command.
-- Docker-backed real-inference smoke is not mandatory when valid model weights are unavailable; pytest smoke is acceptable if it uses real backend routes, PostgreSQL, isolated shared storage, and worker polling.
-
-Excluded checks:
-
-- Frontend build/tests.
-- Training tests.
-- GPU launch.
-- Full release QA.
+23. `@role/code-reviewer` Review implementation against this contract, `docs/FRONTEND_UX.md`, `docs/API.md`, `docs/AUTH_SECURITY.md`, and `docs/TESTING_QA.md`. Verifiable by findings resolved before final output.

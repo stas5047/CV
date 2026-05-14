@@ -1,0 +1,81 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 219 43% 4%;
+    --foreground: 210 44% 90%;
+    --card: 219 41% 8%;
+    --card-foreground: 210 44% 90%;
+    --primary: 153 39% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 216 35% 12%;
+    --secondary-foreground: 210 44% 90%;
+    --muted: 216 35% 13%;
+    --muted-foreground: 211 22% 58%;
+    --accent: 153 39% 39%;
+    --accent-foreground: 154 54% 84%;
+    --destructive: 0 72% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 44% 18%;
+    --input: 217 44% 18%;
+    --ring: 153 39% 39%;
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    letter-spacing: 0;
+  }
+}
+
+@layer components {
+  .av-card {
+    @apply rounded-md border border-border bg-card shadow-panel;
+  }
+
+  .av-input {
+    @apply h-10 w-full rounded-md border border-input bg-secondary px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .av-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground;
+  }
+
+  .av-link {
+    @apply text-accent-foreground underline-offset-4 transition hover:text-foreground hover:underline;
+  }
+
+  .av-skeleton {
+    @apply animate-pulse rounded bg-muted;
+  }
+
+  .animate-auth-slide-up {
+    animation: auth-slide-up 0.25s ease;
+  }
+}
+
+@keyframes auth-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

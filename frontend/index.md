@@ -11,19 +11,27 @@ According to `../docs/`, this frontend will provide a Ukrainian-language dashboa
 | Path | Purpose |
 |---|---|
 | `Dockerfile` | Phase 1 buildable placeholder container; no React/Vite application or UI yet. |
+| `package.json` / `package-lock.json` | npm dependency manifest and lockfile for the Vite React frontend. |
+| `index.html` | Vite HTML entrypoint. |
+| `vite.config.ts` / `vitest.config.ts` | Vite build/dev config and Vitest config. |
+| `tsconfig*.json` | TypeScript project configuration. |
+| `tailwind.config.ts` / `postcss.config.js` | Tailwind CSS v3 and PostCSS configuration. |
+| `eslint.config.js` | ESLint flat config for TypeScript and React hooks. |
+| `components.json` | shadcn/ui baseline configuration. |
+| `src/` | React app source: API client, auth state, protected/admin routing, auth pages, shell, UI primitives, tests, and styles. |
 | `index.md` | Frontend folder summary, current contents, and frontend-local commands. |
 
-No frontend scaffold, dependency manifest, Vite app, source files, or tests exist yet in this checkout.
+The frontend currently implements Phase 24 only: Vite/React/TypeScript scaffold, Tailwind/shadcn baseline, typed auth API client, token-backed auth state, `/login`, `/register`, protected route wrapper, admin guard, authenticated shell, and placeholder protected routes for later phases.
 
 ## Commands
 
 | Command | Status |
 |---|---|
-| Frontend dependency install | not available yet |
-| Frontend dev server | not available yet |
-| Frontend lint/type checks | not available yet |
-| Frontend tests | not available yet |
-| Frontend build | not available yet |
+| `npm install` | installs frontend dependencies |
+| `npm run dev -- --port 5173` | starts Vite dev server |
+| `npm run lint` | runs ESLint |
+| `npm test` | runs Vitest route/auth tests |
+| `npm run build` | runs TypeScript build and Vite production build |
 | Frontend Docker build | available through root `docker compose --env-file .env.example build frontend` |
 
-Update this section when frontend files and scripts are added.
+`frontend/Dockerfile` remains the documented placeholder; final production container wiring is deferred to Phase 32.

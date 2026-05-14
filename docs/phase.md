@@ -1,38 +1,40 @@
-## Phase 23 - Backend-worker end-to-end integration smoke
+## Phase 24 - Frontend scaffold, API client, auth, and protected routing
 
-**Direction:** Backend / CV Worker / QA
-**Goal:** Verify that backend-created jobs are processed by the worker and returned through the API.
+**Direction:** Frontend
+**Goal:** Create the React frontend foundation after backend contracts are stable.
 
 ### Scope
 
-- Run clean database and shared storage with backend and worker.
-- Upload a valid image through backend API.
-- Create a processing job through backend API.
-- Let worker claim and process the job.
-- Verify job details, summary, detections, tracks, result metadata, and downloads through backend API.
-- Repeat for a valid video fixture when feasible.
-- Verify no-detection fixture behavior.
-- Verify failed-job behavior for corrupted media or missing model file.
-- Verify ownership restrictions for results and downloads.
-- Add integration smoke scripts or pytest markers as practical.
+- Scaffold `frontend/` with Vite, React, TypeScript.
+- Add Tailwind CSS and shadcn/ui baseline.
+- Add React Router, TanStack Query, React Hook Form/Zod if used for forms, Recharts, and supporting UI libraries.
+- Add frontend folder structure for app shell, routes, features, shared components, API client, and utilities.
+- Add typed API client for `/api` endpoints.
+- Add auth token storage strategy and logout behavior.
+- Implement current-user query and auth state.
+- Implement protected route wrapper.
+- Implement admin route guard.
+- Implement `/login` and `/register` pages.
+- Map backend errors to Ukrainian UI messages.
+- Ensure public registration disabled state redirects or shows Ukrainian notice.
 
 ### Relevant docs
 
-- `docs/ARCHITECTURE.md`
+- `docs/FRONTEND_UX.md`
 - `docs/API.md`
-- `docs/CV_PIPELINE.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Image upload -> job -> worker -> result -> download flow works.
-- Video upload -> job -> worker -> result -> download flow works or blocker is documented with exact command/log.
-- No-detection flow completes successfully.
-- Another user cannot access job details or downloads.
-- CSV and JSON exports are downloadable.
-- CPU mode works.
+- Frontend install succeeds.
+- Frontend lint/typecheck/build pass.
+- Login page renders in Ukrainian.
+- Registration page renders in Ukrainian and handles disabled-registration behavior.
+- Protected routes redirect guests to login.
+- Non-admin users cannot access `/admin` route.
+- Auth smoke flow works against backend.
 
 ### Commit
 
-`test(integration): verify backend worker media processing flow`
+`feat(frontend): scaffold React app auth and protected routing`

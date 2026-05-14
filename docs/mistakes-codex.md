@@ -1,5 +1,12 @@
 # Codex Mistake Log
 
+## 2026-05-14 - Phase 24 dev server start used `npm` instead of `npm.cmd` on Windows
+
+- Mistake: Started the Vite dev server with `Start-Process -FilePath npm`, which followed Windows file association behavior and launched `notepad` instead of the npm CLI.
+- Impact: Initial browser smoke saw `ERR_CONNECTION_REFUSED` because the dev server was not running.
+- Fix: Closed the accidental `notepad` process and restarted with `Start-Process -FilePath npm.cmd`.
+- Prevention: On Windows, use `npm.cmd` explicitly when launching npm through `Start-Process`.
+
 ## 2026-05-14 - Phase 21 training package discovery included non-package folders
 
 - Mistake: Initial `training/pyproject.toml` relied on setuptools automatic package discovery while `training/` also contained `notebooks/` and `templates/`.
