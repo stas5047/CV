@@ -1,4 +1,4 @@
-# Phase 25 Code Review Resolution
+# Phase 26 Code Review Resolution
 
 ## Verdict: FIXED
 
@@ -8,9 +8,9 @@ OpenAI code review verdict was `APPROVED_WITH_CHANGES`. No Claude code review co
 
 | Priority | ID | Review item | Resolution | Rationale | Fix plan |
 |---|---|---|---|---|---|
-| important | I1 | Admin average confidence/FPS are derived from only 5 recent admin jobs. | accepted | Accepted planning resolution forbids calculating global averages from limited recent admin rows. Existing admin stats do not expose confidence/FPS aggregates. | Render Ukrainian unavailable placeholders for admin average confidence/FPS until backend provides supported aggregates. Keep recent jobs for table/activity only. |
-| important | I2 | Required prototype/dashboard browser smoke is incomplete. | accepted | Phase is frontend and prototype-driven; dev-server reachability alone does not verify rendered dashboard or responsive behavior. | Run a browser smoke with mocked API if tooling permits; otherwise record exact blocker after a fresh attempt. |
-| important | I3 | Diff whitespace gate fails on `docs/phase.md:3`. | accepted | Trailing whitespace is a low-risk cleanup in touched docs and fixes a red quality gate. | Remove trailing whitespace only. |
+| important | I1 | User-facing upload copy includes English `Backend`. | accepted | `docs/FRONTEND_UX.md` requires visible UI text to be Ukrainian; `Backend` is not an accepted technical label for user-facing copy. | Replace user-facing `Backend` with Ukrainian wording and update tests. |
+| important | I2 | Failed job-creation and failed status states are not covered by tests. | accepted | `docs/phase.md` requires Ukrainian failed job-creation errors and queued/processing/completed/failed status block coverage. | Add targeted tests for job-create failure and failed job status rendering. |
+| important | I3 | Diff whitespace gate fails on `docs/phase.md:3`. | accepted | Diff cleanliness gate is red; removing trailing whitespace is low-risk in touched phase doc. | Remove trailing whitespace and ensure newline at EOF. |
 
 ## Accepted critical fixes
 
@@ -18,9 +18,9 @@ OpenAI code review verdict was `APPROVED_WITH_CHANGES`. No Claude code review co
 
 ## Accepted important fixes
 
-- I1: Render admin average confidence and average FPS as unavailable placeholders instead of deriving them from `/api/admin/jobs?limit=5`.
-- I2: Complete or freshly attempt required dashboard/prototype browser smoke and document exact result.
-- I3: Remove trailing whitespace in `docs/phase.md`.
+- I1: Replace English `Backend` in upload model-list states with Ukrainian wording.
+- I2: Add upload tests for job-create rejection and failed job status rendering.
+- I3: Clean trailing whitespace in `docs/phase.md`.
 
 ## Accepted optional fixes
 
@@ -40,19 +40,16 @@ OpenAI code review verdict was `APPROVED_WITH_CHANGES`. No Claude code review co
 
 ## Fixes applied
 
-- `frontend/src/pages/DashboardPage.tsx`: admin average confidence/FPS now render unavailable placeholders instead of deriving from `/api/admin/jobs?limit=5`.
-- `frontend/src/test/dashboard.test.tsx`: admin dashboard test now asserts unavailable average placeholders and rejects the recent-job confidence value in dashboard metrics.
-- `docs/phase.md`: removed trailing whitespace on the direction line.
-- `.context/status.md`: updated final fix status, verification, security/privacy, deviations, and remaining risk.
-- `docs/mistakes-codex.md`: logged the real Playwright storage-state BOM smoke-script mistake.
+- `frontend/src/pages/upload/UploadPageParts.tsx`: replaced user-facing English `Backend` with Ukrainian `система` wording in model-list empty/error states.
+- `frontend/src/test/upload-page.test.tsx`: added job-create failure coverage, failed job status coverage, and updated empty-model expectation.
+- `docs/phase.md`: removed trailing whitespace and restored clean EOF.
+- `.context/status.md`: updated final fix status and verification.
 
 ## Final verification
 
-- `cd frontend; npm test`: PASS, 13 tests.
+- `cd frontend; npm test -- src/test/upload-page.test.tsx`: PASS, 9 tests.
 - `cd frontend; npm run lint`: PASS.
+- `cd frontend; npm test`: PASS, 22 tests.
 - `cd frontend; npm run build`: PASS.
 - `git diff --check`: PASS, line-ending warnings only.
-- Browser plugin path: BLOCKED because the Node REPL JavaScript tool required by the Browser plugin is not exposed in this session.
-- `cd frontend; npx playwright --version`: PASS, version 1.60.0.
-- `cd frontend; npx playwright screenshot` with mock API, token storage state, `1440x900` dashboard: PASS, screenshot written to temp.
-- `cd frontend; npx playwright screenshot` with mock API, token storage state, `390x844` dashboard: PASS, screenshot written to temp.
+- Manual browser/prototype smoke: BLOCKED. Browser plugin tool is unavailable in this session; Playwright Node package is not installed locally, and `npx -p playwright node -` could not resolve `playwright` for a mocked screenshot script.

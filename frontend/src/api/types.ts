@@ -63,6 +63,38 @@ export interface JobListResponse {
   offset: number;
 }
 
+export interface MediaResponse {
+  id: string;
+  user_id: string;
+  original_filename: string;
+  media_type: "image" | "video" | string;
+  mime_type: string;
+  file_size_bytes: number;
+  width: number | null;
+  height: number | null;
+  frame_count: number | null;
+  fps: number | null;
+  duration_seconds: number | null;
+  created_at: string;
+}
+
+export interface MediaListResponse {
+  items: MediaResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export type TrackerType = "bytetrack" | "botsort";
+
+export interface JobCreateRequest {
+  media_id: string;
+  model_version_id?: string;
+  confidence_threshold?: number;
+  iou_threshold?: number;
+  tracker_type?: TrackerType;
+}
+
 export interface ModelVersion {
   id: string;
   name: string;

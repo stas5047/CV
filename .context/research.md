@@ -1,15 +1,20 @@
-# Phase 25 Research
+# Research - Phase 26 Frontend Upload and Processing Page
 
 ## Current Phase
 
-- Current phase: Phase 25 - Frontend dashboard and authenticated shell.
-- Direction: Frontend.
-- Goal from `docs/phase.md`: implement dashboard-style authenticated layout and main dashboard.
-- Risk level: MEDIUM, inferred because user left risk placeholder and phase touches protected UI, role visibility, API integration, and prototype-based visual parity.
+Confirmed current phase from `docs/phase.md`:
+
+- Phase 26 - Frontend upload and processing page
+- Direction: Frontend
+- Goal: Implement `/upload` page for media upload and processing-job creation UI
+
+Risk level:
+
+- Assumption: MEDIUM. User left risk placeholder unfilled; this phase connects frontend file upload, model selection, job creation, and status polling to protected backend APIs.
 
 ## Docs Consulted
 
-Read first:
+Required first-read files:
 
 - `AGENTS.md`
 - `CLAUDE.md`
@@ -17,134 +22,159 @@ Read first:
 - `docs/ROADMAP.md`
 - `docs/phase.md`
 
-Relevant docs from current phase:
+Phase-relevant docs from `docs/phase.md`:
 
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
 - `docs/AUTH_SECURITY.md`
+- `docs/CV_PIPELINE.md`
 - `docs/TESTING_QA.md`
 
-Additional user-required UI reference:
+Implementation/prototype context consulted:
 
+- `frontend/index.md`
+- `frontend/package.json`
+- `frontend/src/App.tsx`
+- `frontend/src/pages/placeholders.tsx`
+- `frontend/src/api/client.ts`
+- `frontend/src/api/types.ts`
+- `frontend/src/api/dashboard.ts`
+- `frontend/src/layout/AppShell.tsx`
+- `frontend/src/pages/DashboardPage.tsx`
+- `frontend/src/index.css`
+- `frontend/src/test/auth-routes.test.tsx`
+- `frontend/src/test/dashboard.test.tsx`
 - `prototype/index.md`
-- `prototype/dashboard.jsx`
-- `prototype/sidebar.jsx`
-- `prototype/ui.jsx`
+- `prototype/upload.jsx`
 - `prototype/styles.css`
+- `backend/app/api/media.py`
+- `backend/app/schemas/media.py`
+- `backend/app/api/jobs.py`
+- `backend/app/schemas/jobs.py`
+- `backend/app/services/jobs.py`
+- `backend/app/api/models.py`
+- `backend/app/schemas/models.py`
+- `backend/app/services/media.py`
+- `backend/tests/test_jobs_api.py`
+- `backend/tests/test_media_api.py`
+- `backend/tests/test_media_validation.py`
 
 ## Confirmed Repository Facts
 
-- Git checkout is dirty before this planning work:
-  - `.context/design.md`
-  - `.context/plan.md`
-  - `.context/research.md`
-  - `.context/review-code-openai.md`
-  - `.context/review-code-resolution.md`
-  - `.context/review-plan-claude.md`
-  - `.context/review-plan-resolution.md`
-  - `.context/status.md`
-  - `docs/phase.md`
-- Frontend stack exists under `frontend/` with React 19, TypeScript, Vite, Tailwind CSS v3, shadcn baseline, React Router, TanStack Query, Recharts, and Radix icons.
-- `@radix-ui/react-icons` is installed. `@phosphor-icons/react` and `framer-motion` are not installed.
-- Tailwind config already uses dashboard-appropriate fonts: `Space Grotesk`, `DM Sans`, and `JetBrains Mono`.
-- `frontend/src/index.css` already uses dark dashboard tokens aligned with prototype colors: off-black background, dark surfaces, muted borders, green accent, mono numeric styling.
-- Existing frontend implements Phase 24 auth/routing scaffold:
-  - `frontend/src/App.tsx`
-  - `frontend/src/layout/AppShell.tsx`
-  - auth context/provider/guards
-  - login/register pages
-  - placeholder protected pages
-  - frontend auth/route tests
-- Current `AppShell` already has a compact desktop sidebar, mobile top bar/drawer, user email display, logout, and admin-only nav visibility.
-- Current dashboard route is a placeholder in `frontend/src/pages/placeholders.tsx`.
-- Existing backend exposes the API needed for this phase:
-  - `GET /api/jobs`
-  - `GET /api/models`
-  - `GET /api/admin/stats`
-  - `GET /api/admin/jobs`
-- `GET /api/jobs` returns user-visible jobs for regular users and broader jobs for admins where permissions allow; response includes media/model references, `summary_json`, status/progress, timestamps, and download refs.
-- `GET /api/models?is_active=true` can identify the active model.
-- `GET /api/admin/stats` gives exact global admin count stats for users, media, jobs by status, detections, tracks, models, and experiments. It does not expose average confidence or average FPS.
-- `GET /api/admin/jobs` returns recent/detail job rows, but a limited recent list must not be used to invent global dashboard averages.
-- `GET /api/models` responses include `weights_path`; the dashboard must not display this storage path.
-- No dedicated user-scoped dashboard stats endpoint was found.
-- Prototype is static UI reference only. It uses React UMD, Babel JSX, mock data, and CSS, not production contracts.
+- Git checkout is dirty before this planning task. `git status --short` showed modified `.context/*` files and `docs/phase.md`.
+- `.context/research.md`, `.context/design.md`, and `.context/plan.md` existed but were empty when inspected.
+- `docs/phase.md` points to Phase 26 and lists only frontend/upload relevant docs.
+- Production frontend exists under `frontend/` and is a Vite React TypeScript app.
+- Prototype exists under `prototype/` and is a static mock UI reference only. Its `upload.jsx` shows the intended upload layout, file-selection behavior, controls, and status block.
+- `frontend/package.json` confirms:
+  - React 19, Vite 6, TypeScript, Tailwind CSS v3, shadcn baseline, React Router, TanStack Query.
+  - `@radix-ui/react-icons` is installed.
+  - `@phosphor-icons/react` and `framer-motion` are not installed.
+- `frontend/src/App.tsx` routes `/upload` to placeholder `UploadPage` from `frontend/src/pages/placeholders.tsx`.
+- `frontend/src/pages/DashboardPage.tsx` is implemented; `/upload`, `/jobs`, `/models`, `/experiments`, and `/admin` placeholders remain in `placeholders.tsx`.
+- `frontend/src/api/client.ts` supports JSON and `FormData` requests with bearer token injection.
+- Existing frontend tests cover auth routing and Phase 25 dashboard behavior. No upload-page test exists yet.
+- Existing styling uses dark dashboard palette matching prototype: compact cards, `Space Grotesk`, `DM Sans`, `JetBrains Mono`, green accent, Tailwind utility classes, `av-card`, `av-input`, `av-label`, `av-skeleton`.
+
+## Confirmed Backend/API Facts
+
+- `POST /api/media` accepts multipart form data with key `file` and returns `MediaResponse`.
+- `MediaResponse` fields include `id`, `user_id`, `original_filename`, `media_type`, `mime_type`, `file_size_bytes`, `width`, `height`, `frame_count`, `fps`, `duration_seconds`, `created_at`.
+- Backend validates upload extension, MIME, size, filename safety, image/video metadata, generated storage path, and ownership.
+- Accepted upload formats are:
+  - Images: `.jpg`, `.jpeg`, `.png`, `.webp`
+  - Videos: `.mp4`, `.avi`, `.mov`, `.mkv`
+- Default documented size limits are 20 MB for images and 500 MB for videos; backend limits are configurable.
+- `GET /api/models` lists authenticated-visible models and supports `limit`, `offset`, `is_active`, `model_family`, `variant`.
+- `POST /api/jobs` accepts JSON `JobCreateRequest`:
+  - `media_id`
+  - optional `model_version_id`
+  - optional `confidence_threshold`
+  - optional `iou_threshold`
+  - optional `tracker_type`
+- `tracker_type` allowed values are `bytetrack` and `botsort`.
+- Backend rejects `tracker_type` for image media.
+- Backend default processing params are `confidence_threshold=0.25`, `iou_threshold=0.45`, `tracker_type=bytetrack`, `image_size=640`, `frame_stride=1`.
+- `frame_stride` is internal. Backend rejects it in job-create payload because schema forbids extra fields.
+- `GET /api/jobs/{job_id}` returns `JobDetailResponse` with `media`, `model`, and `result` references.
+- Job statuses include `queued`, `processing`, `completed`, `failed`, and `cancelled`.
 
 ## Existing Implementation State
 
-- Phase 24 frontend foundation is present.
-- Auth state is token-backed and calls `GET /api/auth/me`.
-- Protected route guard redirects guests to login.
-- Admin route guard rejects non-admin users.
-- Navigation already exists but route labels differ slightly from prototype/docs and may need Phase 25 polish.
-- Dashboard content is not implemented yet.
-- Shared dashboard primitives exist only partly:
-  - `Button`
-  - `Input`
-  - `Alert`
-  - `SkeletonPage`
-  - `RoutePlaceholder`
-  - `Logo`
-- No production dashboard API wrapper exists yet for jobs/models/admin stats.
-- No production reusable status badge/metric card/table empty state exists yet beyond prototype-only code.
+- Phase 24 auth scaffold and protected/admin route guards exist.
+- Phase 25 authenticated shell and dashboard exist.
+- Phase 26 upload page is not implemented yet; current route is a placeholder.
+- There are no frontend API helpers for media upload or job creation yet.
+- Existing `frontend/src/api/types.ts` already contains model/job list/detail types used by dashboard, but not `MediaResponse`, `MediaListResponse`, or job-create payload types.
+- Existing `Button` and `Input` shadcn-style primitives exist.
+- No select, slider, progress, toast, or alert-dialog shadcn primitives exist beyond current custom components, `Alert`, and CSS helpers.
+- Prototype upload flow uses mock state and `alert`; production implementation must replace this with backend API calls and inline Ukrainian UI states.
 
 ## Unknowns And Assumptions
 
 Confirmed facts:
 
-- Frontend must call only backend REST API.
+- Backend is authorization authority.
+- Frontend must call backend REST API only.
 - Visible UI text must be Ukrainian.
-- Admin nav must be visible only for admins.
-- Guests must not see authenticated navigation.
-- Dashboard must show processed files, detections, average confidence, average FPS, active model, recent jobs, and quick upload action.
-- Missing values must not render raw `null`.
-- Prototype visual language should drive production frontend UI.
+- Frontend must not expose `frame_stride`.
+- Frontend must not show raw `null` or unsafe absolute filesystem paths.
 
 Assumptions:
 
-- Phase 25 must not add backend endpoints. Dashboard should use existing backend APIs only.
-- For regular users, exact aggregate dashboard stats are limited by available job-list data because no user aggregate endpoint exists. The implementation should derive best available user-scoped metrics from visible jobs and clearly render placeholders when data is incomplete.
-- For admins, global count stats can use `GET /api/admin/stats`; recent global jobs can use `GET /api/admin/jobs`.
-- Total processed files must mean completed jobs when the available data can identify that status; it must not use total media or total jobs as a substitute.
-- Total detections may use admin stats for admins and completed-job summaries for regular users when available.
-- Average confidence and average FPS must be derived only from available completed-job `summary_json` numeric values; otherwise render Ukrainian unavailable placeholders.
-- Active model can use `GET /api/models?is_active=true&limit=1`.
-- The implementation can add frontend-only types/components under existing `frontend/src` structure as needed, but must not add new product routes or backend behavior.
-- Prototype mock-only data values must not be copied as product behavior.
-- Prototype visual verification is required during implementation unless dev-server or browser tooling is genuinely unavailable; record the exact blocker if skipped.
+- Risk level is MEDIUM because user did not specify a concrete value.
+- Upload page should use existing `@radix-ui/react-icons`, not add new icon dependencies.
+- No new third-party frontend dependency is needed for this phase.
+- Client-side upload validation should mirror documented extension guidance for UX only; backend remains canonical validation.
+- Default size guidance is image 20 MB and video 500 MB, but backend limits are configurable through `MAX_IMAGE_SIZE_MB` and `MAX_VIDEO_SIZE_MB`. Without a documented frontend config source, frontend may display these defaults as guidance and may surface backend "too large" failures safely in Ukrainian, but must not treat them as immutable product limits.
+- Model selector should use `/api/models?limit=100`, preselect active model when present, and otherwise allow backend model-resolution error to surface safely in Ukrainian.
+- After job creation, `/upload` should poll `GET /api/jobs/{job_id}` while status is `queued` or `processing`.
+- If selected file is image, frontend should omit `tracker_type` from `POST /api/jobs`.
+- If selected file is video, frontend should send `tracker_type` with lowercase API value (`bytetrack` or `botsort`).
+- Selected file preview can be metadata and object URL preview where browser-safe; docs say preview or metadata "where practical."
+
+Unknowns:
+
+- Backend error `detail` values are English; upload page must map common status/detail values to Ukrainian without leaking raw unsafe backend text.
+- Upload/job API failure tests must include an English/path-like backend `detail` and assert the raw detail is not rendered.
+- No current frontend toast component exists; phase can use inline success/error state unless implementation adds a narrow local notification pattern.
+- Whether browser preview should use `URL.createObjectURL` for video is not specified; safe metadata display plus optional preview is acceptable.
+- `docs/phase.md` is modified in the worktree; current contents still identify Phase 26.
 
 ## Files Likely Relevant For Implementation
 
-Existing files likely to modify:
+Likely frontend files to modify:
 
 - `frontend/src/App.tsx`
-- `frontend/src/layout/AppShell.tsx`
 - `frontend/src/pages/placeholders.tsx`
 - `frontend/src/api/types.ts`
-- `frontend/src/api/client.ts`
 - `frontend/src/index.css`
-- `frontend/src/test/auth-routes.test.tsx`
 
-Existing files likely to read/reference:
+Likely frontend files to create:
 
-- `frontend/src/auth/useAuth.ts`
-- `frontend/src/auth/AuthProvider.tsx`
-- `frontend/src/auth/ProtectedRoute.tsx`
-- `frontend/src/auth/AdminRoute.tsx`
-- `frontend/src/components/ui/button.tsx`
-- `frontend/src/components/Logo.tsx`
-- `frontend/tailwind.config.ts`
-- `frontend/package.json`
-- `prototype/dashboard.jsx`
-- `prototype/sidebar.jsx`
-- `prototype/ui.jsx`
+- `frontend/src/pages/UploadPage.tsx`
+- `frontend/src/api/upload.ts`
+- `frontend/src/test/upload-page.test.tsx`
+
+Reference-only files:
+
+- `prototype/upload.jsx`
 - `prototype/styles.css`
 
-Potential new frontend-only files under existing `frontend/src`:
+Likely verification files/commands:
 
-- dashboard page module
-- dashboard API/query helper module
-- reusable dashboard/status/empty/skeleton components
-- dashboard-focused frontend tests
+- `frontend/package.json`
+- `frontend/src/test/auth-routes.test.tsx`
+- `frontend/src/test/dashboard.test.tsx`
+- `npm run lint`
+- `npm test`
+- `npm run build`
 
-These are implementation decomposition candidates, not product-contract sources.
+Planning review resolution notes:
+
+- Accepted Claude issue 1: size limits are configurable, so frontend must not make default 20 MB / 500 MB guidance an unqualified hard product rule unless backed by config.
+- Accepted Claude issue 2: empty or failed model list must have explicit behavior. If no valid model is selectable, job creation should omit `model_version_id` and let backend model-resolution rules apply, while showing a safe Ukrainian notice.
+- Accepted Claude issue 3: tests must prove raw backend error details are not displayed.
+- Accepted Claude optional prototype check: manual smoke should compare production `/upload` against `prototype/upload.jsx` at desktop and narrow viewport.
+
+No backend, database, CV worker, training, Docker, or product-doc source files are expected to change in this phase.

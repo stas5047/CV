@@ -1,49 +1,47 @@
-## Phase 25 - Frontend dashboard and authenticated shell
+## Phase 26 - Frontend upload and processing page
 
 **Direction:** Frontend
-**Goal:** Implement the dashboard-style authenticated layout and main dashboard.
+**Goal:** Implement media upload and processing-job creation UI.
 
 ### Scope
 
-- Implement responsive authenticated shell/navigation.
-- Add navigation items:
-  - Dashboard;
-  - Upload;
-  - Jobs;
-  - Models;
-  - Experiments;
-  - Admin only for admins.
-- Hide authenticated navigation from guests.
-- Hide admin navigation from regular users.
-- Implement `/dashboard`.
-- Display:
-  - total processed files;
-  - total detections;
-  - average confidence;
-  - average FPS;
-  - active model;
-  - recent processing jobs;
-  - quick upload action.
-- Use cards, badges, tables, skeletons, and polished dashboard components.
-- Handle missing data gracefully and never show raw `null`.
-- Keep all visible UI text Ukrainian.
+- Implement `/upload` page.
+- Add drag-and-drop file upload.
+- Show allowed file types and size guidance in Ukrainian.
+- Show selected file preview or metadata where practical.
+- Add model selector populated from backend.
+- Add confidence threshold control.
+- Add IoU threshold control.
+- Add tracker selector for video jobs.
+- Do not expose `frame_stride` in standard UI.
+- Preselect defaults so users can process without changing settings.
+- Create media upload request.
+- Create processing job request.
+- Show job status/progress block after job creation:
+  - status badge;
+  - progress bar;
+  - percentage when available;
+  - last update time when available.
+- Add Ukrainian loading, error, success, and validation messages.
 
 ### Relevant docs
 
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
 - `docs/AUTH_SECURITY.md`
+- `docs/CV_PIPELINE.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Dashboard route is protected.
-- Regular user dashboard shows user-scoped data.
-- Admin dashboard can show global statistics where backend supports it.
-- Missing data renders Ukrainian empty/placeholder states.
-- Admin navigation is visible only to admins.
+- Upload page route is protected.
+- Valid file can be uploaded.
+- Job can be created with defaults.
+- Invalid file, too-large file, unsupported type, and failed job creation show Ukrainian errors.
+- `frame_stride` is not visible.
+- Status block renders queued/processing/completed/failed states.
 - Frontend build passes.
 
 ### Commit
 
-`feat(frontend-dashboard): add Ukrainian shell navigation and dashboard`
+`feat(frontend-upload): add media upload and processing creation flow`

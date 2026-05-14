@@ -1,43 +1,34 @@
-# Phase 25 Planning Review Resolution
-
-## Verdict: READY_FOR_IMPLEMENTATION
-
-Claude planning review verdict was `APPROVED_WITH_CHANGES`. All review items were resolved. No item needs user decision and no product-doc conflict was found.
+# Verdict: READY_FOR_IMPLEMENTATION
 
 ## Resolution table
 
-| ID | Claude item | Resolution | Rationale | Applied updates |
-|---|---|---|---|---|
-| I1 | Dashboard metric derivation is under-specified and can misrepresent required stats. | accepted | `docs/FRONTEND_UX.md` requires processed files, detections, average confidence, and average FPS. Existing admin stats exposes count stats, not confidence/FPS averages. Plan must prevent invented totals or averages. | `.context/research.md`, `.context/design.md`, `.context/plan.md` |
-| I2 | Prototype visual verification is conditional even though phase is prototype-driven. | accepted | User instruction requires frontend built from `@prototype`; browser smoke is necessary unless tooling is truly unavailable. | `.context/research.md`, `.context/design.md`, `.context/plan.md` |
-| O1 | Add assertion that active model UI does not display `weights_path` or storage-like paths. | accepted | Model API includes `weights_path`; docs forbid exposing filesystem paths. Dashboard only needs display metadata. | `.context/research.md`, `.context/design.md`, `.context/plan.md` |
-| O2 | Add assertion that regular-user dashboard code does not call `/api/admin/*`. | accepted | Backend remains authorization authority, but frontend must not intentionally fetch admin routes for regular users. | `.context/design.md`, `.context/plan.md` |
+| Review item | Resolution | Reason | Contract update |
+|---|---|---|---|
+| Important 1: Client-side size validation hard-codes default limits as blocking rules. | accepted | Product docs make image/video upload size limits backend-configurable through `MAX_IMAGE_SIZE_MB` and `MAX_VIDEO_SIZE_MB`; frontend must not turn defaults into immutable product rules. | Updated `.context/research.md`, `.context/design.md`, and `.context/plan.md` to treat 20 MB / 500 MB as default guidance unless a documented frontend config source exists. |
+| Important 2: Empty/error model-list behavior needs explicit implementation and test coverage. | accepted | CV docs allow backend model resolution when `model_version_id` is omitted; frontend must not send stale/invalid model IDs or block valid default model resolution without reason. | Updated `.context/research.md`, `.context/design.md`, and `.context/plan.md` to define no-model behavior, failed-model behavior, and tests. |
+| Important 3: Safe API-error mapping needs a concrete negative test. | accepted | Frontend docs require API errors mapped to useful Ukrainian UI messages; security docs forbid exposing stack traces/internals. | Updated `.context/research.md`, `.context/design.md`, and `.context/plan.md` to require tests for English/path-like backend `detail` values not rendering raw. |
+| Optional 1: Consider adding narrow reusable toast later. | rejected | Phase 26 can meet current scope with polished inline states; adding a toast primitive is not required by this planning review item and risks expanding scope. Existing docs can be satisfied later by frontend polish phase if needed. | No contract change. |
+| Optional 2: Manual smoke can compare with `prototype/upload.jsx`. | accepted | User explicitly requires frontend to be based on `@prototype`; this is phase-relevant and low-risk. | Updated `.context/research.md`, `.context/design.md`, and `.context/plan.md` manual smoke notes. |
 
 ## Accepted changes applied
 
-- Added metric derivation contract:
-  - `total processed files` means completed jobs only.
-  - Admin total detections may use `GET /api/admin/stats`.
-  - Regular-user detections may use completed visible job summaries when numeric data exists.
-  - Average confidence and average FPS must come only from available completed-job `summary_json` numeric values.
-  - Missing derivable values render Ukrainian unavailable placeholders.
-  - Limited recent admin rows must not be used to invent global averages.
-- Made manual browser/prototype verification required unless dev-server or browser tooling is genuinely unavailable; exact blocker must be recorded if skipped.
-- Added dashboard rule to avoid displaying `weights_path` or storage-like paths.
-- Added dashboard test/review rule that regular-user fetch logic must not call `/api/admin/*`.
+- Size behavior clarified: extension validation can block client-side; default size limits are guidance unless frontend has documented config. Backend remains canonical.
+- Model-list behavior clarified: empty model list should omit `model_version_id` and rely on backend model resolution when user proceeds; failed model loading must not send stale IDs and may block safely if necessary.
+- Error handling tests strengthened: failed upload/job responses with English/path-like backend details must render safe Ukrainian messages and not raw details.
+- Manual smoke strengthened: compare production `/upload` layout and states against `prototype/upload.jsx` on desktop and narrow viewport.
 
 ## Rejected items
 
-- None.
+- Optional toast expansion rejected for Phase 26. Reason: not needed to resolve plan risk; no toast primitive exists; inline states are already planned and phase-scoped. Future frontend polish can standardize toasts if needed.
 
 ## Duplicate items
 
-- None.
+None.
 
 ## Items needing user decision
 
-- None.
+None.
 
 ## Final contract status
 
-Phase 25 implementation contract is ready and remains scoped to frontend dashboard/authenticated shell only. No backend, database, CV worker, training, Docker, route-contract, or product-doc changes are authorized by this resolution.
+Ready for implementation. Updated contract remains scoped to Phase 26 frontend upload and processing page only. No source code, product docs, backend, database, CV worker, Docker, or training files were modified.

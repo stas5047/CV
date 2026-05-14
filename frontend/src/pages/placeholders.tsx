@@ -4,10 +4,6 @@ export function DashboardPage() {
   return <RoutePlaceholder title="Огляд" description="Початкова захищена сторінка для майбутніх показників і останніх завдань." />;
 }
 
-export function UploadPage() {
-  return <RoutePlaceholder title="Завантаження" description="Місце для майбутнього завантаження файлів і створення задач обробки." />;
-}
-
 export function JobsPage() {
   return <RoutePlaceholder title="Завдання" description="Місце для майбутньої історії задач, фільтрів і статусів обробки." />;
 }

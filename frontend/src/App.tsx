@@ -6,6 +6,7 @@ import { ProtectedRoute } from "./auth/ProtectedRoute";
 import type { AuthApi } from "./api/auth";
 import { AppShell } from "./layout/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
+import { UploadPage } from "./pages/UploadPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -15,7 +16,6 @@ import {
   JobDetailsPage,
   JobsPage,
   ModelsPage,
-  UploadPage,
 } from "./pages/placeholders";
 
 function AppRoutes() {

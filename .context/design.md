@@ -1,154 +1,205 @@
-# Phase 25 Design
+# Design - Phase 26 Frontend Upload and Processing Page
 
 ## Phase Goal
 
-Implement Phase 25 only: responsive authenticated shell/navigation and `/dashboard` page for the Ukrainian React frontend, based on product docs and the static prototype visual reference.
+Build the production `/upload` page in the existing React/Vite frontend, based on the static `prototype/upload.jsx` UI, using only documented/backend-existing REST APIs to upload media, create a queued processing job, and show status/progress after creation.
 
 ## Intended Behavior From Docs
 
 Confirmed behavior:
 
-- Protected dashboard shell is visible only to authenticated users.
-- Guests do not see authenticated dashboard navigation.
-- Navigation includes:
-  - Dashboard
-  - Upload
-  - Jobs
-  - Models
-  - Experiments
-  - Admin only for admins
-- Admin navigation must be hidden from regular users.
-- `/dashboard` must show:
-  - total processed files
-  - total detections
-  - average confidence
-  - average FPS
-  - active model
-  - recent processing jobs
-  - quick upload action
-- Regular users see their own statistics.
-- Admins can see global statistics where backend supports it.
-- Missing data renders Ukrainian empty/placeholder states.
-- No raw `null` appears in UI.
-- Visible UI text is Ukrainian. Technical labels like `FPS`, `YOLO`, `CSV`, and `JSON` may stay English.
-- Frontend must call only backend REST API.
-- Backend authorization remains source of truth.
+- `/upload` is a protected route.
+- Page includes drag-and-drop file upload.
+- Page shows allowed file types and size guidance in Ukrainian.
+- Page shows selected file preview or metadata where practical.
+- Page includes model selector populated from backend.
+- Page includes confidence threshold control.
+- Page includes IoU threshold control.
+- Page includes tracker selector for video jobs.
+- Page does not expose `frame_stride`.
+- Defaults are preselected so a user can process without changing settings.
+- Page creates media upload request, then processing job request.
+- After job creation, page shows:
+  - status badge;
+  - progress bar;
+  - percentage when available;
+  - last update time when available.
+- Page includes Ukrainian loading, error, success, and validation messages.
+- UI must not show raw `null`, unsafe absolute filesystem paths, targeting/navigation/interception wording, or backend internals.
+- Backend remains authorization, ownership, upload validation, parameter validation, and path-safety authority.
 
-Prototype visual contract:
+Confirmed API behavior:
 
-- Keep dark, compact, work-focused dashboard style.
-- Keep 56px desktop icon sidebar, divider lines, active accent rail, tooltip behavior where practical, and mobile drawer.
-- Use compact metric cards, dark bordered surfaces, 6-8px radii, muted grid/table borders, mono numeric values, and green accent.
-- Dashboard layout should mirror prototype:
-  - page header with quick upload action
-  - 4 metric cards
-  - active model panel plus activity/summary panel
-  - recent jobs table with status badges
-  - skeleton loading state
-  - empty state with upload action
-- Motion stays modest: CSS transitions, skeleton shimmer, status pulse. No `framer-motion` because package is not installed and Phase 25 does not require new dependency.
+- Upload media with `POST /api/media` multipart `FormData` key `file`.
+- Load models with `GET /api/models`.
+- Create job with `POST /api/jobs`.
+- Poll job detail with `GET /api/jobs/{job_id}` while job is `queued` or `processing`.
+- Job-create payload may include `media_id`, optional `model_version_id`, optional `confidence_threshold`, optional `iou_threshold`, optional `tracker_type`.
+- Never send `frame_stride`.
+- Send `tracker_type` only for video jobs.
 
 ## Architecture Decisions
 
-- Keep frontend-only scope. No backend, database, worker, or product-doc changes.
-- Replace dashboard placeholder with a real dashboard page.
-- Keep React Router route `/dashboard`; do not add routes.
-- Use TanStack Query for dashboard data fetching.
-- Use existing `apiRequest` and token storage for API calls.
-- Add typed frontend API models matching existing backend schemas:
-  - jobs list/detail fields used by dashboard
-  - model list fields used for active model
-  - admin stats fields used for admin dashboard
-- Derive dashboard view model in frontend helpers:
-  - regular user: use `GET /api/jobs` and `GET /api/models?is_active=true&limit=1`
-  - admin: use `GET /api/admin/stats`, `GET /api/admin/jobs?limit=5`, and `GET /api/models?is_active=true&limit=1`
-- Metric derivation rules:
-  - total processed files means completed jobs only; use `jobs.by_status.completed` for admins when present, and count visible completed jobs for regular users;
-  - total detections may use `admin.stats.detections.total` for admins and completed-job summaries for regular users when numeric summary data exists;
-  - average confidence and average FPS must be derived only from available completed-job `summary_json` numeric values;
-  - if a required value cannot be derived from available data, show a Ukrainian unavailable placeholder instead of substituting total jobs, total media, recent-row averages, or mock values.
-- For regular users, use only available visible jobs. If exact aggregate cannot be known from returned data, show available data or Ukrainian placeholder; do not invent totals.
-- Format all missing values through helpers: never render `null`, `undefined`, absolute paths, or raw JSON.
-- Do not display `weights_path` or any storage-like model path from model API responses on the dashboard.
-- Regular-user dashboard code must not call `/api/admin/*`; admin endpoints are used only after authenticated user role is admin.
-- Use Radix icons only, because installed dependency matches design-skill allowed icon path.
-- Keep Tailwind v3 syntax only.
+Frontend decisions:
 
-## Frontend Impact
+- Replace `/upload` placeholder with a real `UploadPage` component.
+- Keep implementation inside frontend only; no backend/doc/product changes.
+- Add a narrow upload API module that wraps existing `apiRequest`:
+  - media upload through `FormData`;
+  - model listing;
+  - job creation;
+  - job detail polling.
+- Extend existing TypeScript API types for media upload and job creation using backend schemas as source.
+- Use TanStack Query for model loading and job polling.
+- Use local component state for selected file, drag state, threshold values, tracker choice, submission state, and current job ID.
+- Use existing `@radix-ui/react-icons`; no new icon library.
+- Do not add Framer Motion because it is not installed and this phase does not require it.
+- Keep visual treatment aligned with prototype/current dashboard:
+  - dark dashboard shell;
+  - asymmetric two-column layout on desktop;
+  - one-column responsive collapse on mobile;
+  - compact cards, borders, skeletons, status badge, progress bar;
+  - green accent, no purple/blue glow, no emoji.
+- Use Tailwind v3 syntax only.
 
-- `/dashboard` changes from placeholder to real page.
-- Authenticated shell may be polished to better match prototype:
-  - active state for nested `/jobs/:jobId`
-  - compact sidebar icon tooltips
-  - mobile drawer consistent with prototype
-  - role-safe admin nav
-- Dashboard adds loading, error, empty, and success states.
-- Frontend tests add coverage for:
-  - protected dashboard route
-  - admin nav visibility
-  - dashboard loading/empty/error states
-  - dashboard uses mocked user/admin API data
-  - no raw `null`
+Upload flow:
+
+1. User selects or drops one file.
+2. Client validates extension for fast Ukrainian feedback and shows documented default size guidance. Size limits are backend-configurable, so frontend must not treat 20 MB / 500 MB as immutable product limits unless a documented frontend config source exists.
+3. UI shows file name, type, size, and metadata/preview where practical.
+4. User keeps defaults or changes model/threshold/tracker.
+5. Submit uploads file to `POST /api/media`.
+6. On successful media response, submit `POST /api/jobs`.
+7. UI stores returned job ID and renders status block.
+8. Query polls `GET /api/jobs/{job_id}` while status is `queued` or `processing`.
+9. UI stops polling on `completed`, `failed`, or `cancelled`.
+10. Completed job shows Ukrainian success and link to `/jobs/{job_id}`.
+
+Parameter decisions:
+
+- Default confidence threshold: `0.25`.
+- Default IoU threshold: `0.45`.
+- Default tracker: `bytetrack`.
+- For image jobs, omit `tracker_type`.
+- For video jobs, send selected tracker.
+- For model selector:
+  - fetch `/api/models?limit=100`;
+  - preselect active model when present;
+  - otherwise use first listed model when present;
+  - if no models are available, show Ukrainian empty/error state and submit without `model_version_id` only if user proceeds; backend then resolves active/fallback or returns safe error;
+  - if model loading fails, do not send stale IDs. Allow submit without `model_version_id` only with a safe Ukrainian notice that backend default model selection will be used, or block with a safe Ukrainian error if implementation cannot prevent stale selection.
 
 ## Backend Impact
 
-- None planned.
-- Existing backend endpoints are consumed only.
-- No route, schema, or auth behavior changes.
+None expected.
+
+The phase consumes existing backend routes only:
+
+- `POST /api/media`
+- `GET /api/models`
+- `POST /api/jobs`
+- `GET /api/jobs/{job_id}`
+
+No backend route, schema, authorization, upload validation, or job creation behavior should change.
+
+## Frontend Impact
+
+Touched surface:
+
+- `/upload` route
+- frontend API client types/helpers
+- upload-specific component state and tests
+
+Expected implementation files:
+
+- Create `frontend/src/pages/UploadPage.tsx`
+- Create `frontend/src/api/upload.ts`
+- Create `frontend/src/test/upload-page.test.tsx`
+- Modify `frontend/src/App.tsx`
+- Modify `frontend/src/pages/placeholders.tsx`
+- Modify `frontend/src/api/types.ts`
+- Modify `frontend/src/index.css` only for reusable upload/progress helpers if existing utilities are insufficient
+
+Visible UI text:
+
+- Ukrainian only, except accepted technical labels: `YOLO`, `IoU`, `ByteTrack`, `BoT-SORT`, `FPS`, `CSV`, `JSON`.
 
 ## DB Impact
 
-- None.
+None expected.
+
+Frontend never accesses PostgreSQL or shared storage internals.
 
 ## API Impact
 
-- None planned.
-- Frontend uses existing endpoints only:
-  - `GET /api/jobs`
-  - `GET /api/admin/jobs`
-  - `GET /api/admin/stats`
-  - `GET /api/models`
+No API contract changes.
+
+Frontend request bodies must match existing backend schemas:
+
+- `POST /api/media`: `FormData` with field `file`.
+- `POST /api/jobs`: JSON using existing `JobCreateRequest` fields only.
+
+Frontend response handling must not depend on internal storage paths.
 
 ## Security/Privacy Impact
 
-- Frontend must not weaken security:
-  - no admin nav for regular users
-  - no guest navigation
-  - no backend authorization bypass assumptions
-  - no display of tokens, secrets, absolute paths, password data, or unsafe backend internals
-- API errors shown as safe Ukrainian messages.
-- Logout continues to remove local token.
+Touched security/privacy concerns:
+
+- Frontend route remains protected by existing `ProtectedRoute`.
+- Upload validation in frontend is advisory only; backend remains canonical.
+- Do not expose or accept client-provided storage paths.
+- Do not display `weights_path`, stored paths, absolute host/container paths, tokens, or backend stack traces.
+- Do not log selected file contents, tokens, passwords, or API error bodies.
+- Do not display raw backend English errors directly when they may contain unsafe internals; map common failures to Ukrainian messages.
+- Add negative tests for English/path-like backend `detail` values so raw internals are not rendered.
+- Do not send `frame_stride`.
+- Do not provide any UI text implying targeting, navigation, interception, aiming, or hardware control.
 
 ## Test Strategy
 
-Relevant checks only:
+Frontend automated tests:
 
-- `cd frontend; npm run lint`
-- `cd frontend; npm test`
-- `cd frontend; npm run build`
+- Add upload route test rendering protected `/upload` with mocked auth and fetch.
+- Verify allowed file guidance renders in Ukrainian.
+- Verify unsupported extension shows Ukrainian error and does not call `/api/media`.
+- Verify default size guidance is visible in Ukrainian. If implementation applies client-side size blocking, verify the source is documented/configured; otherwise verify backend too-large failures map to safe Ukrainian errors.
+- Verify valid image:
+  - sends `POST /api/media` with `FormData` key `file`;
+  - sends `POST /api/jobs` with `media_id`, thresholds, optional model ID;
+  - does not send `tracker_type`;
+  - does not send `frame_stride`.
+- Verify valid video:
+  - tracker selector appears;
+  - `tracker_type` sends lowercase API value (`bytetrack` or `botsort`).
+- Verify model list loading/empty/error states render Ukrainian UI.
+- Verify no-model selection creates a job payload without `model_version_id` when user proceeds, or shows a safe Ukrainian blocker without stale IDs.
+- Verify failed model loading cannot send stale/invalid model IDs.
+- Verify failed media upload/job creation with English/path-like backend `detail` renders a safe Ukrainian message and not the raw detail.
+- Verify queued/processing/completed/failed job statuses render status block/progress in Ukrainian.
+- Verify raw `null`, `undefined`, absolute paths, and `frame_stride` are absent from rendered UI.
 
-Frontend test scenarios:
+Relevant quality gates:
 
-- Guest visiting `/dashboard` redirects to login.
-- Regular authenticated user sees dashboard shell without admin nav.
-- Admin authenticated user sees admin nav and admin/global dashboard data where mock API supports it.
-- Dashboard renders metric cards, active model, quick upload action, recent jobs.
-- Empty jobs/model data renders Ukrainian empty/placeholder states.
-- Failed dashboard API request renders Ukrainian error state.
-- Raw `null` does not appear.
-- Active model UI does not display `weights_path` or storage paths.
-- Regular-user dashboard fetch path does not call `/api/admin/*`.
+- `npm run lint`
+- `npm test`
+- `npm run build`
 
-Manual browser check, required during implementation unless tooling is genuinely unavailable:
+Manual browser flow when implementation happens:
 
-- Start Vite dev server if needed.
-- Check `/dashboard` on desktop and narrow viewport.
-- Compare against `prototype/AeroVision.html` dashboard/shell reference.
-- If skipped, record the exact unavailable tool or startup blocker.
+- Start frontend with `npm run dev -- --port 5173` and verify `/upload` at desktop and narrow viewport.
+- Compare `/upload` desktop and narrow viewport against `prototype/upload.jsx` structure: two-column desktop layout, mobile single-column collapse, drag/drop zone, parameter panel, and status/progress block.
+- If backend is running, perform one happy-path upload/job creation smoke.
 
 ## Ambiguities Or Conflicts
 
-- No `WARNING: CONFLICT` found between current phase docs.
-- Ambiguity: docs require user-scoped dashboard totals, but existing API has no dedicated user aggregate stats endpoint and admin stats does not include average confidence/FPS. Phase 25 should not invent backend API. Use visible jobs and placeholders for regular users; use `GET /api/admin/stats` only for exact admin count stats.
-- Ambiguity: prototype nav labels differ slightly from docs wording. Product docs define routes and visibility; prototype defines visual treatment. Ukrainian labels can follow product meaning while staying visually prototype-aligned.
-- Ambiguity: prototype includes mock activity chart data. Production dashboard must not copy mock numbers as real data. Activity panel can use available job data or show empty state.
+Conflicts:
+
+- None found between Phase 26 docs and current backend/frontend implementation.
+
+Ambiguities:
+
+- User did not replace risk placeholder. Assumed MEDIUM.
+- Docs require selected file preview or metadata "where practical"; implementation may choose metadata and safe object URL preview without guaranteeing browser video playback.
+- Docs do not specify exact polling interval. Use conservative TanStack Query polling while status is `queued`/`processing`.
+- Docs do not specify exact Ukrainian copy for upload errors. Copy should be concise, safe, and aligned with existing dashboard language.
+- No current toast primitive exists. Inline states are acceptable unless implementation adds a small reusable toast pattern within this phase.

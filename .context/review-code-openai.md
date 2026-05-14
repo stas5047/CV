@@ -2,9 +2,9 @@
 
 ## Summary
 
-Phase 25 dashboard/shell implementation is mostly scoped and doc-consistent: `/dashboard` is protected, visible text is Ukrainian, regular users do not call `/api/admin/*`, admin navigation remains role-gated, active model storage path is not rendered, and frontend lint/test/build pass.
+Phase 26 implementation is mostly scoped and doc-consistent: `/upload` is protected, it uses existing REST endpoints only, sends documented job fields, omits `frame_stride`, keeps backend upload validation canonical, handles empty model selection by omitting `model_version_id`, and frontend lint/test/build pass.
 
-Approval needs changes because one dashboard metric rule is violated, required visual/prototype smoke is not completed, and diff cleanliness currently fails.
+Approval needs changes because user-facing upload copy contains English developer terminology, relevant failure-state tests are missing, and `rtk git diff --check` is red.
 
 ## Critical issues
 
@@ -12,21 +12,21 @@ None.
 
 ## Important issues
 
-1. Admin average confidence/FPS are derived from only the 5 recent admin jobs.
-   - Evidence: `frontend/src/api/dashboard.ts:12-14` fetches `GET /api/admin/jobs?limit=5`.
-   - Evidence: `frontend/src/pages/DashboardPage.tsx:142-151` builds admin `avgConfidence` and `avgFps` from that `jobs` array.
-   - Evidence: `.context/plan.md:37-38` says average confidence/FPS must come only from available completed-job summaries and must not calculate global averages from only `GET /api/admin/jobs?limit=5`.
-   - Evidence: `docs/FRONTEND_UX.md:146-156` requires dashboard average confidence/FPS and says admins show global statistics where supported.
-   - Impact: admin dashboard can present recent-row averages as system dashboard metrics. This can mislead users and violates accepted planning resolution. Show unavailable placeholders for admin averages until a real aggregate source exists, or label/scope them unambiguously as recent jobs if docs allow.
+1. User-facing upload copy includes English `Backend`.
+   - Evidence: `frontend/src/pages/upload/UploadPageParts.tsx:90` renders `якщо backend має активну модель`.
+   - Evidence: `frontend/src/pages/upload/UploadPageParts.tsx:98` renders `Backend застосує активну модель`.
+   - Evidence: `docs/FRONTEND_UX.md:37-51` requires visible frontend text, including errors, empty states, and helper text, to be Ukrainian. English exceptions in `docs/FRONTEND_UX.md:53-60` do not include `Backend` as user-facing copy.
+   - Impact: `/upload` violates Ukrainian UI invariant for model-list error/empty states. Replace with Ukrainian wording such as "сервер" or "система" and update tests that currently expect `Backend`.
 
-2. Required prototype/dashboard browser smoke is not completed.
-   - Evidence: `.context/plan.md:83-93` requires manual `/dashboard` browser check on desktop and narrow viewport against `prototype/AeroVision.html`, unless dev-server/browser tooling is genuinely unavailable.
-   - Evidence: `.context/status.md` records only dev-server reachability plus blocked Playwright smoke because `require("playwright")` is unavailable.
-   - Impact: route-level tests and build do not verify prototype visual parity, responsive shell behavior, or real rendered dashboard states. This is relevant because current phase is frontend and user explicitly made `@prototype` the UI source.
+2. Failed job-creation and failed status states are not covered by tests.
+   - Evidence: `docs/phase.md:40` requires failed job creation to show Ukrainian errors.
+   - Evidence: `docs/phase.md:42` requires status block to render queued/processing/completed/failed states.
+   - Evidence: `frontend/src/test/upload-page.test.tsx` covers unsupported extension, successful image/video job creation, failed media upload, empty model list, and completed polling, but does not mock `POST /api/jobs` failure or a `failed` job detail/status.
+   - Impact: key Phase 26 failure paths can regress while `npm test` stays green. Add targeted tests for job-create rejection and `failed` job status rendering.
 
 3. Diff whitespace gate fails.
-   - Evidence: `rtk git diff --check -- . ':(exclude).context/review-code-claude.md' ':(exclude).context/review-code-resolution.md'` reports `docs/phase.md:3: trailing whitespace`.
-   - Impact: basic diff quality gate is red before merge/review resolution.
+   - Evidence: `rtk git diff --check` fails with `docs/phase.md:3: trailing whitespace`.
+   - Impact: basic diff cleanliness gate is red before review resolution.
 
 ## Optional issues
 
@@ -34,26 +34,30 @@ None.
 
 ## Quality gate assessment
 
-- `npm test` from `frontend/`: PASS, 13 tests passed.
-- `npm run lint` from `frontend/`: PASS.
-- `npm run build` from `frontend/`: PASS.
-- `rtk git diff --check -- . ':(exclude).context/review-code-claude.md' ':(exclude).context/review-code-resolution.md'`: FAIL, trailing whitespace in `docs/phase.md:3`.
-- Manual/prototype browser smoke: FAIL/not complete. Status records dev-server reachability only, not dashboard visual/responsive smoke.
+- `rtk git status --short`: PASS for inspection; changed files match Phase 26 frontend/context surface, with untracked upload implementation files present.
+- `rtk git diff --stat`: PASS for inspection.
+- `rtk git diff`: PASS for inspection.
+- `cd frontend; npm run lint`: PASS.
+- `cd frontend; npm test`: PASS, 20 tests passed.
+- `cd frontend; npm run build`: PASS.
+- `rtk git diff --check`: FAIL, `docs/phase.md:3: trailing whitespace`.
+- Manual browser/prototype smoke: not completed in `.context/status.md`; status records only HTTP 200 for `/upload` and Browser plugin unavailable. This remains a QA gap for prototype-driven frontend work, but no concrete visual defect was found from code inspection.
 
 ## Security/privacy assessment
 
-- No token, password, or secret rendering found in changed frontend code.
-- Regular dashboard query path uses `/api/jobs?limit=100` and `/api/models?is_active=true&limit=1`; tests assert no regular-user `/api/admin/*` call.
-- Admin dashboard queries `/api/admin/*` only after `user.role === "admin"`.
-- Active model response includes `weights_path`, but dashboard rendering does not display it.
+- No frontend PostgreSQL, shared-storage, or direct CV inference access found.
+- Upload/job requests use backend REST API helpers only: `POST /api/media`, `GET /api/models?limit=100`, `POST /api/jobs`, `GET /api/jobs/{jobId}`.
+- `frame_stride` is not present in `JobCreateRequest` and is not sent by `UploadPage`.
+- Raw backend error details are not rendered for media upload failure; path-like backend detail is covered by test.
+- `weights_path` is present in the API type but not rendered by the upload page.
 
 ## Positive findings
 
-- Frontend implementation stays in Phase 25 scope: no backend, DB, worker, Docker, or training behavior added.
-- Ukrainian loading, error, empty, status, metric, and table states are present.
-- Dashboard uses existing REST API client and TanStack Query.
-- Authenticated shell keeps admin nav hidden for regular users and marks `/jobs/:jobId` under Jobs.
-- Tests cover regular dashboard, admin dashboard, empty state, error state, no raw `null`, no `weights_path`, and recent-job detail link.
+- Upload flow correctly sends `FormData` field `file` before creating the job.
+- Image jobs omit `tracker_type`; video jobs send lowercase `bytetrack`/`botsort`, matching backend schema.
+- Empty model list safely omits `model_version_id`, aligning with backend model-selection priority.
+- Selected-file object URLs are revoked on file change/unmount.
+- Upload page structure follows prototype shape: drag/drop area, two-column desktop layout, parameter panel, status/progress block, and mobile grid collapse.
 
 ## Files consulted
 
@@ -65,33 +69,26 @@ None.
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
 - `docs/AUTH_SECURITY.md`
+- `docs/CV_PIPELINE.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
-- `prototype/index.md`
-- `prototype/dashboard.jsx`
-- `prototype/sidebar.jsx`
-- `prototype/ui.jsx`
-- `prototype/styles.css`
 - `frontend/package.json`
 - `frontend/index.md`
 - `frontend/src/App.tsx`
 - `frontend/src/api/client.ts`
-- `frontend/src/api/dashboard.ts`
 - `frontend/src/api/types.ts`
-- `frontend/src/index.css`
-- `frontend/src/layout/AppShell.tsx`
-- `frontend/src/pages/DashboardPage.tsx`
-- `frontend/src/test/auth-routes.test.tsx`
-- `frontend/src/test/dashboard.test.tsx`
-- `backend/app/api/admin.py`
-- `backend/app/api/models.py`
-- `backend/app/schemas/admin.py`
+- `frontend/src/api/upload.ts`
+- `frontend/src/pages/UploadPage.tsx`
+- `frontend/src/pages/placeholders.tsx`
+- `frontend/src/pages/upload/UploadPageParts.tsx`
+- `frontend/src/pages/upload/uploadUtils.ts`
+- `frontend/src/test/upload-page.test.tsx`
+- `prototype/upload.jsx`
+- `prototype/styles.css`
 - `backend/app/schemas/jobs.py`
-- `backend/app/schemas/models.py`
-- `backend/app/services/admin.py`
-
-Forbidden review files not consulted: `.context/review-code-claude.md`, `.context/review-code-resolution.md`.
+- `backend/app/services/jobs.py`
+- `backend/tests/test_jobs_api.py`

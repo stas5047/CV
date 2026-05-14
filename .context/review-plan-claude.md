@@ -2,9 +2,9 @@
 
 ## Summary
 
-Plan matches Phase 25 scope: frontend-only dashboard and authenticated shell, existing REST API only, Ukrainian UI, role-safe admin nav, loading/error/empty states, and prototype-based visual direction.
+Phase 26 plan is mostly aligned with `docs/phase.md`, frontend/backend boundaries, API contracts, prototype direction, and CV-only scope. Planned implementation stays frontend-only, uses existing REST APIs, keeps `/upload` protected, avoids `frame_stride`, uses Ukrainian visible text, and includes focused frontend gates.
 
-No blocking product-doc conflict found. Two changes should be made before implementation to reduce real risk: define dashboard metric derivation precisely, and make prototype browser verification non-optional unless blocked.
+No blocking product-doc conflict found. Important issues below should be addressed before or during implementation because they affect real upload behavior, model fallback behavior, and safe error display.
 
 ## Blocking issues
 
@@ -12,24 +12,39 @@ None.
 
 ## Important issues
 
-1. Dashboard metric derivation is under-specified and can misrepresent required stats.
-   - Evidence: `docs/phase.md:20-23` and `docs/FRONTEND_UX.md:146-149` require total processed files, total detections, average confidence, and average FPS. Plan uses `GET /api/admin/stats` and `GET /api/admin/jobs?limit=5` for admins (`.context/plan.md:25-27`) and says to render four metric cards (`.context/plan.md:51-54`), but current admin stats only exposes job counts/status counts, detection total, model counts, etc. (`backend/app/schemas/admin.py:21-47`; `backend/app/services/admin.py:36-58`). It does not expose average confidence or average FPS.
-   - Risk: implementation may show `jobs.total` as "processed files" or calculate admin averages from only 5 recent jobs, producing misleading dashboard values.
-   - Required change: add plan note that `total processed files` must come from completed jobs only when available, total detections from documented summary/admin data, and average confidence/FPS must be derived only from available completed job `summary_json` values or shown as Ukrainian unavailable placeholders. Do not invent global averages from limited recent rows.
+1. Client-side size validation hard-codes default limits as blocking rules.
 
-2. Prototype visual verification is conditional even though phase is prototype-driven.
-   - Evidence: current user instruction says frontend must be built entirely from `@prototype`; plan says manual browser check only "if dev server/browser available" (`.context/plan.md:83-87`) and quality gates say browser smoke "when available" (`.context/plan.md:99-102`). `docs/FRONTEND_UX.md:158` and `docs/TESTING_QA.md:371-385` require graceful dashboard states and frontend API error handling; visual/state issues are hard to catch with build/tests only.
-   - Risk: implementation can pass unit/build gates while drifting from prototype shell/dashboard layout or breaking narrow viewport state.
-   - Required change: make browser smoke against `/dashboard` required for implementation unless tooling is genuinely unavailable, in which case record exact blocker. Check desktop and narrow viewport against prototype dashboard/shell.
+Evidence: `.context/plan.md:55` says to validate image `<= 20 MB` and video `<= 500 MB`. `docs/AUTH_SECURITY.md:232`, `docs/AUTH_SECURITY.md:236`, and `docs/AUTH_SECURITY.md:237` say upload limits are configurable through `MAX_IMAGE_SIZE_MB` and `MAX_VIDEO_SIZE_MB`.
+
+Risk: Frontend can reject files that backend would accept in an environment with higher configured limits. Backend must remain canonical for upload validation.
+
+Expected change: Keep documented defaults as user guidance unless frontend has a documented config source. If frontend blocks by size, make that limit traceable to frontend config or document it as a default-only UX guard. Tests should not make backend-configurable limits look like immutable product rules.
+
+2. Empty/error model-list behavior needs explicit implementation and test coverage.
+
+Evidence: `.context/plan.md:32` loads models through `GET /models?limit=100`; `.context/plan.md:81` disables submit only while model query is loading, but does not explicitly define payload behavior when model list is empty or failed. `docs/FRONTEND_UX.md:185` requires defaults so a user can process without changing settings. `docs/CV_PIPELINE.md:121` through `docs/CV_PIPELINE.md:127` define backend model selection priority when a job has no explicit model version.
+
+Risk: Implementation may either block valid uploads when no model list renders, or accidentally send stale/invalid model IDs. Both break documented model-resolution flow.
+
+Expected change: Add explicit behavior and test: with no selectable model, submit should omit `model_version_id` and show safe Ukrainian notice, or clearly block with a product-consistent reason if backend cannot resolve a model. Do not invent frontend model fallback beyond API/CV rules.
+
+3. Safe API-error mapping needs a concrete negative test.
+
+Evidence: `.context/plan.md:144` notes backend may return English `detail` strings and frontend must map them. `docs/FRONTEND_UX.md:387` requires API errors to be translated or mapped into useful Ukrainian UI messages. `docs/AUTH_SECURITY.md:346` says API responses must not expose stack traces.
+
+Risk: Upload/job failures may surface raw English backend details, stack-like text, tokens, or path-like internals in the UI.
+
+Expected change: Add test coverage for failed `POST /api/media` or `POST /api/jobs` with an English/path-like `detail`, asserting a safe Ukrainian message is rendered and raw backend detail is not.
 
 ## Optional improvements
 
-- Add one explicit test/review assertion that active model UI does not display `weights_path` or any storage-like path. API model responses include `weights_path`, but `docs/FRONTEND_UX.md:475` forbids exposing absolute filesystem paths and dashboard only needs model name/family/variant/active state.
-- Add test assertion that regular-user dashboard code does not call `/api/admin/*`; this would make backend-authority boundary easier to verify.
+1. `docs/FRONTEND_UX.md:49` and `docs/FRONTEND_UX.md:434` mention toast notifications for success/errors. Current plan allows inline states because no toast primitive exists. Inline is acceptable for Phase 26 if kept polished, but adding a narrow reusable toast later may better match frontend docs.
+
+2. Manual smoke can include quick comparison against `prototype/upload.jsx` desktop and mobile layout, since user explicitly requires production frontend to be based on prototype.
 
 ## Questions for resolution
 
-None.
+None. Risk placeholder was not filled by user; research assumed MEDIUM, which is reasonable for this frontend/API integration phase.
 
 ## Files consulted
 
@@ -44,16 +59,8 @@ None.
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
 - `docs/AUTH_SECURITY.md`
+- `docs/CV_PIPELINE.md`
 - `docs/TESTING_QA.md`
-- `backend/app/schemas/admin.py`
-- `backend/app/services/admin.py`
-- `backend/app/schemas/jobs.py`
-- `backend/app/schemas/models.py`
-- `backend/app/api/admin.py`
-- `backend/app/api/jobs.py`
-- `backend/app/api/models.py`
+- `prototype/upload.jsx`
+- `prototype/styles.css`
 - `frontend/package.json`
-- `frontend/src/App.tsx`
-- `frontend/src/layout/AppShell.tsx`
-- `C:/Users/Kotletka/.codex/skills/taste-skill/SKILL.md`
-- `C:/Users/Kotletka/.codex/plugins/cache/openai-curated/superpowers/1b89ff49/skills/using-superpowers/SKILL.md`
