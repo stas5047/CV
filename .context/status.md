@@ -1,60 +1,53 @@
-# Status - Phase 13 Backend Contract Audit
+# Status - Phase 14 CV Worker Scaffold Final Fix
 
 ## Current Phase
 
-- Phase: `Phase 13 - Backend contract, pagination, OpenAPI, and security test audit`.
-- Mode: Implementation.
-- Risk assumption: HIGH, from `.context/research.md`.
+- Phase: `Phase 14 - CV worker scaffold, settings, logging, and database access`.
+- Mode: Code Review Resolution + Final Fix.
+- Verdict: FIXED with external verification blockers noted.
 
 ## Completed
 
-- Read required agent files, phase docs, context contracts, planning resolution, mistake logs, and relevant product docs.
-- Added `backend/tests/test_api_contract.py` for:
-  - documented `/api` route coverage;
-  - concrete documented download paths in OpenAPI;
-  - paginated list schema shape;
-  - safe FastAPI-compatible `detail` error payloads.
-- Verified RED before implementation: `python -m pytest tests/test_api_contract.py` failed because concrete download routes were absent from OpenAPI.
-- Replaced dynamic documented download exposure with concrete route functions:
-  - `/api/jobs/{job_id}/download/media`;
-  - `/api/jobs/{job_id}/download/csv`;
-  - `/api/jobs/{job_id}/download/json`.
-- Re-ran targeted contract/job tests after implementation.
-- Updated `README.md` current backend state and API notes.
-- Updated `backend/index.md` test summary for Phase 13 contract tests.
-- Resolved OpenAI code review important item by adding representative successful API JSON response boundary scans for media, jobs/results, models, experiments, and admin endpoints.
-- Updated `.context/review-code-resolution.md`.
-- Logged the missed successful-response boundary scan in `docs/mistakes-codex.md`.
+- Read required agent files, phase docs, context contracts, status/review artifacts, and mistake logs.
+- Resolved OpenAI code review item in `.context/review-code-resolution.md`.
+- Accepted important fix OAI-1: forced CUDA unavailable must not be retried or reported as database unavailable.
+- Added startup regression test for `run_worker(check_once=True)` with `CV_DEVICE=cuda` and mocked CUDA unavailable.
+- Fixed `run_worker()` to select/log device before the database retry wrapper and retry only DB connectivity.
+- Updated `docs/index.md` current implementation state for the Phase 14 CV worker scaffold.
 
 ## Quality Gates Run
 
-- `python -m pytest tests/test_api_contract.py` - RED observed before implementation.
-- `python -m pytest tests/test_api_contract.py tests/test_jobs_api.py` - PASS after implementation.
-- `python -m ruff check .` - PASS.
-- `python -m pytest` - PASS, 168 passed.
-- `python -m pytest tests/test_api_contract.py` - PASS after final fix, 4 passed.
-- `python -m ruff check .` - PASS after final fix.
-- `python -m pytest` - PASS after final fix, 169 passed.
+- `python -m pytest tests\test_startup.py` from `cv/`: RED observed before fix, failed with `RuntimeError: database unavailable after 30 attempts`.
+- `python -m pytest tests\test_startup.py` from `cv/`: PASS after fix, 3 passed.
+- `python -m pytest` from `cv/`: PASS, 32 passed.
+- `python -m ruff check .` from `cv/`: PASS after import-order fix, `All checks passed!`.
+- `docker compose --env-file .env.example config`: PASS.
+- `python -m aerovision_worker.main --check-once` from `cv/` with `DATABASE_URL=sqlite+pysqlite:///:memory:` and `CV_DEVICE=cpu`: PASS.
+- `python -m pip install -e ".[dev]"` from `cv/`: FAIL, timed out after 124 seconds while installing/checking dependencies.
+- `docker compose --env-file .env.example build cv-worker`: FAIL, command timed out after 124 seconds.
 
 ## Security/Privacy
 
-- Result downloads still require active JWT user and owner/admin access through existing `resolve_job_download` service path.
-- Concrete download routes expose no internal storage paths in OpenAPI.
-- Error contract tests scan representative `detail` payloads for stack traces, secrets, tokens, database passwords, absolute storage roots, and forbidden CV-boundary terms.
-- Successful API contract tests now scan representative JSON responses for absolute storage roots, internal path fields, secrets, and forbidden CV-boundary terms.
-- No training launch, frontend, worker polling, CV processing, new role, or out-of-scope safety behavior was added.
+- Fix keeps database URL redacted in startup logs.
+- Forced CUDA failure now surfaces as device-specific error, not database error.
+- No backend HTTP job loop, queue claiming, inference, tracking, exports, schema/API change, or new service was added.
+- Storage path safety and log redaction tests remain passing.
 
 ## Index/Docs
 
-- Updated `README.md` backend current state and endpoint group notes.
-- Updated `backend/index.md` Phase 13 test summary.
-- Updated `docs/index.md` README description and current implementation state.
-- No index update required after final fix: `backend/index.md` already describes Phase 13 API contract/OpenAPI/pagination/error-safety behavior, and no new files/folders were created.
+- Updated `.context/review-code-resolution.md`.
+- Updated `.context/status.md`.
+- Updated `docs/index.md` because its current implementation state still described `cv/` as placeholder-only.
+- No `cv/index.md` change needed during final fix; it already reflects current CV worker scaffold files and commands.
+- No mistake-log update; no product-impacting mistake or near-miss required documentation.
 
 ## Deviations
 
-- Final fix aligns with `.context/design.md`, `.context/plan.md`, and `.context/review-plan-resolution.md`; no deviations remain.
+- No deviation from `.context/design.md`, `.context/plan.md`, or `.context/review-plan-resolution.md`.
+- Full Docker build/startup smoke remains unverified because `cv-worker` image build timed out in this environment.
 
 ## Remaining Risks
 
-- Phase 13 audit confirms backend contract shape only; worker-generated files and real CV exports still arrive in later phases.
+- `python -m pip install -e ".[dev]"` timed out, likely due heavy worker dependencies; current environment already has dependencies needed for tests/smoke.
+- Docker image build and PostgreSQL Compose startup smoke remain blocked until the worker image build can complete within the available execution window.
+- Phase 14 still intentionally excludes worker queue claiming, inference, tracking, exports, and result writes.

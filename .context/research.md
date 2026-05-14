@@ -1,27 +1,38 @@
-# Research - Phase 13 Backend Contract Audit
+# Research - Phase 14
 
-## Current Phase
+## Current phase
 
-- Current phase: `Phase 13 - Backend contract, pagination, OpenAPI, and security test audit`.
-- Source: `docs/phase.md`.
-- Risk input: unspecified placeholder. Assumption: `HIGH`, because phase audits auth, ownership, API contract, OpenAPI, errors, pagination, downloads, and security tests before worker/frontend depend on backend.
+- Confirmed from `docs/phase.md`: Phase 14 - CV worker scaffold, settings, logging, and database access.
+- Direction: CV Worker.
+- Goal: create separate worker service foundation without full inference.
+- User-provided risk level: unspecified placeholder. Assumption for planning only: medium, because worker touches database, shared storage path safety, Docker runtime, and secret-safe logging.
 
-## Docs Consulted
+## Docs consulted
 
 - `AGENTS.md`
 - `CLAUDE.md`
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- `docs/API.md`
-- `docs/AUTH_SECURITY.md`
-- `docs/TESTING_QA.md`
-- `docs/PROJECT_CONTEXT.md`
+- Phase relevant docs:
+  - `docs/ARCHITECTURE.md`
+  - `docs/CV_PIPELINE.md`
+  - `docs/DATA_MODEL.md`
+  - `docs/AUTH_SECURITY.md`
+  - `docs/TESTING_QA.md`
+- Existing context artifacts:
+  - `.context/research.md`
+  - `.context/design.md`
+  - `.context/plan.md`
+  - `.context/status.md`
+  - `.context/review-plan-claude.md`
+  - `.context/review-plan-resolution.md`
+- Existing context files above were zero-byte at read time.
 
-## Confirmed Repository Facts
+## Confirmed repository facts
 
 - Git checkout exists.
-- `git status --short` shows modified files before this contract work:
+- `git status --short` before writing showed modified files:
   - `.context/design.md`
   - `.context/plan.md`
   - `.context/research.md`
@@ -31,94 +42,106 @@
   - `.context/review-plan-resolution.md`
   - `.context/status.md`
   - `docs/phase.md`
-- Existing `.context/research.md`, `.context/design.md`, `.context/plan.md` were zero bytes before writing.
-- Backend project exists with `backend/pyproject.toml`, FastAPI app, API route modules, SQLAlchemy models, Alembic migration, service modules, schemas, and tests.
-- Backend dev commands are available from `backend/index.md` and `backend/pyproject.toml`:
-  - `python -m ruff check .`
-  - `python -m pytest`
-- Backend route registration uses `api_router = APIRouter(prefix="/api")` in `backend/app/api/router.py`.
-- App factory includes API router in `backend/app/main.py`.
-- Implemented route groups found:
-  - health: `/api/health`, `/api/health/db`
-  - auth: `/api/auth/register`, `/api/auth/login`, `/api/auth/me`
-  - media: `/api/media`, `/api/media/{media_id}`
-  - jobs/results: `/api/jobs`, `/api/jobs/{job_id}`, `/api/jobs/{job_id}/summary`, `/api/jobs/{job_id}/detections`, `/api/jobs/{job_id}/tracks`, `/api/jobs/{job_id}/result`, `/api/jobs/{job_id}/download/{kind}`
-  - models: `/api/models`, `/api/models/{model_id}`, `/api/models/{model_id}/activate`
-  - experiments: `/api/experiments`, `/api/experiments/import`, `/api/experiments/{experiment_id}`
-  - admin: `/api/admin/stats`, `/api/admin/jobs`, `/api/admin/users`, `/api/admin/storage/cleanup`
-- List schemas use `items`, `total`, `limit`, `offset` in media, jobs, detections, tracks, models, experiments, admin jobs, and admin users.
-- Tests exist for auth, security utilities, media validation/API, jobs/results/downloads, models, experiments, admin API, logging, settings, setup, health, and data model.
-- No custom global error response schema or FastAPI exception handlers were found by search.
-- No explicit OpenAPI audit test was found by search.
+- Root runtime files exist:
+  - `docker-compose.yml`
+  - `docker-compose.gpu.yml`
+  - `.env.example`
+  - `Makefile`
+  - `README.md`
+- `docker-compose.yml` already defines `postgres`, `backend`, `cv-worker`, and `frontend`.
+- `cv-worker` already receives worker env vars:
+  - `DATABASE_URL`
+  - `STORAGE_ROOT`
+  - `MODELS_ROOT`
+  - `CV_DEVICE`
+  - `ACTIVE_MODEL_ID`
+  - `WORKER_POLL_INTERVAL_SECONDS`
+  - `WORKER_HEARTBEAT_FRAMES`
+  - `WORKER_HEARTBEAT_SECONDS`
+  - `WORKER_STALE_JOB_MINUTES`
+  - `WORKER_MAX_RETRIES`
+- Backend and worker both mount `./storage:/app/storage`.
+- GPU override requests GPU only for `cv-worker`.
+- `.env.example` contains safe placeholders and worker defaults:
+  - `CV_DEVICE=cpu`
+  - `WORKER_POLL_INTERVAL_SECONDS=2`
+  - `WORKER_HEARTBEAT_FRAMES=30`
+  - `WORKER_HEARTBEAT_SECONDS=2`
+  - `WORKER_STALE_JOB_MINUTES=10`
+  - `WORKER_MAX_RETRIES=2`
+- `cv/index.md` says no CV worker scaffold, dependency manifest, application package, model-loading code, processing code, or tests exist yet.
+- `cv/Dockerfile` is Phase 1 placeholder. It runs an infinite Python command and prints `CV_DEVICE`.
+- Backend is implemented through Phase 13 per `README.md` and `backend/index.md`.
+- Backend ORM models include documented tables needed by worker:
+  - `ProcessingJob`
+  - `MediaFile`
+  - `Detection`
+  - `Track`
+  - `ModelVersion`
+- Backend has storage path helpers in `backend/app/core/storage_paths.py`, but there is no shared package for worker reuse.
+- Backend has safe logging helper in `backend/app/core/logging.py`, but there is no shared package for worker reuse.
+- Backend dependency manifest includes `sqlalchemy`, `psycopg[binary]`, `pydantic-settings`, `opencv-python-headless`, and tests/lint tooling for backend only.
 
-## Existing Implementation State
+## Existing implementation state
 
-- Backend has product API surface implemented through Phase 12-like endpoints, including admin and experiments.
-- `/api` prefix appears centralized and consistent in route registration.
-- Pagination is already present on growable list endpoints, but phase must audit consistency against `API.md`.
-- Tests cover many authorization, ownership, upload validation, path safety, and download cases.
-- Existing download implementation exposes one dynamic OpenAPI path: `/api/jobs/{job_id}/download/{kind}`.
-- `API.md` documents three concrete download endpoints:
-  - `/api/jobs/{job_id}/download/media`
-  - `/api/jobs/{job_id}/download/csv`
-  - `/api/jobs/{job_id}/download/json`
-- Existing tests call concrete download URLs, but OpenAPI likely presents the dynamic `{kind}` route. This is an implementation contract issue to audit in Phase 13, not a docs conflict.
-- Error responses currently appear to rely on FastAPI default `{"detail": ...}` behavior and Pydantic validation errors.
-- Response models are present for route success responses, but route-level `responses=` metadata was not found.
-- `README.md` current-state wording appears older than backend implementation state, while `backend/index.md` is more current. Phase 13 scope includes updating README/API notes during implementation.
+- CV worker:
+  - Placeholder Dockerfile only.
+  - No `cv/pyproject.toml`.
+  - No worker Python package.
+  - No worker settings.
+  - No worker logging module.
+  - No worker database session layer.
+  - No worker storage path resolver.
+  - No worker startup command beyond placeholder.
+  - No worker tests.
+- Docker:
+  - Compose env and storage mounts already mostly match Phase 14 needs.
+  - Worker image build context is `./cv`.
+  - Worker container currently does not install dependencies or run actual worker code.
+- Database:
+  - Backend migrations/schema exist.
+  - Worker can target same PostgreSQL schema, but no worker-side model/session code exists.
+- Current context files:
+  - `.context/research.md`, `.context/design.md`, `.context/plan.md` were empty before this contract.
 
-## Unknowns And Assumptions
+## Unknowns and assumptions
 
-- Unknown: actual backend test status was not run in this planning phase.
-- Unknown: generated OpenAPI schema contents were not inspected by running the app.
-- Unknown: whether frontend wants a formal error envelope beyond FastAPI default `detail`; docs require clear errors suitable for Ukrainian localization but do not define a strict envelope.
-- Assumption: Phase 13 may add tests and small backend contract fixes, but must not add new product behavior beyond documented endpoints, pagination, OpenAPI usability, security coverage, and README/API notes.
-- Assumption: Dynamic download route may need explicit concrete routes or OpenAPI metadata so frontend sees documented download operations.
-- Assumption: "API notes" means existing README/backend index or existing code comments/metadata, not new product docs, unless implementation reveals current docs/commands changed.
-- Accepted planning-review fact: README/API notes audit and update is required in Phase 13 because `README.md` is already stale against implemented backend endpoint groups.
-- Accepted planning-review decision: Phase 13 will not introduce a new shared error envelope unless audit proves current behavior violates docs. Minimal accepted MVP standard is safe, predictable FastAPI-compatible `detail` responses where string and list validation details are tested as frontend-consumable and do not expose secrets, stack traces, absolute paths, or forbidden fields.
-- Accepted planning-review fact: OpenAPI tests must assert the documented concrete download paths `/api/jobs/{job_id}/download/media`, `/api/jobs/{job_id}/download/csv`, and `/api/jobs/{job_id}/download/json`.
-- Accepted planning-review fact: API response/output boundary audit should use a reusable scan fixture or helper for representative JSON responses to catch absolute paths and forbidden CV-boundary field names.
+- Unknown: exact user-intended risk level because prompt kept placeholder.
+- Unknown: whether implementation should duplicate minimal ORM mappings in `cv/` or import backend models by changing Python path. Assumption: keep worker independent; avoid importing backend app internals unless implementation verifies that is clean and does not blur service boundaries.
+- Unknown: whether full PyTorch/Ultralytics install is acceptable during this phase on local machines. Phase requires placeholder dependencies, so implementation should add them in worker manifest, while tests can avoid loading real models.
+- Unknown: whether worker startup should block forever after startup smoke or run a no-op loop. Assumption: Phase 14 may start a worker process that initializes settings/logging/database and idles without claiming jobs or running inference.
+- Unknown: exact worker package/module names are not specified by product docs. Implementation may choose small internal file names under `cv/` as scaffold details.
+- Assumption: no new REST endpoints are needed in Phase 14.
+- Assumption: no backend schema changes are needed in Phase 14.
+- Assumption: no frontend changes are needed in Phase 14.
 
-## Files Likely Relevant For Implementation
+## Planning review resolution research notes
 
-- `backend/app/main.py`
-- `backend/app/api/router.py`
-- `backend/app/api/auth.py`
-- `backend/app/api/health.py`
-- `backend/app/api/media.py`
-- `backend/app/api/jobs.py`
-- `backend/app/api/models.py`
-- `backend/app/api/experiments.py`
-- `backend/app/api/admin.py`
-- `backend/app/api/deps.py`
-- `backend/app/schemas/auth.py`
-- `backend/app/schemas/media.py`
-- `backend/app/schemas/jobs.py`
-- `backend/app/schemas/models.py`
-- `backend/app/schemas/experiments.py`
-- `backend/app/schemas/admin.py`
-- `backend/app/services/media.py`
-- `backend/app/services/jobs.py`
-- `backend/app/services/results.py`
-- `backend/app/services/models.py`
-- `backend/app/services/experiments.py`
-- `backend/app/services/admin.py`
-- `backend/app/core/auth.py`
-- `backend/app/core/authorization.py`
-- `backend/app/core/storage_paths.py`
-- `backend/app/core/cors.py`
-- `backend/app/core/logging.py`
-- `backend/tests/test_auth.py`
-- `backend/tests/test_security_utils.py`
-- `backend/tests/test_media_api.py`
-- `backend/tests/test_media_validation.py`
-- `backend/tests/test_jobs_api.py`
-- `backend/tests/test_models_api.py`
-- `backend/tests/test_experiments_api.py`
-- `backend/tests/test_admin_api.py`
-- `backend/tests/test_health.py`
-- `backend/tests/test_logging.py`
-- `backend/tests/conftest.py`
+- Claude planning review treated Phase 14 as medium/high risk because worker startup touches PostgreSQL connectivity, shared-storage path safety, Docker startup, and secret-safe logging. This matches the planning assumption and requires no scope expansion.
+- Phase 14 implementation must not treat database connectivity as optional during startup validation. Worker startup needs bounded PostgreSQL readiness retry or equivalent startup-safe connection handling so Compose startup does not race `postgres`.
+- `CV_DEVICE=cuda` must follow `docs/CV_PIPELINE.md`: force CUDA and fail clearly when CUDA is unavailable. `CV_DEVICE=auto` may fall back to CPU when CUDA is unavailable.
+- PyTorch and Ultralytics dependency risk is accepted as a planning concern only. Tests and startup checks must stay import-safe and must not load real YOLO models in Phase 14.
+- Worker production entrypoint may idle after successful startup, but implementation should provide deterministic smoke/test mode that exits after settings, device, and database checks.
+
+## Files likely relevant for implementation
+
+- `cv/Dockerfile`
+- `cv/index.md`
+- `docker-compose.yml`
+- `.env.example`
+- `Makefile`
 - `README.md`
-- `backend/index.md`
+- New worker scaffold files under `cv/` for:
+  - dependency manifest
+  - worker settings
+  - worker logging
+  - database session access
+  - storage path resolution
+  - startup entrypoint
+  - worker tests
+- Reference-only backend files:
+  - `backend/app/db/models.py`
+  - `backend/app/db/session.py`
+  - `backend/app/core/config.py`
+  - `backend/app/core/storage_paths.py`
+  - `backend/app/core/logging.py`

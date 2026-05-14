@@ -1,96 +1,130 @@
-# Design - Phase 13 Backend Contract Audit
+# Design - Phase 14
 
-## Phase Goal
+## Phase goal
 
-Consolidate implemented backend API behavior before worker and frontend implementation depend on it. Phase output should make endpoint paths, `/api` prefix, OpenAPI schema, error shapes, pagination, access controls, and security tests match documented contracts.
+Create CV worker foundation only: Python project scaffold, settings, safe logging, database access, safe storage path resolution, startup behavior, Docker wiring, and smoke tests. Do not implement full job polling, job claiming, inference, tracking, exports, stale recovery, or result writes in this phase.
 
-## Intended Behavior From Docs
+## Intended behavior from docs
 
-Confirmed facts:
+Confirmed:
 
-- All API routes must be prefixed with `/api`.
-- Health endpoints are public and must not leak secrets.
-- Protected endpoints require valid JWT and active account.
-- User-owned resources require ownership checks; admins can access broader/global data where docs allow.
-- Admin-only routes require admin role.
-- List endpoints that can grow should be paginated.
-- API errors must be clear and safe for frontend Ukrainian localization.
-- API responses and exports must not expose passwords, password hashes, JWT secrets, raw tokens, unsafe absolute filesystem paths, or forbidden CV-boundary fields.
-- Download routes must enforce owner/admin access and serve files without exposing internal paths.
-- No-detection results are completed jobs, not errors.
-- Training must not be launched from API.
-- API outputs may expose only CV data: image-space detection status, frame index, timestamp, bbox, center point, confidence, class label, track ID, FPS, model version, and summary metrics.
+- `cv-worker` is separate from backend API process.
+- Worker coordinates with backend through PostgreSQL and shared storage, not backend HTTP calls.
+- PostgreSQL stores structured data and job state only.
+- Shared storage stores uploads, results, reports, models, temp files, datasets.
+- Backend and worker must mount same storage path at `/app/storage`.
+- Worker settings must cover database, storage, device, polling, heartbeat, stale-job threshold, and max retries.
+- `CV_DEVICE` allowed behavior:
+  - `auto`: CUDA if available, else CPU.
+  - `cpu`: force CPU.
+  - `cuda`: force CUDA.
+- Worker must log selected device at startup.
+- Worker logs must not expose secrets, tokens, database passwords, or unsafe absolute paths in user-facing messages.
+- Worker storage resolver must accept database relative paths only and resolve under storage root.
+- Worker must not use OpenCV GUI APIs in Docker.
+- CPU mode must work.
+- GPU access is optional and isolated to `cv-worker`.
 
-## Architecture Decisions
+Out of scope for this phase:
 
-Confirmed facts:
+- Inference with YOLO.
+- ByteTrack or BoT-SORT integration.
+- Queue claim with `FOR UPDATE SKIP LOCKED`.
+- Heartbeat/progress updates during jobs.
+- Stale job recovery behavior.
+- Detections/tracks/result/export writes.
+- Frontend behavior.
+- New backend REST API.
 
-- Backend remains public API and authorization authority.
-- Route handlers should stay thin; business rules stay in services/domain helpers.
-- Phase 13 should prefer auditing and focused contract fixes over feature growth.
-- Test additions should target contract edges found by audit.
+## Architecture decisions
 
-Assumptions:
+- Build worker as independent Python project under `cv/`.
+- Keep service boundary clear: worker imports its own modules and talks to PostgreSQL directly. No backend HTTP client.
+- Use environment-driven settings matching already documented Compose variables.
+- Use SQLAlchemy engine/session layer for database access.
+- Use either worker-local ORM mappings or a verified non-invasive import strategy. Contract preference: worker-local minimal mappings or shared-code extraction only if it does not require backend runtime coupling. No schema change.
+- Implement storage resolver as worker-local path safety code if no shared package exists.
+- Implement startup path:
+  - load settings;
+  - configure redacted logging;
+  - select/log device;
+  - verify database connectivity with bounded readiness retry or equivalent startup-safe handling;
+  - idle without processing jobs until later phase in normal mode;
+  - support a deterministic smoke/test mode that exits after settings, device, and database checks.
+- Dockerfile should install worker dependencies and run worker entrypoint, replacing placeholder infinite Python command.
+- Compose env and storage mounts already exist; only adjust if implementation needs command/package wiring.
 
-- If route path mismatch is found, adjust implementation toward `API.md` rather than changing product docs.
-- If OpenAPI lacks usable frontend metadata, add response models, route names, tags, summaries, or explicit documented routes without changing product behavior.
-- If error shape normalization is needed, prefer one small shared schema/handler pattern and tests, only if docs can support it.
+## Backend impact
 
-## Backend Impact
+- No backend API changes planned.
+- No backend service logic changes planned.
+- Backend ORM files are reference material only unless implementation chooses a shared-code extraction, which would need extra review because it touches backend.
 
-- Audit all implemented routes against `docs/API.md`.
-- Ensure `/api` prefix remains centralized and no route bypasses it.
-- Check dynamic download route against documented concrete download endpoints.
-- Check OpenAPI generated paths, schemas, auth security scheme, tags, and list response models.
-- Normalize unsafe or inconsistent error responses only where needed for frontend localization and security.
-- Use this Phase 13 error-response standard unless implementation evidence shows it is insufficient: FastAPI-compatible `detail` payloads are acceptable for MVP, including string details for HTTP errors and list details for validation errors, when tests prove they are safe, predictable, and frontend-consumable.
-- Do not add a new global error envelope in Phase 13 unless existing implemented behavior cannot satisfy `docs/API.md` and `docs/AUTH_SECURITY.md` with focused fixes.
-- Keep route handlers thin and use existing services.
+## Frontend impact
 
-## Frontend Impact
+- None.
 
-- No frontend implementation in this phase.
-- Backend OpenAPI and error response consistency should make later frontend API client and Ukrainian localization safer.
+## Database impact
 
-## DB Impact
+- No schema or migration change planned.
+- Worker database access must use existing tables and fields:
+  - `processing_jobs`
+  - `media_files`
+  - `model_versions`
+  - later phases will also use `detections` and `tracks`.
+- Phase 14 database check is connectivity/session smoke only, not queue mutation.
 
-- No schema or migration changes intended.
-- DB is touched only through tests if needed for backend API contract coverage.
+## API impact
 
-## API Impact
+- None.
 
-- Possible API contract fixes are limited to documented behavior:
-  - concrete documented download routes;
-  - consistent paginated response format;
-  - safe documented errors;
-  - OpenAPI usability.
-- No new endpoint groups, schema fields, roles, resource types, worker behavior, or frontend flows.
+## Security/privacy impact
 
-## Security/Privacy Impact
+- Worker must redact sensitive settings in repr/log output.
+- Worker must not log raw `DATABASE_URL` or database password.
+- Worker must not log JWT/auth values if present in inherited env.
+- Worker must not expose absolute host/container paths in user-facing messages.
+- Worker must reject absolute paths, traversal segments, empty paths, drive-letter paths, and UNC-style paths before joining with `STORAGE_ROOT` or `MODELS_ROOT`.
+- Worker must not execute uploaded files; Phase 14 does not decode/process uploaded media yet.
+- `CV_DEVICE=auto` may fall back to CPU when CUDA probe reports unavailable.
+- `CV_DEVICE=cuda` must fail clearly when CUDA is unavailable and must not log CPU-only state as selected CUDA.
 
-- Phase explicitly touches security audit.
-- Must verify guest, invalid-token, inactive-user, regular-user, admin, and cross-owner behavior across implemented route groups.
-- Must verify API response text and OpenAPI-visible examples do not expose secrets, absolute storage paths, password hashes, tokens, or forbidden CV-boundary fields.
-- Must preserve generic 404 for missing versus cross-owner user-owned resources where current pattern already avoids enumeration.
-
-## Test Strategy
+## Test strategy
 
 Relevant checks only:
 
-- `python -m ruff check .` from `backend/`.
-- `python -m pytest` from `backend/`.
-- Targeted backend tests while implementing:
-  - route/OpenAPI audit test for documented paths and `/api` prefix;
-  - explicit OpenAPI assertions for documented concrete download paths `/api/jobs/{job_id}/download/media`, `/api/jobs/{job_id}/download/csv`, and `/api/jobs/{job_id}/download/json`;
-  - pagination consistency tests for growable list endpoints;
-  - error response safety/shape tests for selected 400/401/403/404/422 cases, including both string `detail` and validation-list `detail` forms when current FastAPI behavior is retained;
-  - ownership/filter bypass tests for media/jobs/results/admin-visible lists;
-  - reusable absolute-path and forbidden-field response scan fixture/helper for representative implemented JSON response bodies/download metadata.
-- Optional manual OpenAPI check by loading app schema in a test, not by starting frontend.
+- Worker unit tests:
+  - settings parse defaults and env overrides;
+  - `CV_DEVICE` accepts documented values and rejects invalid value;
+  - sensitive settings are redacted from repr/log helper output;
+  - storage path resolver accepts relative safe paths;
+  - storage path resolver rejects absolute, traversal, drive-letter, empty, and UNC-like paths;
+  - database session/health helper can be tested with mocked or configured engine where practical.
+- Worker lint:
+  - run worker lint command once scaffold defines it.
+- Worker smoke:
+  - worker startup command imports app, loads settings, configures logging, checks selected device semantics, verifies database connectivity through bounded readiness retry, and exits in smoke/test mode.
+- Dependency/import safety:
+  - tests must not load real YOLO models;
+  - heavy PyTorch/Ultralytics imports should be avoided or mocked in tests where practical;
+  - dependency install may be heavy, but Phase 14 tests must stay deterministic without model artifacts.
+- Docker/Compose:
+  - `docker compose --env-file .env.example config`
+  - `docker compose --env-file .env.example build cv-worker`
+  - startup smoke for `cv-worker` when practical.
 
-## Ambiguities Or Conflicts
+Avoid generic gates:
 
-- No `WARNING: CONFLICT` found among consulted product docs for Phase 13.
-- Resolved ambiguity: docs require "clear error messages suitable for frontend Ukrainian localization" but do not define an exact JSON error envelope; Phase 13 accepts FastAPI-compatible `detail` payloads if tested as safe and frontend-consumable.
-- Ambiguity: `API.md` documents three concrete download routes, while current implementation uses one dynamic route. Implementation should resolve toward documented external contract.
-- Resolved ambiguity: README current-state wording lags implementation; Phase 13 implementation must audit and update README/API notes to match verified endpoint groups and commands.
+- No frontend build/tests.
+- No backend full test suite unless backend files change.
+- No CV inference smoke.
+- No export/no-detection tests.
+- No queue claiming/stale recovery tests.
+
+## Ambiguities or conflicts
+
+- No `WARNING: CONFLICT` found in consulted docs for Phase 14.
+- Ambiguity: prompt did not provide actual risk level.
+- Ambiguity: docs require PyTorch/Ultralytics placeholder dependencies but do not define exact versions or install strategy.
+- Ambiguity: docs do not specify worker package/file names.
+- Ambiguity: docs say worker should log selected device, but Phase 14 does not require loading torch or proving CUDA availability beyond configuration/startup logging.

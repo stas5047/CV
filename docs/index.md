@@ -78,7 +78,9 @@ The repository currently contains the project documentation set, Docker Compose 
 
 The `backend/` folder contains the implemented FastAPI backend foundation, database schema/migration, startup setup, auth/security helpers, media/model/job/result/admin/experiment APIs, concrete result download routes, and backend tests through the Phase 13 API contract audit.
 
-The `frontend/` and `cv/` folders contain buildable placeholder Dockerfiles only. They do not yet contain product application scaffolds, dependency manifests, source packages, UI, worker queue logic, or CV processing.
+The `cv/` folder contains the Phase 14 worker scaffold with a Python package, dependency manifest, settings, secret-safe logging, device selection, database connectivity helpers, storage path safety, startup checks, Docker entrypoint, and worker tests. It does not yet contain queue claiming, inference, tracking, exports, or result writes.
+
+The `frontend/` folder contains a buildable placeholder Dockerfile only. It does not yet contain product application scaffolds, dependency manifests, source packages, or UI.
 
 The `training/` folder still contains only `index.md` and no training utilities.
 

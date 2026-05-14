@@ -1,0 +1,1 @@
+"""AeroVision CV worker foundation."""

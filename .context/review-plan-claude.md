@@ -1,12 +1,10 @@
-# Independent Planning Review - Phase 13 Backend Contract Audit
-
-## Verdict: APPROVED_WITH_CHANGES
+# Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Plan matches Phase 13 direction and stays inside backend/QA scope. It covers route audit, `/api` prefix, OpenAPI, pagination, auth/ownership, response safety, CV-only boundary, backend lint, and backend tests.
+Phase 14 plan mostly matches `docs/phase.md` and relevant product docs. Scope stays on CV worker scaffold, settings, logging, database access, Docker wiring, and tests. No source-code implementation is requested or reviewed here.
 
-Two important gaps should be fixed before implementation: README/API notes update is too conditional despite known stale README state, and error-shape normalization needs clearer acceptance criteria than only safe `detail` strings.
+Approval needs two plan fixes before implementation: database startup/connectivity handling must be non-racy, and `CV_DEVICE=cuda` behavior must match documented fail-clear semantics.
 
 ## Blocking issues
 
@@ -14,35 +12,27 @@ None.
 
 ## Important issues
 
-1. README/API notes update may be skipped even though current README is already stale.
+1. Worker database startup check is too optional for required Compose validation.
 
-Evidence: `docs/phase.md` Phase 13 scope says "Update README/API notes with current commands and endpoint groups." `.context/research.md` says `README.md` current-state wording appears older than backend implementation state. `README.md` still says auth, uploads, jobs, downloads, and admin APIs are "Not available yet", while `backend/index.md` says these endpoint groups exist through Phase 12.
+Evidence: `.context/plan.md` step 8 says "Verify database connectivity where practical." But `docs/phase.md` Phase 14 validation requires "Worker container starts in Docker Compose" and "Worker can connect to PostgreSQL." `docs/ARCHITECTURE.md` says backend and worker coordinate through PostgreSQL and Docker launch must include working `cv-worker` and `postgres` services. In Compose startup, `cv-worker` can race `postgres`; optional connectivity or immediate exit can make validation flaky or skip a required behavior.
 
-Risk: Implementation could pass backend tests but leave onboarding/API notes false for frontend/worker follow-on phases.
+Required change: make implementation plan require bounded DB readiness retry or equivalent startup-safe connectivity handling, with secret-safe failure logging.
 
-Required plan change: make README/backend API notes audit/update a required Phase 13 step, not only "if commands, endpoint groups, or current implementation state changed during Phase 13."
+2. Device-selection plan does not fully pin documented `CV_DEVICE=cuda` failure behavior.
 
-2. Error response normalization is under-specified for Phase 13 scope.
+Evidence: `.context/plan.md` step 5 says Phase 14 may log desired/selected configuration without real inference, and `cuda` behavior must be "explicit and testable." `docs/CV_PIPELINE.md` requires `CV_DEVICE=cuda` to force CUDA and says CUDA unavailable with `CV_DEVICE=cuda` must fail clearly. `docs/ARCHITECTURE.md` also defines `cuda` as force CUDA. If implementation only logs desired config, it can falsely report selected CUDA on CPU-only hosts.
 
-Evidence: `docs/phase.md` scope requires "Normalize error response shapes for frontend Ukrainian localization." `docs/API.md` requires clear predictable errors suitable for frontend Ukrainian localization and safe errors for unauthorized, forbidden, missing resource, upload, parameter, model, failed job, missing result, and DB connectivity cases. Plan step 7 checks representative `400/401/403/404/422` responses for safe `detail` content, but does not define what "normalized shape" means or require a fix if FastAPI/Pydantic default shapes differ.
-
-Risk: Frontend may still face inconsistent error payload shapes after Phase 13, especially HTTPException `{"detail": "..."}` versus validation `{"detail": [...]}`.
-
-Required plan change: add explicit acceptance criteria for normalized implemented error responses, or state a documented minimal standard such as FastAPI default `detail` accepted for this MVP plus tested frontend-consumable handling for string/list details. Apply small fixes only where current behavior violates that standard.
+Required change: device tests must assert `auto` falls back to CPU when CUDA probe is unavailable, and `cuda` unavailable fails clearly or at minimum never logs CPU-only state as selected CUDA.
 
 ## Optional improvements
 
-1. Add OpenAPI assertions for documented concrete download paths.
-
-Evidence: `docs/API.md` documents `/api/jobs/{job_id}/download/media`, `/csv`, and `/json`; `.context/research.md` says current implementation likely exposes dynamic `/api/jobs/{job_id}/download/{kind}` in OpenAPI. Plan step 3 covers this, but explicit OpenAPI path assertions would prevent future drift.
-
-2. Include one response scan fixture that checks JSON responses for absolute path prefixes and forbidden CV-boundary field names.
-
-Evidence: `docs/API.md`, `docs/AUTH_SECURITY.md`, and `docs/PROJECT_CONTEXT.md` all ban unsafe absolute paths and targeting/navigation/control outputs. Plan step 9 covers this generally; fixture-based scanning would make it cheaper to reuse.
+- Dependency install step should call out heavyweight PyTorch/Ultralytics risk and keep worker tests import-safe without loading real models.
+- Startup smoke can use a test-mode exit flag if production entrypoint idles forever; this keeps automated validation deterministic.
 
 ## Questions for resolution
 
-1. Should Phase 13 keep FastAPI/Pydantic default error payload forms if tests prove frontend can consume both string and list `detail`, or should implementation introduce a small shared error envelope now?
+- Prompt risk level stayed as `<MEDIUM | HIGH>`. Review treated Phase 14 as medium/high because it touches worker database access, shared storage path safety, Docker startup, and logging safety.
+- Should Phase 14 worker container idle forever after startup, or support a smoke/test mode that exits after settings, device, and database checks?
 
 ## Files consulted
 
@@ -54,10 +44,9 @@ Evidence: `docs/API.md`, `docs/AUTH_SECURITY.md`, and `docs/PROJECT_CONTEXT.md` 
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
-- `docs/API.md`
+- `docs/ARCHITECTURE.md`
+- `docs/CV_PIPELINE.md`
+- `docs/DATA_MODEL.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
-- `docs/PROJECT_CONTEXT.md`
-- `backend/pyproject.toml`
-- `backend/index.md`
-- `README.md`
+- `git status --short`

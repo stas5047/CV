@@ -24,10 +24,11 @@ This checkout provides:
 - backend admin stats/jobs/users/storage-cleanup API;
 - backend experiment import/list/detail API;
 - backend OpenAPI contract checks for documented paths, paginated list schemas, safe FastAPI `detail` errors, and API output boundary scanning.
+- CV worker scaffold with settings, secret-safe logging, startup device selection, database connectivity helpers, safe storage path resolution, Docker entrypoint, and tests.
 
 Not available yet:
 
-- CV model loading, worker queue polling, inference, tracking, exports;
+- CV model loading, worker queue polling/claiming, inference, tracking, exports;
 - React/Vite frontend UI.
 
 ## Initial Setup
@@ -104,7 +105,10 @@ Do not commit uploads, generated results, reports, datasets, model weights, or t
 | `python -m ruff check .` from `backend/` | runs backend lint checks |
 | `alembic upgrade head` from `backend/` | applies backend database migrations |
 | `python -m app.setup` from `backend/` | creates required storage folders and idempotently seeds configured admin |
-| CV worker tests | not available yet |
+| `python -m pip install -e ".[dev]"` from `cv/` | installs CV worker dependencies |
+| `python -m pytest` from `cv/` | runs CV worker tests |
+| `python -m ruff check .` from `cv/` | runs CV worker lint checks |
+| `python -m aerovision_worker.main --check-once` from `cv/` | runs CV worker startup smoke checks and exits |
 | Frontend tests/build | not available yet |
 
 ## Backend API Notes

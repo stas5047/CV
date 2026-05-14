@@ -1,51 +1,51 @@
-# Planning Review Resolution - Phase 13 Backend Contract Audit
+# Planning Review Resolution - Phase 14
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude review found no blockers. All doc-consistent items are accepted. No item needs user decision.
+Claude planning review items were resolved against `docs/phase.md`, `docs/ARCHITECTURE.md`, `docs/CV_PIPELINE.md`, and `docs/TESTING_QA.md`. Accepted changes were applied only to Phase 14 context contract files. No source code changes were made.
 
-## Resolution Table
+## Resolution table
 
-| ID | Claude item | Resolution | Reason | Contract update |
+| ID | Claude review item | Resolution | Rationale | Contract update |
 |---|---|---|---|---|
-| I1 | README/API notes update may be skipped despite stale README. | accepted | `docs/phase.md` requires README/API notes update, and `README.md` is stale against implemented backend endpoint groups. | Plan step 12 now makes README/API notes audit/update required. Research records stale README fact. Design marks ambiguity resolved. |
-| I2 | Error response normalization under-specified. | accepted | `docs/API.md` requires clear predictable errors but does not require custom envelope. | Design and plan define minimal Phase 13 standard: FastAPI-compatible `detail` forms acceptable if tested safe, predictable, and frontend-consumable; new envelope only if current behavior fails that standard. |
-| O1 | Add OpenAPI assertions for documented concrete download paths. | accepted | `docs/API.md` documents concrete `/download/media`, `/download/csv`, `/download/json` routes. | Plan steps 3 and 8 now require explicit concrete download paths in OpenAPI. Design test strategy includes assertions. |
-| O2 | Include reusable response scan fixture for absolute paths and forbidden CV-boundary fields. | accepted | `docs/API.md`, `docs/AUTH_SECURITY.md`, and `docs/PROJECT_CONTEXT.md` ban unsafe paths and forbidden output fields. | Plan step 9 and design test strategy now require reusable scan helper/fixture for representative JSON responses. |
-| Q1 | Keep FastAPI/Pydantic default error payloads or introduce shared envelope? | accepted | Product docs do not mandate envelope; adding one now may create unnecessary API churn. | Final contract keeps FastAPI-compatible `detail` payloads if tests prove string/list details are safe and frontend-consumable. |
+| 1 | Worker database startup/connectivity handling is too optional and can race PostgreSQL in Compose. | accepted | Phase 14 validation requires worker container startup and PostgreSQL connectivity. Architecture requires worker/PostgreSQL coordination. | `.context/design.md`, `.context/plan.md`, `.context/research.md` now require bounded DB readiness retry or equivalent startup-safe handling with secret-safe failure logs. |
+| 2 | `CV_DEVICE=cuda` behavior is not pinned to fail clearly when CUDA is unavailable. | accepted | `docs/CV_PIPELINE.md` requires `auto` fallback to CPU and `cuda` unavailable to fail clearly. | `.context/design.md`, `.context/plan.md`, `.context/research.md` now require `auto` CPU fallback tests and clear `cuda` unavailable failure semantics. |
+| 3 | Heavy PyTorch/Ultralytics dependencies need import-safe tests without loading real models. | accepted | Phase 14 requires placeholder dependencies but not inference or model artifacts. Import-safe tests reduce false blockers while staying in scope. | `.context/design.md`, `.context/plan.md`, `.context/research.md` now require tests to avoid real YOLO loading/model artifacts. |
+| 4 | Startup smoke can use test-mode exit flag if production entrypoint idles forever. | accepted | Deterministic smoke validation helps prove settings/device/database checks without implementing queue processing. No product-doc conflict. | `.context/design.md`, `.context/plan.md`, `.context/research.md` now allow normal idle mode plus smoke/test mode exit after checks. |
+| 5 | Risk level placeholder stayed unspecified; review treated Phase 14 as medium/high. | accepted | Research already assumed medium risk; final contract records same risk basis. | `.context/research.md` records medium/high review basis; no scope change. |
+| 6 | Question: should worker idle forever or support smoke/test mode? | accepted | Normal worker should idle without claiming jobs in Phase 14; smoke/test mode should exit after startup checks for validation. | `.context/design.md`, `.context/plan.md`, `.context/research.md` updated with both modes. |
 
-## Accepted Changes Applied
+## Accepted changes applied
 
-- `.context/research.md`
-  - Added accepted planning-review facts for required README/API notes update, minimal error-response standard, concrete download OpenAPI assertions, and reusable response boundary scan.
-- `.context/design.md`
-  - Added Phase 13 error-response design decision.
-  - Added explicit download OpenAPI assertion requirement.
-  - Added string/list `detail` test criterion.
-  - Added reusable response scan fixture/helper requirement.
-  - Resolved README and error-envelope ambiguities.
-- `.context/plan.md`
-  - Updated step 3 to require concrete documented download paths in OpenAPI.
-  - Updated step 7 to define minimal accepted error-response standard.
-  - Updated step 8 to require concrete download paths in OpenAPI usability audit.
-  - Updated step 9 to require reusable response/output boundary scan helper or fixture.
-  - Updated step 12 to make README/API notes audit/update required.
+- Added bounded PostgreSQL readiness retry/startup-safe connectivity handling requirement.
+- Added secret-safe retry/failure logging requirement for database startup checks.
+- Strengthened `CV_DEVICE` contract:
+  - `auto` falls back to CPU when CUDA is unavailable;
+  - `cuda` unavailable fails clearly;
+  - worker must not log CPU-only state as selected CUDA.
+- Added tests for mocked CUDA availability/unavailability.
+- Added mocked bounded DB readiness retry tests.
+- Added import-safe dependency/test guidance so Phase 14 does not load real YOLO models or require model artifacts.
+- Added normal idle mode plus deterministic smoke/test mode exit after settings, device, and DB checks.
+- Updated Phase 14 gate wording to require startup smoke/test mode proving selected-device logging and PostgreSQL connectivity without leaking secrets.
 
-## Rejected Items
+## Rejected items
 
-None.
+- None.
 
-## Duplicate Items
+## Duplicate items
 
-None.
+- None.
 
-## Items Needing User Decision
+## Items needing user decision
 
-None.
+- None.
 
-## Final Contract Status
+## Final contract status
 
-- Scope remains Phase 13 only: backend contract audit, pagination, OpenAPI, error response normalization, security test audit, and README/API notes.
-- No source-code implementation performed in this resolution step.
-- No product-doc conflicts found.
-- Implementation may proceed under updated `.context/plan.md`.
+- `.context/research.md`: updated for accepted planning review notes.
+- `.context/design.md`: updated for accepted startup, device, dependency, and smoke-mode decisions.
+- `.context/plan.md`: updated for accepted implementation and validation requirements.
+- Source code: not modified.
+- Product docs under `docs/`: not modified.
+- Final Phase 14 implementation contract is scoped to CV worker scaffold, settings, logging, database access, storage path resolution, Docker wiring, and smoke tests only.
