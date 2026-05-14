@@ -1,44 +1,47 @@
-# Status - Phase 26 Frontend Upload and Processing Page
+# Status - Phase 27 Frontend Jobs History and Job Details Pages
 
 ## Current state
 
-- Implemented production `/upload` route in `frontend/src/pages/UploadPage.tsx`.
-- Added upload API helpers in `frontend/src/api/upload.ts`.
-- Extended frontend API types for media upload, job creation, and tracker values.
-- Removed the old upload placeholder export from `frontend/src/pages/placeholders.tsx`.
-- Added Phase 26 upload tests in `frontend/src/test/upload-page.test.tsx`.
-- Updated `frontend/index.md` to reflect Phase 26 current frontend state.
-- Final fix resolved code review items: Ukrainian-only model fallback copy, job-create failure test coverage, failed-status test coverage, and clean `docs/phase.md` whitespace.
+- Implemented production `/jobs` route with user-scoped job listing, status/media/date filters, current-page filename search, pagination, loading/error/empty states, and detail links.
+- Implemented production `/jobs/:jobId` route with polling for queued/processing jobs, progress/heartbeat display, safe failed-job messaging, authenticated result preview blobs, summary cards, parameters, downloads, detection table, and video-only track table.
+- Added focused jobs API helpers, result/detection/track types, and authenticated blob download helper.
+- Added shared Phase 27 job formatters and page parts.
+- Wired real Phase 27 pages into `frontend/src/App.tsx`; later `/models`, `/experiments`, and `/admin` placeholders remain unchanged.
+- Added frontend tests for jobs list, route protection, documented filters, details, downloads, no-detection, failed-state safety, and video/image track visibility.
+- Updated `frontend/index.md` to current Phase 27 state.
+- Resolved Phase 27 code review fixes:
+  - removed `docs/phase.md` trailing whitespace flagged by diff check;
+  - added `/jobs` model filter backed by `/api/models` and `model_version_id`;
+  - replaced English `backend API` visible error copy with Ukrainian wording;
+  - restricted authenticated blob downloads/previews to API-relative or same API origin/path URLs before attaching bearer tokens;
+  - added regression coverage for model filter query params and external download URL blocking.
 
 ## Scope notes
 
-- No backend, database, CV worker, Docker, training, product docs, research/design/plan, or review files were modified by this implementation.
-- Upload page uses existing backend REST APIs only: `/media`, `/models`, `/jobs`, `/jobs/{job_id}`.
-- `frame_stride` is not exposed or sent.
-- Size limits are shown as guidance only; backend remains canonical because limits are configurable.
-- Empty model list omits `model_version_id` and lets backend model resolution apply.
+- No backend, database, CV worker, training, Docker, product docs, research/design/plan, or review files were modified by this implementation.
+- Frontend uses documented backend REST endpoints only: `/jobs`, `/jobs/{id}`, `/jobs/{id}/result`, `/jobs/{id}/detections`, `/jobs/{id}/tracks`, and result download URLs.
+- `/jobs` uses regular jobs API, not `/admin/jobs`.
+- `frame_stride` is not displayed.
+- Downloads and previews use authenticated fetch/blob flow; UI never constructs storage paths.
 
 ## Verification
 
-- Targeted upload test red run: `npm test -- src/test/upload-page.test.tsx` failed against placeholder as expected.
-- Targeted upload test green runs: `npm test -- src/test/upload-page.test.tsx` passed after implementation and after component split.
-- Final fix targeted upload run: `npm test -- src/test/upload-page.test.tsx`: PASS, 9 tests.
 - `npm run lint`: PASS.
-- `npm test`: PASS, 22 tests passed.
+- `npm test`: PASS, 33 tests passed.
 - `npm run build`: PASS.
-- `git diff --check`: PASS, line-ending warnings only.
-- HTTP dev-server smoke: `Invoke-WebRequest http://127.0.0.1:5173/upload` returned 200 from existing Vite server.
-- Browser plugin manual smoke: not available in this session because the Node REPL JavaScript tool required by the Browser plugin is not exposed.
-- Playwright mocked visual smoke attempt: BLOCKED because the local `playwright` Node package is not installed and `npx -p playwright node -` could not resolve the module for the screenshot script.
+- `git diff --check`: PASS.
+- Dev-server HTTP smoke: PASS, Vite started at `http://localhost:5175/` because ports 5173 and 5174 were already occupied; `Invoke-WebRequest http://localhost:5173` returned 200 from an existing Vite server.
+- Manual browser smoke: not available in this session because the Browser plugin's required Node REPL JavaScript tool is not exposed, and local Playwright packages are not installed.
 
 ## Security / privacy
 
-- Frontend sends only documented media/job/model API requests.
-- Frontend does not send or show `frame_stride`.
-- Frontend does not display `weights_path`, backend raw error detail, absolute storage paths, tokens, `null`, or `undefined`.
-- Upload validation remains advisory; backend remains canonical for file size, MIME, ownership, and job parameter validation.
+- Backend remains authorization authority; frontend route guards are only UX.
+- Frontend does not show backend raw failed-job internals, absolute paths, storage roots, tokens, `weights_path`, `null`, `undefined`, or `frame_stride`.
+- Result downloads use backend URLs with bearer token fetch.
+- Bearer token fetch is blocked for absolute external download URLs.
+- CV output wording remains detection/tracking/image-space data only.
 
 ## Deviations / remaining risks
 
-- No product-doc or plan deviations.
-- Manual visual comparison with `prototype/upload.jsx` remains blocked by unavailable browser automation tooling in this session; automated route and state coverage plus HTTP 200 smoke passed.
+- No product-doc, design, plan, or review-resolution deviations.
+- Manual visual comparison with `prototype/jobs.jsx` and `prototype/job-detail.jsx` remains blocked by unavailable browser automation tooling in this session; automated route/state coverage and build gates passed.

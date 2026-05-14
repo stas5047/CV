@@ -1,47 +1,50 @@
-## Phase 26 - Frontend upload and processing page
+## Phase 27 - Frontend jobs history and job details pages
 
 **Direction:** Frontend
-**Goal:** Implement media upload and processing-job creation UI.
+**Goal:** Implement job list, filters, status polling, details, detections/tracks, previews, and downloads.
 
 ### Scope
 
-- Implement `/upload` page.
-- Add drag-and-drop file upload.
-- Show allowed file types and size guidance in Ukrainian.
-- Show selected file preview or metadata where practical.
-- Add model selector populated from backend.
-- Add confidence threshold control.
-- Add IoU threshold control.
-- Add tracker selector for video jobs.
-- Do not expose `frame_stride` in standard UI.
-- Preselect defaults so users can process without changing settings.
-- Create media upload request.
-- Create processing job request.
-- Show job status/progress block after job creation:
+- Implement `/jobs` page.
+- Add jobs table with:
   - status badge;
-  - progress bar;
-  - percentage when available;
-  - last update time when available.
-- Add Ukrainian loading, error, success, and validation messages.
+  - media type;
+  - original filename;
+  - model version;
+  - created date;
+  - processing duration;
+  - detections count;
+  - average confidence;
+  - link to details.
+- Add filters for status, media type, date, and model where practical.
+- Implement `/jobs/:jobId` page.
+- Show job status, media metadata, summary cards, progress, heartbeat/update time, and failed-job error area.
+- Poll job status while queued or processing.
+- Show processed media preview when possible.
+- If processed video preview is unavailable, show Ukrainian notice and keep download button.
+- Add detection table with frame index, timestamp, class, confidence, bounding box, and track ID.
+- Add track summary table for videos.
+- Add download buttons for annotated media, CSV, and JSON.
+- Handle completed no-detection jobs with Ukrainian empty state, not error.
 
 ### Relevant docs
 
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/CV_PIPELINE.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Upload page route is protected.
-- Valid file can be uploaded.
-- Job can be created with defaults.
-- Invalid file, too-large file, unsupported type, and failed job creation show Ukrainian errors.
-- `frame_stride` is not visible.
-- Status block renders queued/processing/completed/failed states.
+- Jobs page shows only current user's jobs for regular users.
+- Status badges use Ukrainian visible text.
+- Queued/processing jobs poll and update UI.
+- Completed jobs show summaries and tables.
+- Failed jobs show safe Ukrainian error messages.
+- No-detection jobs show empty state and keep downloads when available.
+- Downloads work from UI.
 - Frontend build passes.
 
 ### Commit
 
-`feat(frontend-upload): add media upload and processing creation flow`
+`feat(frontend-jobs): add jobs history details polling and downloads`

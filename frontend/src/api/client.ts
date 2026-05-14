@@ -55,3 +55,42 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   return data as T;
 }
+
+export async function apiBlobRequest(path: string, options: RequestOptions = {}): Promise<Blob> {
+  const token = options.token ?? tokenStorage.get();
+  const fetchOptions = { ...options } as Record<string, unknown>;
+  delete fetchOptions.body;
+  delete fetchOptions.token;
+  const headers = new Headers(options.headers);
+  const locationOrigin = globalThis.location?.origin ?? "http://localhost";
+  const apiBase = new URL(API_BASE_URL, locationOrigin);
+  const url = path.startsWith("http")
+    ? new URL(path)
+    : new URL(`${API_BASE_URL}${path.startsWith("/api/") ? path.slice(4) : path}`, locationOrigin);
+
+  const apiPath = apiBase.pathname.replace(/\/$/, "");
+  const isApiPath = url.pathname === apiPath || url.pathname.startsWith(`${apiPath}/`);
+  if (url.origin !== apiBase.origin || !isApiPath) {
+    throw new ApiError(400, "Unsafe download URL");
+  }
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(url.toString(), {
+    ...(fetchOptions as RequestInit),
+    headers,
+  });
+
+  if (!response.ok) {
+    const data = await parseResponse(response);
+    const message =
+      typeof data === "object" && data !== null && "detail" in data
+        ? String((data as { detail: unknown }).detail)
+        : response.statusText;
+    throw new ApiError(response.status, message, data);
+  }
+
+  return response.blob();
+}

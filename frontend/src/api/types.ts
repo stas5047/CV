@@ -34,6 +34,17 @@ export interface JobModelReference {
   variant: string;
 }
 
+export interface JobDownloadReference {
+  available: boolean;
+  download_url: string;
+}
+
+export interface JobResultReferences {
+  media: JobDownloadReference;
+  csv: JobDownloadReference;
+  json: JobDownloadReference;
+}
+
 export interface JobDetail {
   id: string;
   user_id: string;
@@ -54,6 +65,7 @@ export interface JobDetail {
   updated_at: string;
   media: JobMediaReference;
   model: JobModelReference | null;
+  result?: JobResultReferences;
 }
 
 export interface JobListResponse {
@@ -115,6 +127,90 @@ export interface ModelListResponse {
   total: number;
   limit: number;
   offset: number;
+}
+
+export interface JobSummaryResponse {
+  job_id: string;
+  status: JobStatus | string;
+  summary: Record<string, unknown> | null;
+}
+
+export interface JobResultResponse {
+  job_id: string;
+  status: JobStatus | string;
+  summary: Record<string, unknown> | null;
+  media: JobDownloadReference;
+  csv: JobDownloadReference;
+  json: JobDownloadReference;
+}
+
+export interface DetectionResponse {
+  id: string;
+  job_id: string;
+  media_file_id: string;
+  frame_index: number;
+  timestamp_ms: number;
+  class_id: number;
+  class_name: string;
+  confidence: number;
+  bbox_x1: number;
+  bbox_y1: number;
+  bbox_x2: number;
+  bbox_y2: number;
+  center_x: number;
+  center_y: number;
+  bbox_width: number;
+  bbox_height: number;
+  frame_width: number;
+  frame_height: number;
+  track_id: number | null;
+  created_at: string;
+}
+
+export interface DetectionListResponse {
+  items: DetectionResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface TrackResponse {
+  id: string;
+  job_id: string;
+  track_id: number;
+  class_name: string;
+  first_frame_index: number;
+  last_frame_index: number;
+  frames_count: number;
+  average_confidence: number | null;
+  max_confidence: number | null;
+  created_at: string;
+}
+
+export interface TrackListResponse {
+  items: TrackResponse[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface JobListParams {
+  limit?: number;
+  offset?: number;
+  status?: string;
+  media_type?: string;
+  model_version_id?: string;
+  created_from?: string;
+  created_to?: string;
+}
+
+export interface DetectionListParams {
+  limit?: number;
+  offset?: number;
+  frame_index?: number;
+  min_confidence?: number;
+  max_confidence?: number;
+  track_id?: number;
 }
 
 export interface AdminStatsResponse {

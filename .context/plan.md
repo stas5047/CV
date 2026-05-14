@@ -1,153 +1,93 @@
-# Plan - Phase 26 Frontend Upload and Processing Page
+# Plan - Phase 27
 
-## Scope
+1. `@role/developer-frontend` Add Phase 27 API types in `frontend/src/api/types.ts` for job result metadata, detections, tracks, and list responses from `backend/app/schemas/jobs.py`.
+   - Verify TypeScript types match existing backend field names and do not add undocumented fields.
 
-Phase only:
+2. `@role/developer-frontend` Add `frontend/src/api/jobs.ts` with functions for:
+   - `GET /jobs`
+   - `GET /jobs/{jobId}`
+   - `GET /jobs/{jobId}/summary`
+   - `GET /jobs/{jobId}/detections`
+   - `GET /jobs/{jobId}/tracks`
+   - `GET /jobs/{jobId}/result`
+   - authenticated download by backend-provided download URL.
+   - authenticated processed-media preview blob by backend-provided download/preview URL, with object URL cleanup.
+   - Verify all paths stay under `/api` through existing client config and no storage path is constructed.
 
-- Implement production `/upload` page.
-- Use existing backend REST APIs.
-- Base frontend layout/interaction on `prototype/upload.jsx`.
-- Keep all visible UI text Ukrainian.
+3. `@role/developer-frontend` Create shared Phase 27 formatting helpers for status labels, media type labels, dates, duration, confidence, timestamps, bounding boxes, counts, and safe missing-value placeholders.
+   - Verify helpers never return raw `null`, `undefined`, absolute paths, or `frame_stride`.
 
-Out of scope:
+4. `@role/developer-frontend` Implement `/jobs` page from prototype structure:
+   - header with upload action;
+   - search/local filename filter only across the currently loaded page, with Ukrainian wording that does not imply whole-history search;
+   - backend-backed status and media type filters;
+   - date filters only using `created_from`/`created_to`;
+   - optional model filter only if backed by existing `/models`;
+   - paginated table;
+   - loading skeleton;
+   - API error state with retry;
+   - no-jobs and no-results Ukrainian empty states.
+   - Verify regular user page uses `/api/jobs`, not `/api/admin/jobs`.
 
-- Jobs history page.
-- Job details page.
-- Model registry management.
-- Experiments page.
-- Admin page.
-- Backend, DB, CV worker, Docker, training, product docs.
+5. `@role/developer-frontend` Implement `/jobs/:jobId` page from prototype structure:
+   - back link;
+   - status badge;
+   - queued/processing progress and last update/heartbeat;
+   - safe failed-job error area;
+   - media metadata and authenticated blob preview with object URL cleanup, or Ukrainian preview-unavailable notice;
+   - summary cards;
+   - processing parameters without `frame_stride`;
+   - downloads block;
+   - detections table;
+   - video-only tracks table;
+   - no-detection and no-track Ukrainian empty states.
+   - Verify CV output wording stays detection/tracking/image-space only.
 
-## Ordered Atomic Plan
+6. `@role/developer-frontend` Add polling behavior for job details.
+   - Poll while status is `queued` or `processing`.
+   - Stop polling after `completed`, `failed`, or `cancelled`.
+   - Refresh result/detection/track queries after completion.
+   - Verify polling does not run for terminal jobs.
 
-1. `@role/developer-frontend` Add upload API contract types.
-   - Modify `frontend/src/api/types.ts`.
-   - Add `MediaResponse`, `MediaListResponse`, `JobCreateRequest`, and any upload-page-only helper union types needed from existing backend schemas.
-   - Verifiable: TypeScript knows media upload response and job-create payload fields; no `frame_stride` field exists in frontend job-create type.
+7. `@role/developer-frontend` Wire real page modules into `frontend/src/App.tsx` and remove only the jobs/detail imports from placeholder usage.
+   - Verify `/models`, `/experiments`, and `/admin` placeholders remain unchanged for later phases.
 
-2. `@role/developer-frontend` Add upload API helper module.
-   - Create `frontend/src/api/upload.ts`.
-   - Implement:
-     - `uploadMedia(file: File)` -> `POST /media` with `FormData` key `file`.
-     - `listModelsForUpload()` -> `GET /models?limit=100`.
-     - `createProcessingJob(payload: JobCreateRequest)` -> `POST /jobs`.
-     - `getProcessingJob(jobId: string)` -> `GET /jobs/{jobId}`.
-   - Verifiable: mocked fetch sees exact paths and payload shapes.
+8. `@role/developer-frontend` Add focused tests for jobs list route.
+   - Verify protected `/jobs` renders table data.
+   - Verify unauthenticated `/jobs` redirects to login, or explicitly verify existing protected-route tests cover the final `/jobs` route entry.
+   - Verify filters produce documented query params.
+   - Verify empty/no-results states.
+   - Verify detail links.
+   - Verify no raw `null`, `undefined`, absolute path, or `frame_stride`.
 
-3. `@role/developer-frontend` Add focused upload page tests before implementation.
-   - Create `frontend/src/test/upload-page.test.tsx`.
-   - Cover protected route render, file validation, valid image upload/job creation, valid video tracker payload, polling status block, Ukrainian errors, model empty/error behavior, safe API-error mapping, and absence of `frame_stride`/raw `null`.
-   - Verifiable: tests fail against current placeholder because real controls/API calls do not exist.
+9. `@role/developer-frontend` Add focused tests for job details route.
+   - Verify unauthenticated `/jobs/:jobId` redirects to login, or explicitly verify existing protected-route tests cover the final `/jobs/:jobId` route entry.
+   - Verify completed image/video rendering.
+   - Verify queued/processing progress state.
+   - Verify failed state hides raw backend internals.
+   - Verify no-detection empty state is not error.
+   - Verify downloads use backend endpoints.
+   - Verify track table appears only for video jobs with tracks.
 
-4. `@role/developer-frontend` Replace route placeholder wiring.
-   - Create `frontend/src/pages/UploadPage.tsx`.
-   - Modify `frontend/src/App.tsx` to import `UploadPage` from new page file.
-   - Remove only upload placeholder export/import from `frontend/src/pages/placeholders.tsx`; leave later-phase placeholders intact.
-   - Verifiable: `/upload` route renders new page under existing `ProtectedRoute` and `AppShell`.
+10. `@role/tester` Run `cd frontend; npm run lint`.
+    - PASS required before completion, or document exact blocker.
 
-5. `@role/developer-frontend` Build upload page shell from prototype.
-   - Implement page header, two-column desktop grid, mobile single-column collapse, drag/drop zone, hidden file input, and parameter panel.
-   - Use current `av-card`, `av-label`, `Button`, `Input`, Tailwind v3, and `@radix-ui/react-icons`.
-   - Verifiable: page resembles `prototype/upload.jsx` structure while fitting production shell.
+11. `@role/tester` Run `cd frontend; npm test`.
+    - PASS required before completion, or document exact blocker.
 
-6. `@role/developer-frontend` Implement client-side file selection validation.
-   - Validate extension against `.jpg`, `.jpeg`, `.png`, `.webp`, `.mp4`, `.avi`, `.mov`, `.mkv`.
-   - Show documented default size guidance: image <= 20 MB, video <= 500 MB.
-   - Treat backend as canonical for size because `MAX_IMAGE_SIZE_MB` and `MAX_VIDEO_SIZE_MB` are configurable. Do not make default sizes an immutable blocking rule unless a documented frontend config source exists.
-   - Show Ukrainian inline errors.
-   - Clear existing job state when new file is selected.
-   - Verifiable: invalid extension tests do not call upload API; backend too-large or client-configured too-large failures render Ukrainian errors.
+12. `@role/tester` Run `cd frontend; npm run build`.
+    - PASS required before completion, or document exact blocker.
 
-7. `@role/developer-frontend` Implement selected-file metadata and practical preview.
-   - Show sanitized browser filename, media type label, size, and available dimensions/duration after backend upload when known.
-   - Use object URL preview only where safe and clean up URL on file change/unmount.
-   - Show Ukrainian fallback when preview unavailable.
-   - Verifiable: no raw `null`, `undefined`, or absolute path text appears.
+13. `@role/tester` Run manual browser smoke when implementation is ready and local frontend can run:
+    - Check `/jobs` at desktop and narrow widths.
+    - Check `/jobs/:jobId` completed, no-detection, failed, and queued/processing states where fixtures or backend data make practical.
+    - Check download buttons trigger through backend endpoints without exposing absolute paths.
+    - Check video preview unavailable state keeps download action available.
+    - PASS required before completion, or document exact blocker/not available.
 
-8. `@role/developer-frontend` Implement model selector loading states.
-   - Fetch models with TanStack Query.
-   - Preselect active model when present, otherwise first listed model.
-   - Render skeleton/loading, empty, and error states in Ukrainian.
-   - If no valid model is selectable, do not send stale model IDs. On submit, omit `model_version_id` and let backend model-selection rules resolve the active/default model, while showing a safe Ukrainian notice. If model loading failed and implementation cannot prevent stale selection, block submit with a safe Ukrainian error.
-   - Do not display `weights_path`.
-   - Verifiable: tests cover loaded, empty, and failed model list; no-model job payload omits `model_version_id` or submit blocks safely; rendered UI does not show storage paths.
+14. `@role/code-reviewer` Review Phase 27 frontend diff against `docs/FRONTEND_UX.md`, `docs/API.md`, `docs/CV_PIPELINE.md`, and this contract.
+    - Verify no source-of-truth drift, no admin/global route creep, no unsafe paths/errors, no non-Ukrainian visible UI, no download auth issue, no `frame_stride`, no CV-only boundary violation.
 
-9. `@role/developer-frontend` Implement processing controls.
-   - Confidence slider/input default `0.25`, range `0` to `1`.
-   - IoU slider/input default `0.45`, range `0` to `1`.
-   - Video-only tracker selector with `bytetrack` default and `botsort` alternative.
-   - Hide tracker selector for image files.
-   - Verifiable: image job payload omits `tracker_type`; video job payload includes selected lowercase tracker.
-
-10. `@role/developer-frontend` Implement submit flow.
-    - Disable submit when no file, extension validation error, upload/job request pending, or current job is queued/processing. Model query loading may disable submit, but empty model list must not force stale model selection.
-    - On submit: upload media first, then create job.
-    - Job payload includes only documented fields.
-    - Map common backend errors to safe Ukrainian messages.
-    - Never display raw backend `detail` values directly when they are English, stack-like, token-like, or path-like.
-    - Verifiable: mocked valid file sends `POST /api/media`, then `POST /api/jobs`; no `frame_stride` in request body; English/path-like backend errors are not rendered raw.
-
-11. `@role/developer-frontend` Implement status/progress block.
-    - After job creation, show job ID, Ukrainian status badge, progress bar, percentage, and last update time when available.
-    - Poll `GET /api/jobs/{jobId}` while status is `queued` or `processing`.
-    - Stop polling for `completed`, `failed`, or `cancelled`.
-    - Completed state links to `/jobs/{jobId}`.
-    - Failed/cancelled state shows safe Ukrainian message.
-    - Verifiable: tests transition queued -> processing -> completed/failed.
-
-12. `@role/developer-frontend` Add narrow styling only if needed.
-    - Modify `frontend/src/index.css` only for reusable upload/progress helpers not expressible cleanly with current utilities.
-    - Keep palette aligned with prototype/current app: dark neutral surfaces, green accent, compact cards, no neon/purple/glow, no emoji.
-    - Verifiable: CSS remains Tailwind v3-compatible and no `h-screen` full-height section is introduced.
-
-13. `@role/tester` Run focused frontend checks.
-    - From `frontend/`, run `npm run lint`.
-    - From `frontend/`, run `npm test`.
-    - From `frontend/`, run `npm run build`.
-    - Verifiable: each command returns PASS or documented FAIL with exact cause.
-
-14. `@role/tester` Do manual responsive/upload smoke when runtime is available.
-    - Start frontend with `npm run dev -- --port 5173`.
-    - Open `/upload` as authenticated user.
-    - Check desktop and narrow viewport layout.
-    - Compare against `prototype/upload.jsx` for intended upload layout, controls, and status block.
-    - If backend is running, upload a small valid image and create a job.
-    - Verifiable: route protected, layout usable, job status block appears.
-
-15. `@role/code-reviewer` Audit final diff against docs.
-    - Check `docs/FRONTEND_UX.md`, `docs/API.md`, `docs/AUTH_SECURITY.md`, `docs/CV_PIPELINE.md`, and `docs/TESTING_QA.md`.
-    - Verify Ukrainian visible text, no `frame_stride`, no raw `null`, no unsafe paths, no frontend storage/DB/CV access, no out-of-scope CV wording, and backend auth remains source of truth.
-    - Verifiable: review notes no product-doc mismatch or lists exact required fixes.
-
-## Quality Gates For This Phase
-
-- `cd frontend; npm run lint`
-- `cd frontend; npm test`
-- `cd frontend; npm run build`
-
-Manual gate when backend/dev server available:
-
-- authenticated `/upload` browser smoke with valid image upload/job creation
-
-## Security/Privacy Checks
-
-- Frontend does not send or expose `frame_stride`.
-- Frontend does not display `weights_path`, internal stored paths, absolute filesystem paths, tokens, or raw backend internals.
-- Frontend does not let client-side validation replace backend validation.
-- Frontend does not hard-code backend-configurable upload size limits as immutable product rules unless backed by documented frontend config.
-- Frontend maps raw backend error details to safe Ukrainian messages before display.
-- Frontend uses existing bearer-token API client only.
-- Frontend does not add targeting, navigation, interception, aiming, payload, or hardware-control wording.
-
-## Docs/Index Updates
-
-Skip product docs. This phase does not change documented commands, env vars, file paths, product behavior, or setup flow.
-
-Update `frontend/index.md` only if implementation creates/renames frontend files and workflow rules require component index freshness. This planning-only task does not update it.
-
-## Remaining Risks
-
-- Backend may return English `detail` strings; upload page must map them to safe Ukrainian messages.
-- Model list can be empty or fail to load; implementation must omit `model_version_id` safely or block without stale IDs.
-- Browser preview support differs by codec/container; metadata plus fallback notice is acceptable.
-- Full upload smoke requires running backend with auth and model setup; automated frontend tests should mock APIs when backend is unavailable.
+15. `@role/docs-maintainer` Update no product docs by default.
+    - Only update `frontend/index.md` if implementation changes current frontend state description or commands.
+    - Verify no edits to product docs unless command/structure changes require it.

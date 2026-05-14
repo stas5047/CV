@@ -6,6 +6,8 @@ import { ProtectedRoute } from "./auth/ProtectedRoute";
 import type { AuthApi } from "./api/auth";
 import { AppShell } from "./layout/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
+import { JobDetailsPage } from "./pages/JobDetailsPage";
+import { JobsPage } from "./pages/JobsPage";
 import { UploadPage } from "./pages/UploadPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -13,8 +15,6 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import {
   AdminPage,
   ExperimentsPage,
-  JobDetailsPage,
-  JobsPage,
   ModelsPage,
 } from "./pages/placeholders";
 

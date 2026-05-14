@@ -1,16 +1,17 @@
-# Phase 26 Code Review Resolution
+# Code Review Resolution - Phase 27
 
 ## Verdict: FIXED
 
-OpenAI code review verdict was `APPROVED_WITH_CHANGES`. No Claude code review content was available. All review items are resolved below. No item needs user decision.
+OpenAI review verdict was `APPROVED_WITH_CHANGES`. No Claude code review file exists in this checkout. All review items are doc-consistent and accepted. No item needs user decision.
 
 ## Resolution table
 
-| Priority | ID | Review item | Resolution | Rationale | Fix plan |
+| ID | Priority | Review item | Resolution | Reason | Fix target |
 |---|---|---|---|---|---|
-| important | I1 | User-facing upload copy includes English `Backend`. | accepted | `docs/FRONTEND_UX.md` requires visible UI text to be Ukrainian; `Backend` is not an accepted technical label for user-facing copy. | Replace user-facing `Backend` with Ukrainian wording and update tests. |
-| important | I2 | Failed job-creation and failed status states are not covered by tests. | accepted | `docs/phase.md` requires Ukrainian failed job-creation errors and queued/processing/completed/failed status block coverage. | Add targeted tests for job-create failure and failed job status rendering. |
-| important | I3 | Diff whitespace gate fails on `docs/phase.md:3`. | accepted | Diff cleanliness gate is red; removing trailing whitespace is low-risk in touched phase doc. | Remove trailing whitespace and ensure newline at EOF. |
+| OAI-I1 | important | Diff whitespace gate fails on `docs/phase.md:3`. | accepted | Whitespace cleanup is low-risk and unblocks review hygiene. | Remove trailing whitespace. |
+| OAI-I2 | important | Jobs page omits model filter despite existing `model_version_id` API support. | accepted | Phase 27 says model filter where practical; backend and model list API support it. | Add model selector backed by `/api/models` and pass `model_version_id`. |
+| OAI-I3 | important | Jobs page API error contains English visible copy `backend API`. | accepted | Visible errors must be Ukrainian except accepted technical labels. | Replace with Ukrainian wording. |
+| OAI-I4 | important | `apiBlobRequest` can send bearer token to arbitrary absolute URL. | accepted | Security/privacy issue; downloads/previews must stay on backend API. | Restrict blob URLs to API-relative or same API origin/path before attaching token. |
 
 ## Accepted critical fixes
 
@@ -18,9 +19,10 @@ OpenAI code review verdict was `APPROVED_WITH_CHANGES`. No Claude code review co
 
 ## Accepted important fixes
 
-- I1: Replace English `Backend` in upload model-list states with Ukrainian wording.
-- I2: Add upload tests for job-create rejection and failed job status rendering.
-- I3: Clean trailing whitespace in `docs/phase.md`.
+- Remove trailing whitespace in `docs/phase.md`.
+- Add backend-backed model filter to `/jobs`.
+- Replace English-facing jobs error wording.
+- Guard authenticated blob fetches against external absolute URLs.
 
 ## Accepted optional fixes
 
@@ -40,16 +42,17 @@ OpenAI code review verdict was `APPROVED_WITH_CHANGES`. No Claude code review co
 
 ## Fixes applied
 
-- `frontend/src/pages/upload/UploadPageParts.tsx`: replaced user-facing English `Backend` with Ukrainian `система` wording in model-list empty/error states.
-- `frontend/src/test/upload-page.test.tsx`: added job-create failure coverage, failed job status coverage, and updated empty-model expectation.
-- `docs/phase.md`: removed trailing whitespace and restored clean EOF.
-- `.context/status.md`: updated final fix status and verification.
+- Removed trailing whitespace from `docs/phase.md`.
+- Added `listJobFilterModels()` and `/jobs` model selector backed by `/api/models?limit=100`.
+- Wired selected model to `model_version_id` query param and reset pagination on model changes.
+- Replaced visible English jobs-list error copy with Ukrainian server wording.
+- Restricted `apiBlobRequest()` to API-relative or same API origin/path URLs before applying bearer auth.
+- Added frontend tests for model filter query params and external download URL blocking.
 
 ## Final verification
 
-- `cd frontend; npm test -- src/test/upload-page.test.tsx`: PASS, 9 tests.
 - `cd frontend; npm run lint`: PASS.
-- `cd frontend; npm test`: PASS, 22 tests.
+- `cd frontend; npm test`: PASS, 33 tests passed.
 - `cd frontend; npm run build`: PASS.
-- `git diff --check`: PASS, line-ending warnings only.
-- Manual browser/prototype smoke: BLOCKED. Browser plugin tool is unavailable in this session; Playwright Node package is not installed locally, and `npx -p playwright node -` could not resolve `playwright` for a mocked screenshot script.
+- `git diff --check`: PASS.
+- Manual browser smoke: not available; same tooling blocker remains from implementation status.

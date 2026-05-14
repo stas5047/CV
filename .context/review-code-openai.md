@@ -2,9 +2,9 @@
 
 ## Summary
 
-Phase 26 implementation is mostly scoped and doc-consistent: `/upload` is protected, it uses existing REST endpoints only, sends documented job fields, omits `frame_stride`, keeps backend upload validation canonical, handles empty model selection by omitting `model_version_id`, and frontend lint/test/build pass.
+Phase 27 implementation is mostly doc-consistent: `/jobs` and `/jobs/:jobId` are protected, use backend REST APIs only, avoid `/api/admin/jobs`, keep `frame_stride` hidden, use authenticated blob downloads/previews, and cover main list/detail/no-detection/failed states with frontend tests. Lint, tests, and build pass.
 
-Approval needs changes because user-facing upload copy contains English developer terminology, relevant failure-state tests are missing, and `rtk git diff --check` is red.
+Approval needs changes because one diff cleanliness gate is red, the documented model filter is missing despite existing API support, one visible error message contains English product-facing copy, and the new blob helper can send bearer tokens to arbitrary absolute URLs.
 
 ## Critical issues
 
@@ -12,21 +12,25 @@ None.
 
 ## Important issues
 
-1. User-facing upload copy includes English `Backend`.
-   - Evidence: `frontend/src/pages/upload/UploadPageParts.tsx:90` renders `якщо backend має активну модель`.
-   - Evidence: `frontend/src/pages/upload/UploadPageParts.tsx:98` renders `Backend застосує активну модель`.
-   - Evidence: `docs/FRONTEND_UX.md:37-51` requires visible frontend text, including errors, empty states, and helper text, to be Ukrainian. English exceptions in `docs/FRONTEND_UX.md:53-60` do not include `Backend` as user-facing copy.
-   - Impact: `/upload` violates Ukrainian UI invariant for model-list error/empty states. Replace with Ukrainian wording such as "сервер" or "система" and update tests that currently expect `Backend`.
-
-2. Failed job-creation and failed status states are not covered by tests.
-   - Evidence: `docs/phase.md:40` requires failed job creation to show Ukrainian errors.
-   - Evidence: `docs/phase.md:42` requires status block to render queued/processing/completed/failed states.
-   - Evidence: `frontend/src/test/upload-page.test.tsx` covers unsupported extension, successful image/video job creation, failed media upload, empty model list, and completed polling, but does not mock `POST /api/jobs` failure or a `failed` job detail/status.
-   - Impact: key Phase 26 failure paths can regress while `npm test` stays green. Add targeted tests for job-create rejection and `failed` job status rendering.
-
-3. Diff whitespace gate fails.
+1. Diff whitespace gate fails.
    - Evidence: `rtk git diff --check` fails with `docs/phase.md:3: trailing whitespace`.
-   - Impact: basic diff cleanliness gate is red before review resolution.
+   - Impact: review gate is red even though frontend lint/test/build pass.
+
+2. Jobs page omits the model filter required by the phase when practical.
+   - Evidence: `docs/phase.md` says Phase 27 filters include status, media type, date, and model where practical.
+   - Evidence: `docs/API.md` lists `model version` as a jobs filter, and `backend/app/api/jobs.py` accepts `model_version_id`.
+   - Evidence: `frontend/src/pages/JobsPage.tsx:24-45` tracks and sends only status, media type, `created_from`, and `created_to`; no model state or `model_version_id` query param is wired.
+   - Impact: users cannot filter job history by model even though backend support exists and the page already displays model names.
+
+3. Jobs API error copy includes English visible UI text.
+   - Evidence: `frontend/src/pages/JobsPage.tsx:62` renders `backend API` inside a user-facing Ukrainian error message.
+   - Evidence: `docs/FRONTEND_UX.md` requires visible frontend errors/messages to be Ukrainian; accepted English exceptions include technical labels like `FPS`, `YOLO`, `CSV`, `JSON`, not `backend API`.
+   - Impact: Phase 27 violates the Ukrainian UI invariant on failed jobs-list loading.
+
+4. Blob download helper can leak bearer tokens to absolute external URLs.
+   - Evidence: `frontend/src/api/client.ts:65` accepts any `path.startsWith("http")` URL as-is.
+   - Evidence: `frontend/src/api/client.ts:67-68` then attaches `Authorization: Bearer ...` to that URL.
+   - Impact: if a malformed or compromised API response returns an absolute external `download_url`, the frontend sends the JWT to that host. Result downloads should be restricted to same-origin/API-relative URLs.
 
 ## Optional issues
 
@@ -34,30 +38,24 @@ None.
 
 ## Quality gate assessment
 
-- `rtk git status --short`: PASS for inspection; changed files match Phase 26 frontend/context surface, with untracked upload implementation files present.
-- `rtk git diff --stat`: PASS for inspection.
-- `rtk git diff`: PASS for inspection.
-- `cd frontend; npm run lint`: PASS.
-- `cd frontend; npm test`: PASS, 20 tests passed.
-- `cd frontend; npm run build`: PASS.
+- `npm run lint`: PASS.
+- `npm test`: PASS, 32 tests passed.
+- `npm run build`: PASS.
 - `rtk git diff --check`: FAIL, `docs/phase.md:3: trailing whitespace`.
-- Manual browser/prototype smoke: not completed in `.context/status.md`; status records only HTTP 200 for `/upload` and Browser plugin unavailable. This remains a QA gap for prototype-driven frontend work, but no concrete visual defect was found from code inspection.
+- Manual browser smoke: not run in this review; `.context/status.md` says it was not available in the implementation session.
 
 ## Security/privacy assessment
 
-- No frontend PostgreSQL, shared-storage, or direct CV inference access found.
-- Upload/job requests use backend REST API helpers only: `POST /api/media`, `GET /api/models?limit=100`, `POST /api/jobs`, `GET /api/jobs/{jobId}`.
-- `frame_stride` is not present in `JobCreateRequest` and is not sent by `UploadPage`.
-- Raw backend error details are not rendered for media upload failure; path-like backend detail is covered by test.
-- `weights_path` is present in the API type but not rendered by the upload page.
+Backend remains the authorization authority, and the new pages use protected backend endpoints rather than storage paths. Failed job internals are not rendered. Main remaining risk is the absolute-URL bearer-token leak in `apiBlobRequest`.
 
 ## Positive findings
 
-- Upload flow correctly sends `FormData` field `file` before creating the job.
-- Image jobs omit `tracker_type`; video jobs send lowercase `bytetrack`/`botsort`, matching backend schema.
-- Empty model list safely omits `model_version_id`, aligning with backend model-selection priority.
-- Selected-file object URLs are revoked on file change/unmount.
-- Upload page structure follows prototype shape: drag/drop area, two-column desktop layout, parameter panel, status/progress block, and mobile grid collapse.
+- `/jobs` and `/jobs/:jobId` are routed under `ProtectedRoute`.
+- Regular jobs page uses `/api/jobs`, not admin/global job endpoints.
+- Result preview and downloads use authenticated blob fetches, with object URL cleanup.
+- No-detection completed jobs render as a successful empty state with downloads still available.
+- Job details avoid rendering raw `error_message`, `frame_stride`, storage roots, or absolute paths in tested states.
+- Frontend tests cover route protection, list rendering, filtering, details rendering, downloads, no-detection, failed-state safety, and video-only tracks.
 
 ## Files consulted
 
@@ -68,7 +66,6 @@ None.
 - `docs/phase.md`
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/CV_PIPELINE.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
@@ -80,15 +77,19 @@ None.
 - `frontend/index.md`
 - `frontend/src/App.tsx`
 - `frontend/src/api/client.ts`
+- `frontend/src/api/jobs.ts`
 - `frontend/src/api/types.ts`
-- `frontend/src/api/upload.ts`
-- `frontend/src/pages/UploadPage.tsx`
-- `frontend/src/pages/placeholders.tsx`
-- `frontend/src/pages/upload/UploadPageParts.tsx`
-- `frontend/src/pages/upload/uploadUtils.ts`
-- `frontend/src/test/upload-page.test.tsx`
-- `prototype/upload.jsx`
-- `prototype/styles.css`
+- `frontend/src/pages/JobsPage.tsx`
+- `frontend/src/pages/JobDetailsPage.tsx`
+- `frontend/src/pages/jobs/jobFormatters.ts`
+- `frontend/src/pages/jobs/JobPageParts.tsx`
+- `frontend/src/test/jobs-page.test.tsx`
+- `frontend/src/test/job-details-page.test.tsx`
+- `backend/app/api/jobs.py`
 - `backend/app/schemas/jobs.py`
-- `backend/app/services/jobs.py`
-- `backend/tests/test_jobs_api.py`
+- `backend/app/services/results.py`
+- `prototype/jobs.jsx`
+- `prototype/job-detail.jsx`
+- `rtk git status --short`
+- `rtk git diff --stat`
+- `rtk git diff`

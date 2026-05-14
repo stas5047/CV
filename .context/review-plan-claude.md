@@ -1,10 +1,12 @@
-# Verdict: APPROVED_WITH_CHANGES
+# Independent Planning Review - Phase 27
+
+## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Phase 26 plan is mostly aligned with `docs/phase.md`, frontend/backend boundaries, API contracts, prototype direction, and CV-only scope. Planned implementation stays frontend-only, uses existing REST APIs, keeps `/upload` protected, avoids `frame_stride`, uses Ukrainian visible text, and includes focused frontend gates.
+Phase 27 contract is mostly aligned with documented frontend/API/CV boundaries. Plan keeps work frontend-only, uses backend REST endpoints, preserves Ukrainian UI rules, avoids admin/global scope creep, and includes relevant unit/build gates.
 
-No blocking product-doc conflict found. Important issues below should be addressed before or during implementation because they affect real upload behavior, model fallback behavior, and safe error display.
+Changes needed before implementation are verification and one implementation-detail hardening item: route protection coverage, authenticated preview/download behavior, and manual UI/download smoke.
 
 ## Blocking issues
 
@@ -12,39 +14,32 @@ None.
 
 ## Important issues
 
-1. Client-side size validation hard-codes default limits as blocking rules.
+1. Authenticated media preview is not explicit enough in the numbered plan.
+   - Evidence: `docs/API.md` says result downloads are protected and must validate ownership/admin before serving files. `docs/FRONTEND_UX.md` requires processed media preview and download buttons. `.context/design.md` correctly notes preview may need authenticated blob fetching, but `.context/plan.md` step 5 only says "media metadata and preview/download notice" and step 2 only covers authenticated download.
+   - Risk: implementation may use direct `<img>`/`<video src>` against protected endpoints without `Authorization`, causing preview failure, or may be tempted to expose unsafe paths.
+   - Required change: add an implementation step or acceptance check for authenticated blob preview URLs for image/video when preview is available, with object URL cleanup, and Ukrainian unavailable-preview fallback when browser preview cannot be provided.
 
-Evidence: `.context/plan.md:55` says to validate image `<= 20 MB` and video `<= 500 MB`. `docs/AUTH_SECURITY.md:232`, `docs/AUTH_SECURITY.md:236`, and `docs/AUTH_SECURITY.md:237` say upload limits are configurable through `MAX_IMAGE_SIZE_MB` and `MAX_VIDEO_SIZE_MB`.
+2. Route protection test coverage is underspecified for the new routes.
+   - Evidence: `docs/FRONTEND_UX.md` requires protected routes to redirect guests. `docs/TESTING_QA.md` frontend route tests explicitly include `/jobs` and `/jobs/:jobId`. `.context/plan.md` tests verify data rendering, filters, links, and details states, but not guest redirect/unauthenticated access for `/jobs` and `/jobs/:jobId`.
+   - Risk: new route wiring in `App.tsx` could accidentally bypass existing guard.
+   - Required change: either add focused tests for guest redirect on both new routes or explicitly verify existing protected-route tests cover these exact route entries after route rewiring.
 
-Risk: Frontend can reject files that backend would accept in an environment with higher configured limits. Backend must remain canonical for upload validation.
-
-Expected change: Keep documented defaults as user guidance unless frontend has a documented config source. If frontend blocks by size, make that limit traceable to frontend config or document it as a default-only UX guard. Tests should not make backend-configurable limits look like immutable product rules.
-
-2. Empty/error model-list behavior needs explicit implementation and test coverage.
-
-Evidence: `.context/plan.md:32` loads models through `GET /models?limit=100`; `.context/plan.md:81` disables submit only while model query is loading, but does not explicitly define payload behavior when model list is empty or failed. `docs/FRONTEND_UX.md:185` requires defaults so a user can process without changing settings. `docs/CV_PIPELINE.md:121` through `docs/CV_PIPELINE.md:127` define backend model selection priority when a job has no explicit model version.
-
-Risk: Implementation may either block valid uploads when no model list renders, or accidentally send stale/invalid model IDs. Both break documented model-resolution flow.
-
-Expected change: Add explicit behavior and test: with no selectable model, submit should omit `model_version_id` and show safe Ukrainian notice, or clearly block with a product-consistent reason if backend cannot resolve a model. Do not invent frontend model fallback beyond API/CV rules.
-
-3. Safe API-error mapping needs a concrete negative test.
-
-Evidence: `.context/plan.md:144` notes backend may return English `detail` strings and frontend must map them. `docs/FRONTEND_UX.md:387` requires API errors to be translated or mapped into useful Ukrainian UI messages. `docs/AUTH_SECURITY.md:346` says API responses must not expose stack traces.
-
-Risk: Upload/job failures may surface raw English backend details, stack-like text, tokens, or path-like internals in the UI.
-
-Expected change: Add test coverage for failed `POST /api/media` or `POST /api/jobs` with an English/path-like `detail`, asserting a safe Ukrainian message is rendered and raw backend detail is not.
+3. Manual UI/download smoke is present in design but missing from execution steps.
+   - Evidence: Phase 27 validation in `docs/phase.md` requires "Downloads work from UI." `docs/TESTING_QA.md` includes manual E2E download checks. `.context/design.md` lists manual browser smoke, but `.context/plan.md` steps 10-12 stop at lint/test/build.
+   - Risk: authenticated blob downloads, video-preview fallback, table overflow, and polling transitions may pass unit tests but fail in browser.
+   - Required change: add a tester step for manual browser smoke of `/jobs` and `/jobs/:jobId`, including completed, no-detection, failed, and processing states where fixtures/mocks make practical, plus download button behavior.
 
 ## Optional improvements
 
-1. `docs/FRONTEND_UX.md:49` and `docs/FRONTEND_UX.md:434` mention toast notifications for success/errors. Current plan allows inline states because no toast primitive exists. Inline is acceptable for Phase 26 if kept polished, but adding a narrow reusable toast later may better match frontend docs.
+1. Clarify local filename search scope.
+   - `.context/plan.md` allows client-side search on the loaded page. If pagination remains server-backed, label behavior clearly or omit search to avoid implying whole-history search.
 
-2. Manual smoke can include quick comparison against `prototype/upload.jsx` desktop and mobile layout, since user explicitly requires production frontend to be based on prototype.
+2. Keep model filter conditional.
+   - `.context/plan.md` already says model filter only if backed by `/models`. Preserve this during implementation; do not add inert/fake filter UI.
 
 ## Questions for resolution
 
-None. Risk placeholder was not filled by user; research assumed MEDIUM, which is reasonable for this frontend/API integration phase.
+None.
 
 ## Files consulted
 
@@ -53,14 +48,10 @@ None. Risk placeholder was not filled by user; research assumed MEDIUM, which is
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
+- `docs/FRONTEND_UX.md`
+- `docs/API.md`
+- `docs/CV_PIPELINE.md`
+- `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
-- `docs/FRONTEND_UX.md`
-- `docs/API.md`
-- `docs/AUTH_SECURITY.md`
-- `docs/CV_PIPELINE.md`
-- `docs/TESTING_QA.md`
-- `prototype/upload.jsx`
-- `prototype/styles.css`
-- `frontend/package.json`
