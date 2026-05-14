@@ -1,8 +1,10 @@
 import logging
+from datetime import UTC, datetime
+from types import SimpleNamespace
 
 from aerovision_worker import main as worker_main
 from aerovision_worker.device import DeviceUnavailableError
-from aerovision_worker.main import run_startup_checks
+from aerovision_worker.main import run_poll_iteration, run_startup_checks
 from aerovision_worker.settings import WorkerSettings
 
 
@@ -63,3 +65,52 @@ def test_run_worker_reports_forced_cuda_failure_without_database_retry(monkeypat
         assert "CUDA requested but unavailable" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("forced CUDA should fail with device-specific error")
+
+
+def test_run_poll_iteration_recovers_stale_jobs_and_fails_placeholder_claim(monkeypatch) -> None:
+    settings = WorkerSettings(
+        database_url="sqlite+pysqlite:///:memory:",
+        stale_job_minutes=10,
+        max_retries=2,
+    )
+    calls: list[tuple[str, object]] = []
+    now = datetime(2026, 5, 14, 12, 0, tzinfo=UTC)
+
+    monkeypatch.setattr(worker_main, "utc_now", lambda: now)
+    monkeypatch.setattr(
+        worker_main,
+        "recover_stale_jobs",
+        lambda *args, **kwargs: calls.append(("recover", kwargs))
+        or SimpleNamespace(requeued=1, failed=0),
+    )
+    monkeypatch.setattr(
+        worker_main,
+        "claim_next_job",
+        lambda *args, **kwargs: calls.append(("claim", kwargs)) or SimpleNamespace(id="job-1"),
+    )
+    monkeypatch.setattr(
+        worker_main,
+        "fail_processing_job",
+        lambda *args, **kwargs: calls.append(("fail", kwargs)) or True,
+    )
+
+    claimed = run_poll_iteration(settings, object(), worker_id="worker-a")
+
+    assert claimed is True
+    assert [name for name, _payload in calls] == ["recover", "claim", "fail"]
+    assert calls[2][1]["error_message"] == worker_main.PLACEHOLDER_PROCESSING_ERROR
+
+
+def test_run_poll_iteration_returns_false_when_no_job_claimed(monkeypatch) -> None:
+    settings = WorkerSettings(database_url="sqlite+pysqlite:///:memory:")
+
+    monkeypatch.setattr(
+        worker_main,
+        "recover_stale_jobs",
+        lambda *args, **kwargs: SimpleNamespace(requeued=0, failed=0),
+    )
+    monkeypatch.setattr(worker_main, "claim_next_job", lambda *args, **kwargs: None)
+
+    claimed = run_poll_iteration(settings, object(), worker_id="worker-a")
+
+    assert claimed is False

@@ -2,12 +2,23 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
+import socket
 import time
 from collections.abc import Callable
+from datetime import timedelta
+from uuid import uuid4
 
 from aerovision_worker.database import check_database, create_session_factory, wait_for_database
 from aerovision_worker.device import select_device
 from aerovision_worker.logging import configure_logging
+from aerovision_worker.queue import (
+    PLACEHOLDER_PROCESSING_ERROR,
+    claim_next_job,
+    fail_processing_job,
+    recover_stale_jobs,
+    utc_now,
+)
 from aerovision_worker.settings import WorkerSettings, get_settings
 
 LOGGER = logging.getLogger("aerovision_worker")
@@ -30,10 +41,47 @@ def run_startup_checks(
     LOGGER.info("database_ready")
 
 
+def build_worker_id() -> str:
+    return f"{socket.gethostname()}-{os.getpid()}-{uuid4().hex[:12]}"
+
+
+def run_poll_iteration(settings: WorkerSettings, session_factory, *, worker_id: str) -> bool:
+    now = utc_now()
+    summary = recover_stale_jobs(
+        session_factory,
+        stale_before=now - timedelta(minutes=settings.stale_job_minutes),
+        max_retries=settings.max_retries,
+        now=now,
+    )
+    if summary.requeued or summary.failed:
+        LOGGER.info(
+            "stale_jobs_recovered requeued=%s failed=%s",
+            summary.requeued,
+            summary.failed,
+        )
+
+    claimed = claim_next_job(session_factory, worker_id=worker_id, now=utc_now())
+    if claimed is None:
+        return False
+
+    LOGGER.info("job_claimed job_id=%s worker_id=%s", claimed.id, worker_id)
+    failed = fail_processing_job(
+        session_factory,
+        job_id=claimed.id,
+        worker_id=worker_id,
+        error_message=PLACEHOLDER_PROCESSING_ERROR,
+        now=utc_now(),
+    )
+    if failed:
+        LOGGER.info("job_failed_placeholder job_id=%s worker_id=%s", claimed.id, worker_id)
+    return True
+
+
 def run_worker(*, check_once: bool = False) -> None:
     configure_logging()
     settings = get_settings()
     session_factory = create_session_factory(settings.database_url)
+    worker_id = build_worker_id()
     run_startup_checks(
         settings,
         check_database=lambda: wait_for_database(
@@ -45,9 +93,14 @@ def run_worker(*, check_once: bool = False) -> None:
     if check_once:
         return
 
-    LOGGER.info("worker_idle processing_not_implemented_in_phase_14")
-    while True:
-        time.sleep(settings.poll_interval_seconds)
+    LOGGER.info("worker_polling_started worker_id=%s", worker_id)
+    try:
+        while True:
+            claimed = run_poll_iteration(settings, session_factory, worker_id=worker_id)
+            if not claimed:
+                time.sleep(settings.poll_interval_seconds)
+    except KeyboardInterrupt:
+        LOGGER.info("worker_shutdown_requested worker_id=%s", worker_id)
 
 
 def main() -> None:

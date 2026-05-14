@@ -1,121 +1,86 @@
-# Plan - Phase 14
+# Phase 15 Plan - PostgreSQL queue claiming, heartbeat, and stale job recovery
 
 ## Scope guard
 
-This plan covers only Phase 14 - CV worker scaffold, settings, logging, and database access. No source code was modified while writing this contract. Future implementation must not add inference, tracking, exports, queue claiming, stale recovery, frontend UI, backend REST routes, or database migrations unless a later phase requires them.
+- Phase only: worker queue claiming, heartbeat/progress helpers, stale recovery, practical shutdown.
+- No backend API changes.
+- No frontend changes.
+- No DB migration unless implementation proves existing schema cannot satisfy docs.
+- No model loading, YOLO inference, image/video processing, tracking, detections, exports, result media writes, or no-detection result generation.
 
-## Ordered atomic steps
+## Ordered implementation plan
 
-1. [@role/developer-cv-worker] Inspect `cv/`, root Compose files, and backend reference helpers before coding.
-   - Verify current worker is placeholder-only.
-   - Verify Compose already passes worker env vars and mounts `./storage:/app/storage`.
-   - Verifiable by: `rg --files cv`, `docker compose --env-file .env.example config`.
+1. `@role/developer-cv-worker` Add focused worker queue code in `cv/aerovision_worker/` using existing DB/session helpers.
+   - Verifiable: worker package still imports without backend package imports.
 
-2. [@role/developer-cv-worker] Scaffold worker Python project under `cv/`.
-   - Add worker dependency manifest with phase-required runtime/test dependencies: SQLAlchemy, PostgreSQL driver, Pydantic settings, PyTorch/Ultralytics placeholder dependencies, `opencv-python-headless`, NumPy, pandas, pytest, and lint tooling.
-   - Do not add Flask, Streamlit, Celery, Redis, or frontend dependencies.
-   - Keep tests import-safe and avoid loading real YOLO models or requiring model artifacts in Phase 14.
-   - Verifiable by: dependency manifest exists and contains only phase-relevant packages.
+2. `@role/developer-cv-worker` Define worker job claim result shape with existing `processing_jobs` fields only.
+   - Verifiable: no new schema fields, routes, or product states.
 
-3. [@role/developer-cv-worker] Add worker settings module.
-   - Read existing env vars: `DATABASE_URL`, `STORAGE_ROOT`, `MODELS_ROOT`, `CV_DEVICE`, `ACTIVE_MODEL_ID`, `WORKER_POLL_INTERVAL_SECONDS`, `WORKER_HEARTBEAT_FRAMES`, `WORKER_HEARTBEAT_SECONDS`, `WORKER_STALE_JOB_MINUTES`, `WORKER_MAX_RETRIES`.
-   - Validate `CV_DEVICE` against `auto`, `cpu`, `cuda`.
-   - Validate numeric worker settings are positive where required.
-   - Redact sensitive values from repr/log-safe output.
-   - Verifiable by targeted settings tests.
+3. `@role/developer-cv-worker` Implement queued-job claim query.
+   - Select oldest non-deleted `status = 'queued'` job ordered by `created_at`.
+   - Use `FOR UPDATE SKIP LOCKED` for PostgreSQL.
+   - Set `status`, `locked_by`, `locked_at`, `started_at`, `last_heartbeat_at`, and `updated_at` in same short transaction.
+   - Verifiable: test sees claimed row moved to `processing` with all required fields set.
 
-4. [@role/developer-cv-worker] Add worker safe logging baseline.
-   - Configure structured console logging.
-   - Redact secret-like keys and raw sensitive setting values.
-   - Allow safe startup events, including selected device.
-   - Do not log raw database URL or absolute storage paths in user-facing messages.
-   - Verifiable by logging redaction tests.
+4. `@role/developer-cv-worker` Ensure claim returns no job cleanly when queue is empty.
+   - Verifiable: empty queue test returns no claimed job and makes no DB changes.
 
-5. [@role/developer-cv-worker] Add device selection helper.
-   - Preserve documented `CV_DEVICE` semantics.
-   - For Phase 14, log desired/selected configuration without requiring real inference or model loading.
-   - `auto` must fall back to CPU when CUDA probe is unavailable.
-   - `cuda` must fail clearly when CUDA is unavailable and must never log CPU-only state as selected CUDA.
-   - Verifiable by unit tests with mocked CUDA availability when implemented.
+5. `@role/developer-cv-worker` Add heartbeat/progress update helper.
+   - Update `progress_percent`, `last_heartbeat_at`, and `updated_at` only for a row matching `job_id`, current worker `locked_by`, and `status = 'processing'`.
+   - Keep progress within `0..100`.
+   - Return or report no update when ownership/status guard fails so stale or superseded workers cannot refresh another worker's claim.
+   - Verifiable: helper test updates heartbeat timestamp and progress for the owner and refuses mismatched `locked_by`.
 
-6. [@role/developer-cv-worker] Add database session/access layer.
-   - Create SQLAlchemy engine/session factory from worker settings.
-   - Add minimal connectivity check helper.
-   - Add bounded PostgreSQL readiness retry or equivalent startup-safe connectivity handling for Compose startup.
-   - Log retry/failure state without exposing `DATABASE_URL`, database password, or absolute paths.
-   - Do not mutate job rows in this phase.
-   - Do not call backend over HTTP.
-   - Verifiable by session helper tests or smoke using configured PostgreSQL.
+6. `@role/developer-cv-worker` Add stale job recovery helper.
+   - Find stale `processing` jobs older than configured threshold with `deleted_at IS NULL`.
+   - Treat missing heartbeat on processing rows as recoverable stale state.
+   - Update rows only while they still match `status = 'processing'` to avoid racing active heartbeats or another recovery pass.
+   - If `retry_count < max_retries`, set job back to `queued`, increment `retry_count`, clear `locked_by`, `locked_at`, `started_at`, and heartbeat fields, clear previous worker error if appropriate, update `updated_at`.
+   - If `retry_count >= max_retries`, set `status = failed`, stable safe timeout `error_message`, `completed_at`, clear lock fields, update `updated_at`.
+   - Verifiable: tests cover reset path, fail path, soft-deleted ignored path, and status guard.
 
-7. [@role/developer-cv-worker] Add storage path resolver.
-   - Accept only relative paths from database fields.
-   - Resolve paths under `STORAGE_ROOT` or `MODELS_ROOT`.
-   - Reject empty paths, NUL bytes, absolute POSIX paths, Windows absolute/drive paths, traversal segments, and UNC-like paths.
-   - Return filesystem paths for worker internal use only.
-   - Verifiable by path safety tests.
+7. `@role/developer-cv-worker` Add polling loop integration in `cv/aerovision_worker/main.py`.
+   - Run startup checks as today.
+   - Run stale recovery on startup and periodically during loop.
+   - Poll queued jobs using configured interval.
+   - Hand claimed job to a worker-local processing hook or simulated handler boundary without implementing CV processing.
+   - Runtime placeholder for real claimed jobs must fail safely with a stable non-sensitive "processing not implemented in this phase" style error instead of leaving jobs permanently `processing`.
+   - Verifiable: loop can be tested with injected single-iteration/stop behavior and does not hang tests.
 
-8. [@role/developer-cv-worker] Add worker startup entrypoint.
-   - Load settings.
-   - Configure logging.
-   - Log safe worker startup and selected device.
-   - Verify database connectivity through bounded readiness retry or equivalent startup-safe handling.
-   - Idle without claiming jobs or processing media in normal mode.
-   - Provide smoke/test mode that exits after settings, device, and database checks for deterministic validation.
-   - Verifiable by running startup smoke command and inspecting safe logs.
+8. `@role/developer-cv-worker` Add practical shutdown handling.
+   - Let worker stop cleanly on keyboard interrupt or termination path supported by current entrypoint.
+   - Do not invent cancellation semantics for active DB jobs beyond stale recovery.
+   - Verifiable: shutdown test or code path review confirms no infinite test-only hard exit.
 
-9. [@role/developer-devops] Replace placeholder `cv/Dockerfile` with worker image build.
-   - Install worker dependencies.
-   - Use `opencv-python-headless`, no GUI OpenCV dependency.
-   - Run worker entrypoint.
-   - Preserve CPU-default operation.
-   - Verifiable by `docker compose --env-file .env.example build cv-worker`.
+9. `@role/tester` Add queue unit tests in `cv/tests/`.
+   - Cover empty queue, oldest queued claim, required claim fields, heartbeat/progress update, stale reset, stale fail, and no backend imports.
+   - Verifiable: `python -m pytest` from `cv/` passes.
 
-10. [@role/developer-devops] Review Compose and env wiring.
-    - Keep only required `cv-worker` env vars.
-    - Keep shared storage mount at `/app/storage`.
-    - Keep GPU override isolated to `cv-worker`.
-    - Do not add new services.
-    - Verifiable by `docker compose --env-file .env.example config` and GPU config command if GPU file touched.
+10. `@role/tester` Add PostgreSQL-specific concurrency coverage when available.
+    - Two sessions/workers attempt to claim queued jobs.
+    - Assert same job is not claimed twice.
+    - Assert claim transaction is committed before simulated processing starts.
+    - Use Compose Postgres as the concrete integration path unless implementation discovers an existing better project harness:
+      - root: `docker compose --env-file .env.example up -d postgres`
+      - `cv/`: `python -m pytest -m postgres`
+    - If this PostgreSQL gate cannot run, report Phase 15 queue-reliability completion as blocked with exact reason; SQLite/unit tests alone do not satisfy this phase.
 
-11. [@role/developer-cv-worker] Add worker tests.
-   - Cover settings validation.
-   - Cover logging redaction.
-   - Cover storage path safety.
-   - Cover database helper import/session construction.
-   - Cover startup/device logging without real inference or real model loading.
-   - Cover `CV_DEVICE=auto` CPU fallback when CUDA is unavailable.
-   - Cover `CV_DEVICE=cuda` clear failure when CUDA is unavailable.
-   - Cover bounded database readiness retry behavior with mocked connection failures.
-   - Do not add inference, queue, export, or no-detection tests yet.
-   - Verifiable by worker test command from `cv/`.
+11. `@role/docs-maintainer` Update `cv/index.md` only if implementation changes current worker command behavior or current file list.
+    - Verifiable: index remains a narrow folder summary, not duplicated product docs.
 
-12. [@role/docs-maintainer] Update component/runtime notes only if implementation changes commands or file inventory.
-    - Update `cv/index.md` after scaffold files and commands exist.
-    - Update README/Makefile only if new worker commands are part of the phase workflow.
-    - Do not modify product docs under `docs/`.
-    - Verifiable by checking docs diff contains only implementation-state/command updates.
+12. `@role/code-reviewer` Review Phase 15 diff against docs.
+    - Check no HTTP backend-worker job loop.
+    - Check no Celery/Redis.
+    - Check no later-phase CV processing.
+    - Check no secret/path leakage in logs/errors.
+    - Check DB transactions are short.
+    - Check stale recovery cannot leave jobs permanently stuck.
 
-13. [@role/tester] Run Phase 14 gates.
-    - `docker compose --env-file .env.example config` -> expected PASS.
-    - Worker dependency install command from `cv/` -> expected PASS once manifest exists.
-    - Worker lint command from `cv/` -> expected PASS once configured.
-    - Worker test command from `cv/` -> expected PASS once tests exist.
-   - `docker compose --env-file .env.example build cv-worker` -> expected PASS.
-   - Worker startup smoke/test-mode command -> expected PASS or documented blocker with exact command/output.
-   - Worker startup smoke must prove selected-device logging and PostgreSQL connectivity without leaking secrets.
-   - Do not run frontend gates.
-   - Do not run backend full suite unless backend files changed.
+13. `@role/tester` Run relevant gates.
+    - `cd cv; python -m ruff check .` -> `PASS` required when available.
+    - `cd cv; python -m pytest` -> `PASS` required when available.
+    - `docker compose --env-file .env.example up -d postgres` from repo root -> `PASS` required for PostgreSQL queue validation unless environment blocks Docker/Postgres.
+    - `cd cv; python -m pytest -m postgres` -> `PASS` required for PostgreSQL queue validation after tests are added.
 
-14. [@role/code-reviewer] Review implementation against Phase 14 docs and this contract.
-    - Confirm no backend-worker HTTP job loop.
-    - Confirm no inference/tracking/export/queue-claim implementation slipped in.
-    - Confirm no new services.
-    - Confirm no schema/API changes.
-    - Confirm storage paths stay relative at database boundary.
-    - Confirm logs do not expose secrets or unsafe absolute paths.
-    - Confirm GPU remains isolated to `cv-worker`.
-
-15. [@role/developer-cv-worker] Fix accepted review/test issues only within Phase 14 scope.
-    - Apply only fixes tied to failed Phase 14 checks or documented review findings.
-    - Defer later-phase requests.
-    - Verifiable by rerunning failed targeted gates.
+14. `@role/developer-cv-worker` Record blockers only if relevant gates fail or PostgreSQL integration cannot be run.
+    - Verifiable: final implementation report includes exact failing command or `not available yet`.

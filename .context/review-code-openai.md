@@ -1,12 +1,12 @@
-# OpenAI Code Review - Phase 14
+# OpenAI Code Review - Phase 15
 
-## Verdict: APPROVED_WITH_CHANGES
+## Verdict: APPROVED
 
 ## Summary
 
-Phase 14 scaffold mostly matches scope: worker package exists, settings/logging/device/database/storage helpers are narrow, Dockerfile now runs worker entrypoint, and tests cover main scaffold behavior.
+Phase 15 implementation matches docs and accepted plan. Worker queue logic stays inside `cv/`, uses PostgreSQL `FOR UPDATE SKIP LOCKED`, keeps claim transaction short, adds heartbeat/progress owner guards, recovers stale jobs, ignores soft-deleted rows, and avoids backend API/frontend/schema/inference scope creep.
 
-One real defect: startup retry wrapper turns CUDA configuration failure into database-unavailable failure. This breaks documented `CV_DEVICE=cuda` fail-clear behavior and can waste 30 seconds before surfacing wrong top-level error.
+No evidence-backed blocking, important, or optional defects found.
 
 ## Critical issues
 
@@ -14,13 +14,7 @@ None.
 
 ## Important issues
 
-1. `CV_DEVICE=cuda` unavailable path is misreported as database startup failure.
-   - Evidence: `docs/CV_PIPELINE.md:166-168` defines `cuda` as force CUDA, and `docs/CV_PIPELINE.md:367-368` requires CUDA unavailable with `CV_DEVICE=cuda` to fail clearly.
-   - Plan evidence: `.context/plan.md:37-38` requires `auto` CPU fallback and `cuda` unavailable clear failure; `.context/plan.md:86-88` requires tests for these cases plus DB retry behavior.
-   - Code evidence: `cv/aerovision_worker/main.py:37-40` wraps all startup checks in `wait_for_database`; `cv/aerovision_worker/database.py:39-43` catches every `Exception` and raises `RuntimeError("database unavailable after ... attempts")`.
-   - Repro evidence: direct startup-check wrapper with `cv_device="cuda"` and mocked CUDA unavailable returns top-level `RuntimeError database unavailable after 2 attempts`; original cause is `DeviceUnavailableError CUDA requested but unavailable`.
-   - Impact: CPU-only host with GPU override gets wrong operator signal and delayed failure. This violates product docs and accepted planning resolution.
-   - Required change: keep DB retry around DB connectivity only, or make retry catch only database/SQLAlchemy connectivity failures. Let `DeviceUnavailableError` fail immediately with CUDA-specific message. Add startup-level regression test, not only `select_device()` unit test.
+None.
 
 ## Optional issues
 
@@ -28,27 +22,31 @@ None.
 
 ## Quality gate assessment
 
-- `rtk git status --short`: PASS inspection. Changed Phase 14 context/docs plus `README.md`, `cv/Dockerfile`, `cv/index.md`; new `cv/aerovision_worker/`, `cv/pyproject.toml`, `cv/tests/`.
-- `rtk git diff --stat`: PASS inspection.
-- `rtk git diff` content: PASS inspection for implementation files and allowed context/docs. Forbidden review-resolution content not read.
-- `docker compose --env-file .env.example config`: PASS.
-- `python -m pytest` from `cv/`: PASS, 30 passed.
-- `python -m ruff check .` from `cv/`: PASS.
-- `python -m aerovision_worker.main --check-once` from `cv/` with `DATABASE_URL=sqlite+pysqlite:///:memory:` and `CV_DEVICE=cpu`: PASS smoke for import/settings/device/DB helper path, but not PostgreSQL connectivity.
-- `docker compose --env-file .env.example build cv-worker`: FAIL, Docker daemon unavailable: `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`.
-- Full Phase 14 Docker/PostgreSQL startup smoke: not verified because Docker daemon unavailable.
+- `rtk git status --short`: PASS for review input. Shows expected Phase 15 worker/context/doc changes plus new queue tests.
+- `rtk git diff --stat`: PASS for review input. Worker-touched source is scoped to `cv/aerovision_worker/main.py`, `cv/aerovision_worker/queue.py`, `cv/tests/`, `cv/pyproject.toml`, and `cv/index.md`.
+- `rtk git diff`: PASS for review input. No backend API, frontend, DB migration, inference, tracking, export, or result-write changes found.
+- `python -m ruff check .` from `cv/`: PASS. Output: `All checks passed!`
+- `python -m pytest` from `cv/` before starting PostgreSQL: PASS with PostgreSQL tests skipped, `41 passed, 3 skipped`.
+- `docker compose --env-file .env.example up -d postgres` from repo root: PASS. Postgres container started.
+- `python -m pytest -m postgres` from `cv/`: PASS, `3 passed`.
+- `python -m pytest` from `cv/` after PostgreSQL startup: PASS, `44 passed`.
 
 ## Security/privacy assessment
 
-No blocking security issue found in touched worker scaffold. Logging redacts database URLs, token-like strings, secret words, and absolute paths; tests cover redaction. Storage resolver rejects absolute paths, traversal, UNC-like paths, empty paths, and NUL bytes. No backend HTTP job-loop calls, new services, Celery, Redis, Flask, Streamlit, GUI OpenCV calls, or inference/tracking/export scope creep found.
+Applicable because worker writes stored failure messages and logs queue events.
+
+- Stored worker errors are stable strings: `Processing not implemented in this phase` and `Worker heartbeat timed out`.
+- No secrets, raw tokens, database URLs, passwords, stack traces, or absolute storage paths found in new stored errors.
+- Queue logs include job IDs and worker IDs only; no sensitive payloads found.
+- Worker still does not expose public API routes and does not call backend HTTP for job-loop behavior.
 
 ## Positive findings
 
-- Worker remains separate from backend API and uses SQLAlchemy database access only.
-- `CV_DEVICE=auto` and direct `CV_DEVICE=cuda` helper behavior are unit-tested.
-- Path safety helper normalizes safe relative paths and keeps resolved paths under root.
-- Docker GPU override remains isolated to `cv-worker`.
-- Phase 14 stays out of queue claiming, inference, tracking, exports, schema changes, and frontend work.
+- `claim_next_job()` selects oldest non-deleted queued job and applies `FOR UPDATE SKIP LOCKED` on PostgreSQL.
+- Claim update sets `status`, `locked_by`, `locked_at`, `started_at`, `last_heartbeat_at`, and `updated_at` in one short transaction, then commits before placeholder processing.
+- `update_job_heartbeat()` requires matching `job_id`, `locked_by`, `status = processing`, and `deleted_at is null`.
+- `recover_stale_jobs()` handles stale or missing heartbeat, ignores soft-deleted jobs, increments retry count below max, and fails jobs at retry limit.
+- PostgreSQL integration tests cover two-worker duplicate-claim prevention, distinct queued-job claiming, and committed claim transaction.
 
 ## Files consulted
 
@@ -60,31 +58,21 @@ No blocking security issue found in touched worker scaffold. Logging redacts dat
 - `docs/ARCHITECTURE.md`
 - `docs/CV_PIPELINE.md`
 - `docs/DATA_MODEL.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
-- `README.md`
-- `.env.example`
-- `docker-compose.yml`
-- `docker-compose.gpu.yml`
-- `Makefile`
-- `cv/Dockerfile`
+- `rtk git status --short`
+- `rtk git diff --stat`
+- `rtk git diff`
+- `backend/app/db/models.py`
+- `backend/migrations/versions/20260513_0001_initial_schema.py`
+- `cv/aerovision_worker/main.py`
+- `cv/aerovision_worker/queue.py`
 - `cv/index.md`
 - `cv/pyproject.toml`
-- `cv/aerovision_worker/__init__.py`
-- `cv/aerovision_worker/settings.py`
-- `cv/aerovision_worker/logging.py`
-- `cv/aerovision_worker/device.py`
-- `cv/aerovision_worker/database.py`
-- `cv/aerovision_worker/storage_paths.py`
-- `cv/aerovision_worker/main.py`
-- `cv/tests/test_settings.py`
-- `cv/tests/test_logging.py`
-- `cv/tests/test_device.py`
-- `cv/tests/test_database.py`
-- `cv/tests/test_storage_paths.py`
 - `cv/tests/test_startup.py`
+- `cv/tests/test_queue.py`
+- `cv/tests/test_queue_postgres.py`

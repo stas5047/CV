@@ -1,53 +1,62 @@
-# Status - Phase 14 CV Worker Scaffold Final Fix
+# Status - Phase 15 PostgreSQL Queue Claiming
 
 ## Current Phase
 
-- Phase: `Phase 14 - CV worker scaffold, settings, logging, and database access`.
+- Phase: `Phase 15 - PostgreSQL queue claiming, heartbeat, and stale job recovery`.
 - Mode: Code Review Resolution + Final Fix.
-- Verdict: FIXED with external verification blockers noted.
+- Verdict: final verification passed.
 
 ## Completed
 
-- Read required agent files, phase docs, context contracts, status/review artifacts, and mistake logs.
-- Resolved OpenAI code review item in `.context/review-code-resolution.md`.
-- Accepted important fix OAI-1: forced CUDA unavailable must not be retried or reported as database unavailable.
-- Added startup regression test for `run_worker(check_once=True)` with `CV_DEVICE=cuda` and mocked CUDA unavailable.
-- Fixed `run_worker()` to select/log device before the database retry wrapper and retry only DB connectivity.
-- Updated `docs/index.md` current implementation state for the Phase 14 CV worker scaffold.
+- Read required agent files, phase docs, contracts, planning resolution, and mistake log.
+- Added worker-local queue module with no backend imports.
+- Implemented oldest queued-job claim with PostgreSQL `FOR UPDATE SKIP LOCKED`.
+- Claim transaction sets `status`, `locked_by`, `locked_at`, `started_at`, `last_heartbeat_at`, and `updated_at`, then commits before processing.
+- Added heartbeat/progress helper guarded by `job_id`, `locked_by`, `status = processing`, and non-deleted row.
+- Added stale-job recovery for stale or missing heartbeats, with soft-deleted rows ignored and status guards on updates.
+- Added safe placeholder failure for claimed jobs because media processing belongs to later phases.
+- Added polling-loop seam and keyboard-interrupt shutdown path.
+- Added unit and PostgreSQL integration tests for queue behavior.
+- Updated `cv/index.md`.
+- Resolved code reviews in `.context/review-code-resolution.md`; no accepted fixes were required.
 
 ## Quality Gates Run
 
-- `python -m pytest tests\test_startup.py` from `cv/`: RED observed before fix, failed with `RuntimeError: database unavailable after 30 attempts`.
-- `python -m pytest tests\test_startup.py` from `cv/`: PASS after fix, 3 passed.
-- `python -m pytest` from `cv/`: PASS, 32 passed.
-- `python -m ruff check .` from `cv/`: PASS after import-order fix, `All checks passed!`.
-- `docker compose --env-file .env.example config`: PASS.
-- `python -m aerovision_worker.main --check-once` from `cv/` with `DATABASE_URL=sqlite+pysqlite:///:memory:` and `CV_DEVICE=cpu`: PASS.
-- `python -m pip install -e ".[dev]"` from `cv/`: FAIL, timed out after 124 seconds while installing/checking dependencies.
-- `docker compose --env-file .env.example build cv-worker`: FAIL, command timed out after 124 seconds.
+- `python -m pytest tests/test_queue.py` from `cv/`: RED first, failed with missing `aerovision_worker.queue`; PASS after implementation, 7 passed.
+- `python -m pytest tests/test_startup.py` from `cv/`: PASS, 5 passed.
+- `python -m ruff check .` from `cv/`: PASS, `All checks passed!`.
+- `docker compose --env-file .env.example up -d postgres` from repo root: PASS.
+- `python -m pytest -m postgres` from `cv/`: PASS, 3 passed.
+- `python -m pytest` from `cv/`: PASS, 44 passed, 46 SQLite datetime adapter warnings.
+- Final fix verification:
+  - `python -m ruff check .` from `cv/`: PASS, `All checks passed!`.
+  - `python -m pytest` from `cv/`: PASS, 44 passed, 46 SQLite datetime adapter warnings.
+  - `docker compose --env-file .env.example up -d postgres` from repo root: PASS, `aerovision-postgres-1` running.
+  - `python -m pytest -m postgres` from `cv/`: PASS, 3 passed, 41 deselected.
+  - `git diff --check` from repo root: FAIL, `docs/phase.md:3` trailing whitespace plus line-ending warnings. Not fixed because no accepted code-review item covered formatting cleanup.
 
 ## Security/Privacy
 
-- Fix keeps database URL redacted in startup logs.
-- Forced CUDA failure now surfaces as device-specific error, not database error.
-- No backend HTTP job loop, queue claiming, inference, tracking, exports, schema/API change, or new service was added.
-- Storage path safety and log redaction tests remain passing.
+- No secrets, tokens, DB URLs, passwords, stack traces, or absolute paths added to stored worker errors.
+- Placeholder and stale timeout errors are stable safe strings.
+- No backend HTTP job loop, Celery, Redis, frontend access, inference, tracking, exports, result writes, schema migration, or API change added.
+- Code review resolution added no source changes and no new security/privacy exposure.
 
 ## Index/Docs
 
-- Updated `.context/review-code-resolution.md`.
 - Updated `.context/status.md`.
-- Updated `docs/index.md` because its current implementation state still described `cv/` as placeholder-only.
-- No `cv/index.md` change needed during final fix; it already reflects current CV worker scaffold files and commands.
-- No mistake-log update; no product-impacting mistake or near-miss required documentation.
+- Updated `.context/review-code-resolution.md`.
+- Updated `cv/index.md`.
+- Skipped indexes during final fix; only `.context` artifacts changed in this turn and `.context/index.md` does not exist.
+- Previously skipped `docs/index.md`; documentation structure and documented paths did not change.
+- No mistake-log update; no product-impacting mistake or near-miss required logging.
 
 ## Deviations
 
 - No deviation from `.context/design.md`, `.context/plan.md`, or `.context/review-plan-resolution.md`.
-- Full Docker build/startup smoke remains unverified because `cv-worker` image build timed out in this environment.
 
 ## Remaining Risks
 
-- `python -m pip install -e ".[dev]"` timed out, likely due heavy worker dependencies; current environment already has dependencies needed for tests/smoke.
-- Docker image build and PostgreSQL Compose startup smoke remain blocked until the worker image build can complete within the available execution window.
-- Phase 14 still intentionally excludes worker queue claiming, inference, tracking, exports, and result writes.
+- Runtime worker still fails claimed jobs with a Phase 15 placeholder until later media-processing phases replace that hook.
+- PostgreSQL test uses isolated schemas against Compose Postgres; it does not run the full migrated backend schema.
+- `docs/phase.md` still has trailing whitespace reported by `git diff --check`; left unchanged per review-resolution scope.

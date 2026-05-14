@@ -27,6 +27,9 @@ aerovision-worker = "aerovision_worker.main:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "postgres: PostgreSQL-backed worker queue integration tests",
+]
 
 [tool.ruff]
 line-length = 100

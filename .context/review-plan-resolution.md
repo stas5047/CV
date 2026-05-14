@@ -1,37 +1,37 @@
-# Planning Review Resolution - Phase 14
+# Phase 15 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude planning review items were resolved against `docs/phase.md`, `docs/ARCHITECTURE.md`, `docs/CV_PIPELINE.md`, and `docs/TESTING_QA.md`. Accepted changes were applied only to Phase 14 context contract files. No source code changes were made.
+Claude review verdict was `APPROVED_WITH_CHANGES`. No blocking source-of-truth conflict found. Accepted changes were applied only to `.context/design.md` and `.context/plan.md`. `.context/research.md` did not require contract changes.
 
 ## Resolution table
 
-| ID | Claude review item | Resolution | Rationale | Contract update |
+| ID | Claude item | Resolution | Reason | Applied to |
 |---|---|---|---|---|
-| 1 | Worker database startup/connectivity handling is too optional and can race PostgreSQL in Compose. | accepted | Phase 14 validation requires worker container startup and PostgreSQL connectivity. Architecture requires worker/PostgreSQL coordination. | `.context/design.md`, `.context/plan.md`, `.context/research.md` now require bounded DB readiness retry or equivalent startup-safe handling with secret-safe failure logs. |
-| 2 | `CV_DEVICE=cuda` behavior is not pinned to fail clearly when CUDA is unavailable. | accepted | `docs/CV_PIPELINE.md` requires `auto` fallback to CPU and `cuda` unavailable to fail clearly. | `.context/design.md`, `.context/plan.md`, `.context/research.md` now require `auto` CPU fallback tests and clear `cuda` unavailable failure semantics. |
-| 3 | Heavy PyTorch/Ultralytics dependencies need import-safe tests without loading real models. | accepted | Phase 14 requires placeholder dependencies but not inference or model artifacts. Import-safe tests reduce false blockers while staying in scope. | `.context/design.md`, `.context/plan.md`, `.context/research.md` now require tests to avoid real YOLO loading/model artifacts. |
-| 4 | Startup smoke can use test-mode exit flag if production entrypoint idles forever. | accepted | Deterministic smoke validation helps prove settings/device/database checks without implementing queue processing. No product-doc conflict. | `.context/design.md`, `.context/plan.md`, `.context/research.md` now allow normal idle mode plus smoke/test mode exit after checks. |
-| 5 | Risk level placeholder stayed unspecified; review treated Phase 14 as medium/high. | accepted | Research already assumed medium risk; final contract records same risk basis. | `.context/research.md` records medium/high review basis; no scope change. |
-| 6 | Question: should worker idle forever or support smoke/test mode? | accepted | Normal worker should idle without claiming jobs in Phase 14; smoke/test mode should exit after startup checks for validation. | `.context/design.md`, `.context/plan.md`, `.context/research.md` updated with both modes. |
+| I1 | Stale recovery must explicitly exclude soft-deleted jobs. | accepted | `docs/DATA_MODEL.md` requires `processing_jobs.deleted_at` soft deletion; queue recovery should not mutate deleted/audit rows. | `.context/design.md`, `.context/plan.md` |
+| I2 | Heartbeat/progress helper needs explicit lock-owner guard. | accepted | `locked_by` is part of queue ownership; updates must be scoped to `job_id + locked_by + status = processing` to avoid stale worker writes. | `.context/design.md`, `.context/plan.md` |
+| I3 | PostgreSQL concurrency test is too easy to skip. | accepted | `docs/phase.md` and `docs/TESTING_QA.md` require proving two workers cannot claim the same job; SQLite/unit tests cannot prove `FOR UPDATE SKIP LOCKED`. | `.context/design.md`, `.context/plan.md` |
+| O1 | Add explicit status transition guards for stale recovery updates. | accepted | Race guard aligns with queue reliability and does not conflict with docs. | `.context/design.md`, `.context/plan.md` |
+| O2 | Make timeout `error_message` stable and safe. | accepted | Matches security/logging and safe API error requirements. | `.context/design.md`, `.context/plan.md` |
+| O3 | Clarify placeholder processing behavior in Phase 15 main loop. | accepted | Prevents real claimed jobs from remaining permanently `processing` before Phase 16 processing exists. Scope remains queue-only. | `.context/design.md`, `.context/plan.md` |
+| Q1 | Confirm whether phase risk should be `HIGH` instead of assumed `MEDIUM`. | rejected | Risk label is not a product-doc contract and does not change required implementation or gates. Phase remains governed by `docs/phase.md` and accepted queue-reliability gates. | none |
+| Q2 | Choose PostgreSQL integration path. | accepted | Use existing Docker Compose Postgres as concrete path unless implementation discovers an existing better harness. Lack of runnable PostgreSQL gate is blocker for queue-reliability completion. | `.context/design.md`, `.context/plan.md` |
 
 ## Accepted changes applied
 
-- Added bounded PostgreSQL readiness retry/startup-safe connectivity handling requirement.
-- Added secret-safe retry/failure logging requirement for database startup checks.
-- Strengthened `CV_DEVICE` contract:
-  - `auto` falls back to CPU when CUDA is unavailable;
-  - `cuda` unavailable fails clearly;
-  - worker must not log CPU-only state as selected CUDA.
-- Added tests for mocked CUDA availability/unavailability.
-- Added mocked bounded DB readiness retry tests.
-- Added import-safe dependency/test guidance so Phase 14 does not load real YOLO models or require model artifacts.
-- Added normal idle mode plus deterministic smoke/test mode exit after settings, device, and DB checks.
-- Updated Phase 14 gate wording to require startup smoke/test mode proving selected-device logging and PostgreSQL connectivity without leaking secrets.
+- Stale recovery selection/update must include `deleted_at IS NULL`.
+- Stale recovery updates must guard on rows still being `status = 'processing'`.
+- Heartbeat/progress updates must match `job_id`, current worker `locked_by`, and `status = 'processing'`.
+- Timeout and placeholder failure messages must be short, stable, and free of paths, DB URLs, secrets, tokens, and stack traces.
+- Phase 15 runtime placeholder for real claimed jobs must fail safely instead of leaving jobs permanently `processing`.
+- PostgreSQL queue validation uses:
+  - root: `docker compose --env-file .env.example up -d postgres`
+  - `cv/`: `python -m pytest -m postgres`
+- If PostgreSQL queue validation cannot run, Phase 15 queue-reliability completion is blocked; SQLite/unit tests alone are insufficient.
 
 ## Rejected items
 
-- None.
+- Q1 risk-level confirmation rejected as implementation-contract change. Source docs define phase scope and gates; no user decision needed.
 
 ## Duplicate items
 
@@ -43,9 +43,6 @@ Claude planning review items were resolved against `docs/phase.md`, `docs/ARCHIT
 
 ## Final contract status
 
-- `.context/research.md`: updated for accepted planning review notes.
-- `.context/design.md`: updated for accepted startup, device, dependency, and smoke-mode decisions.
-- `.context/plan.md`: updated for accepted implementation and validation requirements.
-- Source code: not modified.
-- Product docs under `docs/`: not modified.
-- Final Phase 14 implementation contract is scoped to CV worker scaffold, settings, logging, database access, storage path resolution, Docker wiring, and smoke tests only.
+- Final Phase 15 contract is ready for implementation.
+- Scope remains worker queue claiming, heartbeat/progress helpers, stale recovery, polling/shutdown behavior, and tests only.
+- No backend API, frontend, DB migration, inference, tracking, exports, detections, result media, or training work added.
