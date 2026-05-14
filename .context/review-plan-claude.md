@@ -1,12 +1,12 @@
-# Independent Planning Review - Phase 27
+# Phase 28 Planning Review - Frontend Model Registry Page
 
 ## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Phase 27 contract is mostly aligned with documented frontend/API/CV boundaries. Plan keeps work frontend-only, uses backend REST endpoints, preserves Ukrainian UI rules, avoids admin/global scope creep, and includes relevant unit/build gates.
+Plan is mostly aligned with Phase 28: protected `/models`, authenticated model list, admin-only register/activate controls, backend REST-only calls, Ukrainian UI, no training launch, no new backend/database scope.
 
-Changes needed before implementation are verification and one implementation-detail hardening item: route protection coverage, authenticated preview/download behavior, and manual UI/download smoke.
+Changes needed before implementation: tighten test/implementation plan around required model display fields and relative weights-path behavior. No blocking product-doc conflict found.
 
 ## Blocking issues
 
@@ -14,32 +14,30 @@ None.
 
 ## Important issues
 
-1. Authenticated media preview is not explicit enough in the numbered plan.
-   - Evidence: `docs/API.md` says result downloads are protected and must validate ownership/admin before serving files. `docs/FRONTEND_UX.md` requires processed media preview and download buttons. `.context/design.md` correctly notes preview may need authenticated blob fetching, but `.context/plan.md` step 5 only says "media metadata and preview/download notice" and step 2 only covers authenticated download.
-   - Risk: implementation may use direct `<img>`/`<video src>` against protected endpoints without `Authorization`, causing preview failure, or may be tempted to expose unsafe paths.
-   - Required change: add an implementation step or acceptance check for authenticated blob preview URLs for image/video when preview is available, with object URL cleanup, and Ukrainian unavailable-preview fallback when browser preview cannot be provided.
+1. Required model display fields are not fully test-covered.
+   - Evidence: `docs/phase.md` and `docs/FRONTEND_UX.md` require `/models` to show model name, family, variant, active status, dataset description, key metrics, and model size when known.
+   - Evidence: `docs/TRAINING_EXPERIMENTS.md` requires YOLO26 primary and YOLO11 fallback metadata represented when fallback is used.
+   - Plan step 3 mentions metric extraction and fallback badge, but plan step 6 omits explicit tests for dataset description, model size when known, and YOLO11 fallback rendering. Add model fixture coverage for these fields so implementation does not pass with partial cards.
 
-2. Route protection test coverage is underspecified for the new routes.
-   - Evidence: `docs/FRONTEND_UX.md` requires protected routes to redirect guests. `docs/TESTING_QA.md` frontend route tests explicitly include `/jobs` and `/jobs/:jobId`. `.context/plan.md` tests verify data rendering, filters, links, and details states, but not guest redirect/unauthenticated access for `/jobs` and `/jobs/:jobId`.
-   - Risk: new route wiring in `App.tsx` could accidentally bypass existing guard.
-   - Required change: either add focused tests for guest redirect on both new routes or explicitly verify existing protected-route tests cover these exact route entries after route rewiring.
+2. Admin weights-path form behavior needs explicit relative-path handling.
+   - Evidence: `docs/phase.md` requires admin model registration form using existing relative storage paths.
+   - Evidence: `docs/API.md` says first implementation registers existing relative paths under model storage.
+   - Evidence: `docs/AUTH_SECURITY.md` and `docs/TESTING_QA.md` require no absolute path exposure and model weights paths to be relative.
+   - Plan hides `weights_path` from display, but does not explicitly require form helper text/client validation for absolute/traversal-looking paths or a test that submitted payload uses a storage-relative path. Backend remains authority, but frontend plan should prevent obvious unsafe input and safely render backend validation errors in Ukrainian.
 
-3. Manual UI/download smoke is present in design but missing from execution steps.
-   - Evidence: Phase 27 validation in `docs/phase.md` requires "Downloads work from UI." `docs/TESTING_QA.md` includes manual E2E download checks. `.context/design.md` lists manual browser smoke, but `.context/plan.md` steps 10-12 stop at lint/test/build.
-   - Risk: authenticated blob downloads, video-preview fallback, table overflow, and polling transitions may pass unit tests but fail in browser.
-   - Required change: add a tester step for manual browser smoke of `/jobs` and `/jobs/:jobId`, including completed, no-detection, failed, and processing states where fixtures/mocks make practical, plus download button behavior.
+3. Activation success path should prove visible active-state update.
+   - Evidence: `docs/phase.md` validation requires active model to be visually clear, and `docs/TESTING_QA.md` model registry tests require admins can activate one model version.
+   - Plan tests activation PATCH call, but does not explicitly test refetch/update makes newly active model visually active and old state no longer misleading. Add a focused assertion after activation mutation/refetch.
 
 ## Optional improvements
 
-1. Clarify local filename search scope.
-   - `.context/plan.md` allows client-side search on the loaded page. If pagination remains server-backed, label behavior clearly or omit search to avoid implying whole-history search.
-
-2. Keep model filter conditional.
-   - `.context/plan.md` already says model filter only if backed by `/models`. Preserve this during implementation; do not add inert/fake filter UI.
+- Add one test fixture with missing metrics and one with known metrics/model size, instead of overloading a single fixture.
+- Keep admin form labels precise: storage-relative model weights path, no examples with `/app/storage`, drive letters, or host paths.
+- Keep `GET /models?limit=100` acceptable for this phase, but preserve API helper shape so pagination can be extended later without page rewrite.
 
 ## Questions for resolution
 
-None.
+- User prompt left risk as `<MEDIUM | HIGH>`. Existing research assumes MEDIUM. Confirm only if team wants HIGH-risk gates beyond frontend lint/test/build.
 
 ## Files consulted
 
@@ -48,10 +46,11 @@ None.
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- `docs/FRONTEND_UX.md`
-- `docs/API.md`
-- `docs/CV_PIPELINE.md`
-- `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
+- `docs/FRONTEND_UX.md`
+- `docs/API.md`
+- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/AUTH_SECURITY.md`
+- `docs/TESTING_QA.md`

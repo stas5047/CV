@@ -1,40 +1,38 @@
-# Planning Review Resolution - Phase 27
+# Phase 28 Planning Review Resolution - Claude
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude review verdict was `APPROVED_WITH_CHANGES`. All required changes are accepted, doc-consistent, and applied only to the Phase 27 implementation contract. No source code modified.
+Claude review found no blocking product-doc conflict. Accepted changes tighten Phase 28 frontend implementation and tests only. No source code changed.
 
 ## Resolution table
 
 | ID | Claude item | Resolution | Reason | Contract update |
 |---|---|---|---|---|
-| I1 | Make authenticated media preview explicit. | accepted | Protected result/download endpoints require JWT, ownership checks, and no internal path exposure. Preview must use protected backend responses, not raw storage paths. | Updated `.context/design.md` and `.context/plan.md` to require authenticated blob preview URLs, object URL cleanup, and Ukrainian fallback notice. |
-| I2 | Add/verify route protection tests for `/jobs` and `/jobs/:jobId`. | accepted | `docs/FRONTEND_UX.md` requires protected routes to redirect guests; `docs/TESTING_QA.md` includes protected route checks and Phase 27 routes. | Updated `.context/plan.md` test steps to verify unauthenticated redirects or explicit existing guard coverage for both routes. |
-| I3 | Add manual UI/download smoke to execution steps. | accepted | Phase validation requires downloads work from UI; manual checks catch browser-only download, preview, overflow, and polling issues. | Updated `.context/plan.md` with manual browser smoke step for list/detail states, downloads, and video preview fallback. |
-| O1 | Clarify local filename search scope. | accepted | Server pagination plus client-side search can mislead users if wording implies whole-history search. Clarification stays within "filters where practical." | Updated `.context/design.md` and `.context/plan.md` to limit filename search to currently loaded page and require clear Ukrainian wording. |
-| O2 | Keep model filter conditional. | duplicate | Existing `.context/design.md` and `.context/plan.md` already require model filter only when backed by existing `/models`; no new change needed. | No update. |
+| I1 | Required model display fields are not fully test-covered. | accepted | `docs/phase.md`, `docs/FRONTEND_UX.md`, `docs/TRAINING_EXPERIMENTS.md`, and `docs/TESTING_QA.md` require model name, family, variant, active state, dataset description, key metrics, model size when known, and YOLO11 fallback metadata when used. | Updated `.context/design.md` and `.context/plan.md` test coverage. |
+| I2 | Admin weights-path form behavior needs explicit relative-path handling. | accepted | Product docs require existing storage-relative model paths, no absolute path exposure, and backend authority. Client guard is allowed as UX/security defense while backend remains final validator. | Updated `.context/design.md` and `.context/plan.md` form/test contract. |
+| I3 | Activation success path should prove visible active-state update. | accepted | `docs/phase.md` requires active model visually clear; `docs/TESTING_QA.md` requires admins can activate one model version. Test must catch stale active-state UI. | Updated `.context/design.md` and `.context/plan.md` activation assertions. |
+| O1 | Use one fixture with missing metrics and one with known metrics/model size. | accepted | Low-risk way to prove missing and present metric behavior separately. | Added to `.context/plan.md`. |
+| O2 | Keep admin form labels precise; no absolute path examples. | duplicate | Covered by accepted I2. | No separate change. |
+| O3 | Keep `GET /models?limit=100` acceptable, preserve helper shape for later pagination. | duplicate | Existing plan already uses `GET /models?limit=100` through focused API helpers and avoids endpoint changes. Pagination extension is outside Phase 28 unless implementation needs a small typed helper option. | No separate change. |
+| Q1 | Confirm MEDIUM vs HIGH risk if team wants stronger gates. | rejected | User gave no HIGH-risk requirement. Current contract already marks MEDIUM assumption and includes relevant frontend lint/test/build gates. Asking would add no needed decision for Phase 28. | No change. |
 
 ## Accepted changes applied
 
-- `.context/design.md`
-  - Added authenticated blob preview requirement using protected backend responses.
-  - Required object URL cleanup on cleanup/page change.
-  - Required Ukrainian fallback notice when browser preview is unavailable.
-  - Clarified filename search is only over the currently loaded page.
-- `.context/plan.md`
-  - Added API/client work for authenticated preview blobs and object URL cleanup.
-  - Hardened job detail implementation step for authenticated preview or fallback notice.
-  - Added guest redirect/route protection test checks for `/jobs` and `/jobs/:jobId`.
-  - Added manual browser smoke step before review/docs steps.
-  - Clarified client-side filename search scope.
+- `.context/design.md`: added explicit fixture/display coverage for dataset description, model size, metrics, and YOLO11 fallback metadata.
+- `.context/design.md`: added admin weights-path client validation requirements for absolute-looking Unix paths, Windows drive paths, and traversal-looking paths, while preserving backend authority.
+- `.context/design.md`: added safe Ukrainian rendering requirement for backend validation errors.
+- `.context/design.md`: added activation refetch/update assertion requiring newly active model to be visually active and previous active state not misleading.
+- `.context/plan.md`: expanded `ModelPageParts.tsx` scope to include required display fields and weights-path helper/client guard.
+- `.context/plan.md`: expanded `models-page.test.tsx` scope for required fields, split metric fixtures, unsafe path rejection, and active-state update after activation.
 
 ## Rejected items
 
-- None.
+- Q1 risk confirmation: rejected as unnecessary. Phase remains MEDIUM assumption with frontend lint/test/build gates. No broader HIGH-risk gates added.
 
 ## Duplicate items
 
-- O2: Conditional model filter. Already present in final contract before resolution; remains unchanged.
+- O2 is duplicate of I2.
+- O3 is already covered by existing focused model API helper plan and documented endpoint use.
 
 ## Items needing user decision
 
@@ -42,7 +40,7 @@ Claude review verdict was `APPROVED_WITH_CHANGES`. All required changes are acce
 
 ## Final contract status
 
-- Scope remains Phase 27 only: frontend jobs history and job details pages.
-- No backend, database, CV worker, training, runtime, or product-doc changes added.
-- Source-of-truth docs remain authoritative over `.context/`.
-- Implementation may proceed using `.context/research.md`, `.context/design.md`, `.context/plan.md`, and this resolution.
+- Final implementation contract is scoped to Phase 28 only.
+- Source code must not change during this planning-resolution step.
+- Implementation may touch only the model registry frontend surface, model API helper/types, focused tests, and required frontend index/docs updates during the later implementation phase if repository policy requires them.
+- Backend, database, CV worker, training, experiments page, admin page, and product docs remain out of scope for Phase 28 implementation unless a later review finds a direct Phase 28 blocker.

@@ -129,6 +129,17 @@ export interface ModelListResponse {
   offset: number;
 }
 
+export interface ModelCreateRequest {
+  name: string;
+  model_family: "YOLO26" | "YOLO11";
+  variant: string;
+  weights_path: string;
+  dataset_name?: string | null;
+  dataset_split_description?: string | null;
+  metrics_json?: Record<string, unknown>;
+  is_active?: boolean;
+}
+
 export interface JobSummaryResponse {
   job_id: string;
   status: JobStatus | string;

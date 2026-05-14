@@ -1,93 +1,67 @@
-# Plan - Phase 27
+# Phase 28 Plan - Frontend Model Registry Page
 
-1. `@role/developer-frontend` Add Phase 27 API types in `frontend/src/api/types.ts` for job result metadata, detections, tracks, and list responses from `backend/app/schemas/jobs.py`.
-   - Verify TypeScript types match existing backend field names and do not add undocumented fields.
+1. [@role/developer-frontend] Create focused model API helpers in `frontend/src/api/models.ts`.
+   - Add `listModels`, `registerModel`, and `activateModel` wrappers around existing `apiRequest`.
+   - Use only `/models`, `/models?limit=100`, and `/models/{model_id}/activate`.
+   - Verification: helpers compile and no endpoint outside `docs/API.md` is introduced.
 
-2. `@role/developer-frontend` Add `frontend/src/api/jobs.ts` with functions for:
-   - `GET /jobs`
-   - `GET /jobs/{jobId}`
-   - `GET /jobs/{jobId}/summary`
-   - `GET /jobs/{jobId}/detections`
-   - `GET /jobs/{jobId}/tracks`
-   - `GET /jobs/{jobId}/result`
-   - authenticated download by backend-provided download URL.
-   - authenticated processed-media preview blob by backend-provided download/preview URL, with object URL cleanup.
-   - Verify all paths stay under `/api` through existing client config and no storage path is constructed.
+2. [@role/developer-frontend] Add frontend request typing in `frontend/src/api/types.ts` only if needed.
+   - Define `ModelCreateRequest` from existing backend schema fields.
+   - Do not add response fields absent from `ModelVersion`.
+   - Verification: TypeScript accepts create payload without `any` for form submission.
 
-3. `@role/developer-frontend` Create shared Phase 27 formatting helpers for status labels, media type labels, dates, duration, confidence, timestamps, bounding boxes, counts, and safe missing-value placeholders.
-   - Verify helpers never return raw `null`, `undefined`, absolute paths, or `frame_stride`.
+3. [@role/developer-frontend] Add `frontend/src/pages/models/ModelPageParts.tsx`.
+   - Include model metric extraction/formatting helpers.
+   - Include Ukrainian empty, loading, error, active badge, fallback badge, metric bar, model list, and admin form components.
+   - Hide raw `weights_path` in display cards/list.
+   - Show dataset description, family, variant, active status, key metrics, and model size when known.
+   - Add admin weights-path helper text and client-side rejection for absolute-looking or traversal-looking paths while preserving backend authority.
+   - Verification: file contains no API calls and no later-phase experiment/admin UI.
 
-4. `@role/developer-frontend` Implement `/jobs` page from prototype structure:
-   - header with upload action;
-   - search/local filename filter only across the currently loaded page, with Ukrainian wording that does not imply whole-history search;
-   - backend-backed status and media type filters;
-   - date filters only using `created_from`/`created_to`;
-   - optional model filter only if backed by existing `/models`;
-   - paginated table;
-   - loading skeleton;
-   - API error state with retry;
-   - no-jobs and no-results Ukrainian empty states.
-   - Verify regular user page uses `/api/jobs`, not `/api/admin/jobs`.
+4. [@role/developer-frontend] Add `frontend/src/pages/ModelsPage.tsx`.
+   - Fetch models with TanStack Query.
+   - Detect admin role from existing auth state.
+   - Show prototype-based model registry layout.
+   - Show admin-only register action/form and activate buttons.
+   - Invalidate/refetch models after successful registration or activation.
+   - Verification: `/models` renders data from `/api/models` and non-admin users see view-only UI.
 
-5. `@role/developer-frontend` Implement `/jobs/:jobId` page from prototype structure:
-   - back link;
-   - status badge;
-   - queued/processing progress and last update/heartbeat;
-   - safe failed-job error area;
-   - media metadata and authenticated blob preview with object URL cleanup, or Ukrainian preview-unavailable notice;
-   - summary cards;
-   - processing parameters without `frame_stride`;
-   - downloads block;
-   - detections table;
-   - video-only tracks table;
-   - no-detection and no-track Ukrainian empty states.
-   - Verify CV output wording stays detection/tracking/image-space only.
+5. [@role/developer-frontend] Wire `/models` route in `frontend/src/App.tsx`.
+   - Import `ModelsPage` from new page file.
+   - Keep `ExperimentsPage` and `AdminPage` placeholders unchanged.
+   - Verification: route remains inside `ProtectedRoute` and no admin guard is added to `/models`.
 
-6. `@role/developer-frontend` Add polling behavior for job details.
-   - Poll while status is `queued` or `processing`.
-   - Stop polling after `completed`, `failed`, or `cancelled`.
-   - Refresh result/detection/track queries after completion.
-   - Verify polling does not run for terminal jobs.
+6. [@role/developer-frontend] Add `frontend/src/test/models-page.test.tsx`.
+   - Test guest redirect from `/models`.
+   - Test regular user list rendering and absence of admin controls.
+   - Test dataset description, model size when known, and YOLO11 fallback metadata rendering.
+   - Test known metrics fixture and missing metrics fixture separately.
+   - Test admin registration POST body.
+   - Test admin registration rejects absolute-looking or traversal-looking weights paths before submit and displays safe Ukrainian errors.
+   - Test admin activation PATCH call.
+   - Test activation refetch/update makes the newly activated model visually active and avoids stale active-state display.
+   - Test loading/error/empty/missing-metric states.
+   - Test absence of raw `null`, `undefined`, `frame_stride`, `/app/storage`, and displayed `weights_path`.
+   - Verification: `npm test -- models-page.test.tsx` passes if Vitest supports file filter; otherwise full `npm test`.
 
-7. `@role/developer-frontend` Wire real page modules into `frontend/src/App.tsx` and remove only the jobs/detail imports from placeholder usage.
-   - Verify `/models`, `/experiments`, and `/admin` placeholders remain unchanged for later phases.
+7. [@role/code-reviewer] Review frontend scope against Phase 28 docs and prototype.
+   - Check Ukrainian visible text.
+   - Check no new routes or product behavior.
+   - Check no training launch, file upload for weights, experiments page, or admin page work.
+   - Check admin UI visibility is frontend-only convenience and backend remains authority.
+   - Verification: review notes identify no Phase 29/30 work.
 
-8. `@role/developer-frontend` Add focused tests for jobs list route.
-   - Verify protected `/jobs` renders table data.
-   - Verify unauthenticated `/jobs` redirects to login, or explicitly verify existing protected-route tests cover the final `/jobs` route entry.
-   - Verify filters produce documented query params.
-   - Verify empty/no-results states.
-   - Verify detail links.
-   - Verify no raw `null`, `undefined`, absolute path, or `frame_stride`.
+8. [@role/tester] Run relevant frontend gates.
+   - `npm run lint`
+   - `npm test`
+   - `npm run build`
+   - Verification: all pass, or failures are recorded with exact command and reason.
 
-9. `@role/developer-frontend` Add focused tests for job details route.
-   - Verify unauthenticated `/jobs/:jobId` redirects to login, or explicitly verify existing protected-route tests cover the final `/jobs/:jobId` route entry.
-   - Verify completed image/video rendering.
-   - Verify queued/processing progress state.
-   - Verify failed state hides raw backend internals.
-   - Verify no-detection empty state is not error.
-   - Verify downloads use backend endpoints.
-   - Verify track table appears only for video jobs with tracks.
+9. [@role/developer-frontend] Fix only Phase 28 failures found by tests/review.
+   - Keep edits limited to model registry page, model API helpers, types, and tests.
+   - Verification: rerun failed relevant gate(s).
 
-10. `@role/tester` Run `cd frontend; npm run lint`.
-    - PASS required before completion, or document exact blocker.
-
-11. `@role/tester` Run `cd frontend; npm test`.
-    - PASS required before completion, or document exact blocker.
-
-12. `@role/tester` Run `cd frontend; npm run build`.
-    - PASS required before completion, or document exact blocker.
-
-13. `@role/tester` Run manual browser smoke when implementation is ready and local frontend can run:
-    - Check `/jobs` at desktop and narrow widths.
-    - Check `/jobs/:jobId` completed, no-detection, failed, and queued/processing states where fixtures or backend data make practical.
-    - Check download buttons trigger through backend endpoints without exposing absolute paths.
-    - Check video preview unavailable state keeps download action available.
-    - PASS required before completion, or document exact blocker/not available.
-
-14. `@role/code-reviewer` Review Phase 27 frontend diff against `docs/FRONTEND_UX.md`, `docs/API.md`, `docs/CV_PIPELINE.md`, and this contract.
-    - Verify no source-of-truth drift, no admin/global route creep, no unsafe paths/errors, no non-Ukrainian visible UI, no download auth issue, no `frame_stride`, no CV-only boundary violation.
-
-15. `@role/docs-maintainer` Update no product docs by default.
-    - Only update `frontend/index.md` if implementation changes current frontend state description or commands.
-    - Verify no edits to product docs unless command/structure changes require it.
+10. [@role/docs-maintainer] Decide docs/index updates.
+   - Do not update product docs in this phase unless implementation changes documented commands or file indexes.
+   - If source files are created, update `frontend/index.md` only in implementation phase if required by repository index policy, not during this planning-only phase.
+   - Verification: no product docs changed during this contract phase.

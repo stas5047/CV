@@ -2,9 +2,9 @@
 
 ## Summary
 
-Phase 27 implementation is mostly doc-consistent: `/jobs` and `/jobs/:jobId` are protected, use backend REST APIs only, avoid `/api/admin/jobs`, keep `frame_stride` hidden, use authenticated blob downloads/previews, and cover main list/detail/no-detection/failed states with frontend tests. Lint, tests, and build pass.
+Phase 28 implementation adds the protected `/models` frontend page, model registry API helpers, admin registration/activation UI, focused tests, and `frontend/index.md` update. Core route protection, admin-only controls, relative-path client guard, active-state refresh, model display fields, and current frontend gates are in place.
 
-Approval needs changes because one diff cleanliness gate is red, the documented model filter is missing despite existing API support, one visible error message contains English product-facing copy, and the new blob helper can send bearer tokens to arbitrary absolute URLs.
+Two important frontend UX defects remain: some visible model-page text is English, and activation failures are silent. No critical blocker found.
 
 ## Critical issues
 
@@ -12,25 +12,15 @@ None.
 
 ## Important issues
 
-1. Diff whitespace gate fails.
-   - Evidence: `rtk git diff --check` fails with `docs/phase.md:3: trailing whitespace`.
-   - Impact: review gate is red even though frontend lint/test/build pass.
+1. Visible English text remains on the production `/models` page.
+   - Evidence: `frontend/src/pages/models/ModelPageParts.tsx:80` renders `backend API` in a user-facing error message; `frontend/src/pages/models/ModelPageParts.tsx:228` renders `YOLO registry`; `frontend/src/pages/models/ModelPageParts.tsx:149-150` renders `Precision` and `Recall`.
+   - Why it matters: `docs/FRONTEND_UX.md` requires visible UI text, errors, labels, and helper text to be Ukrainian, with only accepted technical labels such as `FPS`, `mAP`, `YOLO`, `CSV`, and `JSON` explicitly allowed. `docs/phase.md` also scopes Phase 28 as Ukrainian frontend work. This repeats a prior status-resolved class of issue: `.context/status.md` says Phase 27 replaced visible `backend API` wording.
+   - Expected fix: localize these labels/messages, keeping accepted technical tokens where needed, for example `Реєстр YOLO`, Ukrainian wording for backend connection, and Ukrainian metric labels where practical.
 
-2. Jobs page omits the model filter required by the phase when practical.
-   - Evidence: `docs/phase.md` says Phase 27 filters include status, media type, date, and model where practical.
-   - Evidence: `docs/API.md` lists `model version` as a jobs filter, and `backend/app/api/jobs.py` accepts `model_version_id`.
-   - Evidence: `frontend/src/pages/JobsPage.tsx:24-45` tracks and sends only status, media type, `created_from`, and `created_to`; no model state or `model_version_id` query param is wired.
-   - Impact: users cannot filter job history by model even though backend support exists and the page already displays model names.
-
-3. Jobs API error copy includes English visible UI text.
-   - Evidence: `frontend/src/pages/JobsPage.tsx:62` renders `backend API` inside a user-facing Ukrainian error message.
-   - Evidence: `docs/FRONTEND_UX.md` requires visible frontend errors/messages to be Ukrainian; accepted English exceptions include technical labels like `FPS`, `YOLO`, `CSV`, `JSON`, not `backend API`.
-   - Impact: Phase 27 violates the Ukrainian UI invariant on failed jobs-list loading.
-
-4. Blob download helper can leak bearer tokens to absolute external URLs.
-   - Evidence: `frontend/src/api/client.ts:65` accepts any `path.startsWith("http")` URL as-is.
-   - Evidence: `frontend/src/api/client.ts:67-68` then attaches `Authorization: Bearer ...` to that URL.
-   - Impact: if a malformed or compromised API response returns an absolute external `download_url`, the frontend sends the JWT to that host. Result downloads should be restricted to same-origin/API-relative URLs.
+2. Admin model activation failure has no user-visible error state and no regression test.
+   - Evidence: `frontend/src/pages/ModelsPage.tsx:51-58` defines `activateMutation` with `onMutate`, `onSuccess`, and `onSettled`, but no `onError` handling or displayed error state. `frontend/src/test/models-page.test.tsx` covers successful activation but not failed activation.
+   - Why it matters: `docs/FRONTEND_UX.md` requires failed API requests and admin/user-facing errors to be clear and Ukrainian. Phase 28 includes admin activation as core behavior, so a backend `403`, `404`, or `500` currently leaves the user with no explanation after the button resets.
+   - Expected fix: add safe Ukrainian activation error feedback and a focused failed-activation test.
 
 ## Optional issues
 
@@ -38,24 +28,35 @@ None.
 
 ## Quality gate assessment
 
-- `npm run lint`: PASS.
-- `npm test`: PASS, 32 tests passed.
-- `npm run build`: PASS.
-- `rtk git diff --check`: FAIL, `docs/phase.md:3: trailing whitespace`.
-- Manual browser smoke: not run in this review; `.context/status.md` says it was not available in the implementation session.
+- `rtk git status --short`: PASS for inspection; shows expected Phase 28 frontend/context changes plus existing forbidden review-resolution file modification not read.
+- `rtk git diff --stat`: PASS for inspection.
+- `rtk git diff -- ...allowed paths...`: PASS for inspection; skipped `.context/review-code-resolution.md` per user rule.
+- `npm test -- models-page.test.tsx` from `frontend/`: PASS, 6 tests passed.
+- `npm run lint` from `frontend/`: PASS.
+- `npm test` from `frontend/`: PASS, 39 tests passed.
+- `npm run build` from `frontend/`: PASS.
+
+Coverage gap: no test asserts activation failure feedback, and tests permit visible English strings noted above.
 
 ## Security/privacy assessment
 
-Backend remains the authorization authority, and the new pages use protected backend endpoints rather than storage paths. Failed job internals are not rendered. Main remaining risk is the absolute-URL bearer-token leak in `apiBlobRequest`.
+Applicable because Phase 28 touches admin model registration/activation UI.
+
+- Regular users do not see registration or activation controls in tests.
+- Backend remains authority for `POST /api/models` and `PATCH /api/models/{model_id}/activate`.
+- Model cards do not display `weights_path`; tests assert absence of raw `weights_path`, relative weight path, `/app/storage`, Windows drive prefix, `null`, `undefined`, and `frame_stride`.
+- Client rejects empty, absolute, Windows-drive, and `..` weights paths before submit, while backend validation remains final.
+- No training launch control, secret display, token logging, or storage path construction found in the new frontend code.
 
 ## Positive findings
 
-- `/jobs` and `/jobs/:jobId` are routed under `ProtectedRoute`.
-- Regular jobs page uses `/api/jobs`, not admin/global job endpoints.
-- Result preview and downloads use authenticated blob fetches, with object URL cleanup.
-- No-detection completed jobs render as a successful empty state with downloads still available.
-- Job details avoid rendering raw `error_message`, `frame_stride`, storage roots, or absolute paths in tested states.
-- Frontend tests cover route protection, list rendering, filtering, details rendering, downloads, no-detection, failed-state safety, and video-only tracks.
+- `/models` remains protected and wired inside existing authenticated shell.
+- Admin-only form/action visibility matches docs and tests.
+- New API helper uses documented endpoints only: `GET /models?limit=100`, `POST /models`, and `PATCH /models/{model_id}/activate`.
+- Model cards cover name, family, variant, active state, dataset fields, metrics, size, FPS, and documented YOLO11 fallback display.
+- Missing metric values render Ukrainian placeholder text instead of raw `null`.
+- Active model state is refetched after activation and covered by regression test.
+- Implementation follows prototype structure without copying mock-only behavior into product contracts.
 
 ## Files consulted
 
@@ -66,30 +67,29 @@ Backend remains the authorization authority, and the new pages use protected bac
 - `docs/phase.md`
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
-- `docs/CV_PIPELINE.md`
+- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
+- `prototype/index.md`
+- `prototype/models.jsx`
 - `frontend/package.json`
 - `frontend/index.md`
 - `frontend/src/App.tsx`
 - `frontend/src/api/client.ts`
-- `frontend/src/api/jobs.ts`
+- `frontend/src/api/models.ts`
 - `frontend/src/api/types.ts`
-- `frontend/src/pages/JobsPage.tsx`
-- `frontend/src/pages/JobDetailsPage.tsx`
-- `frontend/src/pages/jobs/jobFormatters.ts`
-- `frontend/src/pages/jobs/JobPageParts.tsx`
-- `frontend/src/test/jobs-page.test.tsx`
-- `frontend/src/test/job-details-page.test.tsx`
-- `backend/app/api/jobs.py`
-- `backend/app/schemas/jobs.py`
-- `backend/app/services/results.py`
-- `prototype/jobs.jsx`
-- `prototype/job-detail.jsx`
-- `rtk git status --short`
-- `rtk git diff --stat`
-- `rtk git diff`
+- `frontend/src/auth/useAuth.ts`
+- `frontend/src/layout/AppShell.tsx`
+- `frontend/src/pages/ModelsPage.tsx`
+- `frontend/src/pages/models/ModelPageParts.tsx`
+- `frontend/src/pages/models/modelPageUtils.ts`
+- `frontend/src/pages/placeholders.tsx`
+- `frontend/src/test/models-page.test.tsx`
+- `frontend/src/test/setup.ts`
+- `backend/app/api/models.py`
+- `backend/app/schemas/models.py`

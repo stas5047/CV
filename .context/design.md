@@ -1,135 +1,129 @@
-# Design - Phase 27
+# Phase 28 Design - Frontend Model Registry Page
 
 ## Phase goal
 
-Implement production frontend `/jobs` and `/jobs/:jobId` pages based on the static prototype look, using only documented backend REST APIs and preserving Ukrainian dashboard UX.
+Build the production `/models` frontend page for viewing registered model versions and, for admins only, registering and activating models through existing backend REST endpoints.
 
 ## Intended behavior from docs
 
-Confirmed:
+Confirmed facts:
 
-- `/jobs` is protected and shows processing jobs visible to the current user.
-- Regular users see only their own jobs. Admin global job history belongs in admin routes/pages, not this phase.
-- Jobs table must show status badge, media type, original filename, model version, created date, processing duration, detections count, average confidence, filters, and link to details.
-- Recommended filters: status, media type, date, model where practical.
-- `/jobs/:jobId` is protected and shows job status, original media metadata, processed media preview, summary cards, detection table, track summary table for video, download annotated media, download CSV, download JSON, failed-job error area, progress bar, and last heartbeat/update time when available.
-- Queued/processing jobs should poll status and update UI.
-- Completed no-detection jobs show Ukrainian empty state, not error, and keep downloads where backend marks outputs available.
-- Processed video preview may be unavailable; UI must show Ukrainian notice and keep download.
-- Detection table must include frame index, timestamp, class, confidence, bounding box, and track ID.
-- Track table is for video jobs only and must not imply physical trajectory.
-- Visible UI text must be Ukrainian. Technical labels such as `FPS`, `YOLO`, `CSV`, `JSON`, `Track ID`, and `Bounding box` may remain readable.
-- UI must not display raw `null`, `undefined`, unsafe absolute paths, or `frame_stride`.
-- API/file outputs stay CV-only: image-space detections, confidence, timestamps, track IDs, model data, and performance metrics only.
+- `/models` is a protected frontend route.
+- Authenticated users can view registered model versions.
+- Regular users must not see admin-only mutation actions.
+- Admin users can register model versions and activate one model.
+- Models list must show:
+  - model name;
+  - family, including YOLO26 or documented YOLO11 fallback;
+  - variant;
+  - active status;
+  - dataset description;
+  - key metrics;
+  - model size when known.
+- Missing metric values must render Ukrainian placeholders or empty states, not raw `null`.
+- Visible UI text must be Ukrainian. Technical labels such as `YOLO`, `mAP`, `FPS`, `JSON` may remain English.
+- Frontend calls only backend REST API.
+- Backend remains authorization source of truth.
+- UI must not expose unsafe absolute filesystem paths.
+- Training is not launched from UI or API.
+- Model registration uses existing relative storage paths. Large `.pt` upload through UI is optional and not required.
+- YOLO26 is primary. YOLO11 appears only as documented fallback metadata.
 
 ## Architecture decisions
 
-- Keep frontend as REST client only. No PostgreSQL, shared storage, or direct CV inference access.
-- Replace placeholder route components with real page modules imported by `App.tsx`.
-- Add `frontend/src/api/jobs.ts` as focused Phase 27 API client for jobs, results, detections, tracks, and authenticated downloads.
-- Extend `frontend/src/api/types.ts` with doc/backend-confirmed response types only:
-  - job result references/metadata;
-  - detection response/list;
-  - track response/list;
-  - optional query/filter parameter types.
-- Reuse `apiRequest` for JSON. Add a local authenticated download helper that uses `fetch`, `Authorization: Bearer`, blob URLs, and safe generated filenames from job id/kind. Do not expose backend storage paths.
-- Use the same authenticated blob pattern for processed media preview when backend marks image/video output available. Create object URLs only from protected backend responses, revoke them on cleanup/page change, and show a Ukrainian unavailable-preview notice when browser preview cannot be provided.
-- Use TanStack Query for jobs list, job details, result metadata, detections, and tracks.
-- Poll `/api/jobs/{job_id}` while status is `queued` or `processing`; include summary/result/detections refresh after completion where needed.
-- Use existing Tailwind v3 and shadcn-style primitives. Use `@radix-ui/react-icons` because dependency exists. Do not add Framer Motion or Phosphor.
-- Match prototype UI with production Tailwind: compact filter bar, status chips, scrollable data tables, no-detection empty state, failed error banner, preview panel, summary side column, download bar, and pagination.
-- Keep design-taste constraints within existing app style:
-  - no emojis;
-  - no pure black or purple/blue glow;
-  - dark neutral dashboard with single green accent already present;
-  - grid layouts, no complex flex math;
-  - `min-h-[100dvh]` stays in shell;
-  - mobile collapses to single column with horizontal table scroll;
-  - active/hover tactile feedback via transform/opacity only.
+- Replace only the Phase 28 placeholder route with a real page. Do not touch experiments/admin later-phase placeholders.
+- Add a focused `frontend/src/api/models.ts` module for model list, detail if needed, create, and activate calls using existing `apiRequest`.
+- Keep API types aligned with existing backend schema. Extend `frontend/src/api/types.ts` only for `ModelCreateRequest` if needed.
+- Implement `frontend/src/pages/ModelsPage.tsx` as page orchestrator with TanStack Query.
+- Put formatting, metric extraction, status badge, list, empty/error/loading states, and admin form helpers in `frontend/src/pages/models/ModelPageParts.tsx` if needed for file size and review clarity.
+- Keep prototype as visual guide:
+  - page header with admin action;
+  - collapsible/conditional admin registration form;
+  - active model accent marker;
+  - compact model rows/cards;
+  - metric bars;
+  - clear empty state.
+- Do not copy prototype mock behavior that conflicts with docs, especially fake datasets or local-only activation simulation.
+- Use existing design system and dependencies:
+  - Tailwind CSS v3 syntax;
+  - shadcn-style `Button` and `Input`;
+  - `@radix-ui/react-icons`;
+  - no new third-party package.
+- Use `DESIGN_VARIANCE=8`, `MOTION_INTENSITY=6`, `VISUAL_DENSITY=4` only within existing project constraints: asymmetric but readable model list, CSS transitions only, no added animation dependency.
+- Model fixtures and assertions must explicitly cover dataset description, model size when known, full metric display, and YOLO11 fallback metadata so the page cannot pass with partial model cards.
 
 ## Frontend impact
 
-- `/jobs` becomes a functional protected route.
-- `/jobs/:jobId` becomes a functional protected route.
-- `App.tsx` imports real jobs pages instead of placeholders for these two routes.
-- Jobs page adds:
-  - status filter;
-  - media type filter;
-  - local filename search only across the currently loaded page of results, with UI wording that does not imply whole-history search;
-  - optional date range filter if query params remain simple;
-  - optional model filter only if backed by `/api/models`;
-  - pagination via `limit`/`offset`;
-  - loading skeleton;
-  - Ukrainian empty and no-results states;
-  - safe API error state with retry.
-- Job details page adds:
-  - breadcrumb/back action;
-  - polling status panel;
-  - failed safe error block that does not echo raw backend internals;
-  - authenticated media preview via blob URL with object URL cleanup, or unavailable-preview notice;
-  - summary cards;
-  - parameter/metadata panel;
-  - download buttons respecting backend `available`;
-  - detections table with pagination-safe initial page;
-  - tracks table for videos only;
-  - no-detection and no-track empty states.
+- `/models` changes from placeholder to production page.
+- New frontend API helper likely needed for:
+  - `GET /models?limit=100`
+  - `POST /models`
+  - `PATCH /models/{model_id}/activate`
+- Existing upload/dashboard model API calls can remain unchanged unless deduplication is minimal and low-risk.
+- Existing `App.tsx` import should point to the new `ModelsPage`; later placeholders remain in `placeholders.tsx`.
+- Tests should cover user view, admin actions, loading/error/empty states, no raw `null`, no `weights_path` display, and activation/register API calls.
 
 ## Backend impact
 
-- No backend code changes planned.
-- Frontend consumes existing documented/backend-confirmed endpoints only.
+- No backend source changes planned.
+- Use existing backend model endpoints only.
+- Backend remains responsible for auth, admin checks, path safety, and relative path validation.
 
 ## DB impact
 
 - No database changes planned.
+- Existing `model_versions` storage and constraints remain source of truth.
 
 ## API impact
 
-- No API contract changes planned.
-- Client must align with existing paths and response shapes from `backend/app/schemas/jobs.py`.
-- Client query params must be limited to documented/backend-confirmed params:
-  - jobs: `limit`, `offset`, `status`, `media_type`, `model_version_id`, `created_from`, `created_to`;
-  - detections: `limit`, `offset`, `frame_index`, `min_confidence`, `max_confidence`, `track_id`.
+- No new routes, payload fields, or response fields.
+- Use documented/current endpoints:
+  - `GET /api/models`
+  - `POST /api/models`
+  - `PATCH /api/models/{model_id}/activate`
+- Request body must match existing `ModelCreateRequest`.
 
 ## Security/privacy impact
 
-- Backend remains authorization authority.
-- Frontend must not reveal raw `error_message` if it contains internal paths or stack details. Show safe Ukrainian wording; optionally show generic failed-processing message.
-- Downloads must use backend download endpoints and never display or construct storage paths.
-- Download helper must not log tokens or response data.
-- UI must not show `weights_path`, absolute paths, raw API tracebacks, tokens, passwords, or storage roots.
-- Admin visibility is unchanged; Phase 27 should not add admin global history to `/jobs`.
+- Hide register/activate controls from non-admin users.
+- Still handle backend `403` as final authority.
+- Do not display `weights_path` in model cards/list because it is an internal relative storage reference.
+- Admin form may accept a relative weights path because backend API requires it for registration; label it clearly as storage-relative path and do not accept absolute examples.
+- Add lightweight client validation for the admin weights path before submit:
+  - reject absolute-looking Unix paths such as `/app/storage/...`;
+  - reject Windows drive paths such as `C:\...`;
+  - reject traversal-looking paths containing `..`;
+  - submit only the storage-relative value to the backend.
+- Backend remains the authority for final relative-path validation, and backend validation errors must render as safe Ukrainian form errors without exposing unsafe paths.
+- Do not log tokens, passwords, secrets, or model storage internals.
+- Do not show absolute filesystem paths from any error or response.
+- Do not expose training launch controls.
 
 ## Test strategy
 
-- Add frontend tests for `/jobs`:
-  - protected route renders jobs table from `/api/jobs`;
-  - status/media/date filters call confirmed query params;
-  - table shows status badges in Ukrainian;
-  - empty state and filtered-empty state render Ukrainian text;
-  - raw `null`, `undefined`, storage paths, and `frame_stride` are absent;
-  - detail link points to `/jobs/{id}`.
-- Add frontend tests for `/jobs/:jobId`:
-  - fetches detail/result/detections/tracks using confirmed endpoints;
-  - queued/processing jobs show progress and polling behavior;
-  - completed job shows summaries, detections, tracks, and download buttons;
-  - no-detection completed job shows empty state, not error, with download actions when available;
-  - failed job shows safe Ukrainian error and hides raw backend internals;
-  - image job does not show track summary table as required data;
-  - video preview-unavailable notice appears when relevant.
-- Relevant gates for implementation phase:
-  - `cd frontend; npm run lint`
-  - `cd frontend; npm test`
-  - `cd frontend; npm run build`
-- Manual browser smoke, when implementation occurs:
-  - `/jobs` desktop/narrow viewport visual check;
-  - `/jobs/:jobId` completed/no-detection/failed/processing states;
-  - authenticated downloads trigger without exposing absolute paths.
+- Add focused frontend route tests for `/models`.
+- Verify guest redirect remains protected route behavior.
+- Verify regular user:
+  - sees model list;
+  - sees dataset description, model family, variant, active status, key metrics, model size when known, and YOLO11 fallback metadata when present;
+  - sees active status and metrics;
+  - does not see register or activate controls;
+  - does not trigger admin endpoints.
+- Verify admin:
+  - sees register control;
+  - submits model registration body matching backend schema;
+  - cannot submit absolute-looking or traversal-looking weights paths from the client form;
+  - activates inactive model through documented PATCH endpoint;
+  - sees refresh/update after mutation, with the newly activated model visually active and the previously active model no longer shown as active.
+- Verify loading skeleton, API error state with retry, empty state, and missing metrics placeholder.
+- Verify UI never renders raw `null`, `undefined`, `frame_stride`, `/app/storage`, Windows absolute paths, or raw `weights_path`.
+- Run:
+  - `npm run lint`
+  - `npm test`
+  - `npm run build`
 
 ## Ambiguities or conflicts
 
-- No `WARNING: CONFLICT` found among consulted docs and inspected implementation.
-- Prompt used placeholders for phase and risk; this contract uses `docs/phase.md` for phase and records `MEDIUM` as an assumption.
-- Prototype contains mock data and inline styles; it is a visual reference only. Product/API behavior comes from docs and backend schemas.
-- Model filter is "where practical"; avoid a fake model filter if it requires extra behavior not already available.
-- Result preview may require authenticated blob fetching because backend downloads require JWT. This is implementation detail, not API change.
+- WARNING: CONFLICT: `docs/index.md` describes frontend state as Phase 24, but `frontend/index.md`, `docs/phase.md`, and actual code indicate Phase 28 is next after Phase 27. Plan follows `docs/phase.md`.
+- User prompt left phase title and risk placeholders unresolved. Current phase inferred from `docs/phase.md`; risk marked MEDIUM assumption.
+- Prototype contains mock model names/dataset strings. Prototype index says those are not contracts, so only visual structure should carry into implementation.

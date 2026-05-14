@@ -1,47 +1,40 @@
-# Status - Phase 27 Frontend Jobs History and Job Details Pages
+Phase 28 - Frontend model registry page
 
-## Current state
+Status: code review resolved and final-fix verified.
 
-- Implemented production `/jobs` route with user-scoped job listing, status/media/date filters, current-page filename search, pagination, loading/error/empty states, and detail links.
-- Implemented production `/jobs/:jobId` route with polling for queued/processing jobs, progress/heartbeat display, safe failed-job messaging, authenticated result preview blobs, summary cards, parameters, downloads, detection table, and video-only track table.
-- Added focused jobs API helpers, result/detection/track types, and authenticated blob download helper.
-- Added shared Phase 27 job formatters and page parts.
-- Wired real Phase 27 pages into `frontend/src/App.tsx`; later `/models`, `/experiments`, and `/admin` placeholders remain unchanged.
-- Added frontend tests for jobs list, route protection, documented filters, details, downloads, no-detection, failed-state safety, and video/image track visibility.
-- Updated `frontend/index.md` to current Phase 27 state.
-- Resolved Phase 27 code review fixes:
-  - removed `docs/phase.md` trailing whitespace flagged by diff check;
-  - added `/jobs` model filter backed by `/api/models` and `model_version_id`;
-  - replaced English `backend API` visible error copy with Ukrainian wording;
-  - restricted authenticated blob downloads/previews to API-relative or same API origin/path URLs before attaching bearer tokens;
-  - added regression coverage for model filter query params and external download URL blocking.
+Scope completed:
+- Added typed frontend model registry API helpers for list, register, and activate actions.
+- Replaced `/models` placeholder with protected Ukrainian model registry page.
+- Added admin-only model registration form using storage-relative weights paths.
+- Added client-side guard against absolute/traversal weights paths while keeping backend authorization as authority.
+- Added admin activation flow with model-list refetch so active state updates visibly.
+- Added model metrics display, active/fallback badges, loading/error/empty states, and missing-metric placeholders.
+- Added focused route tests for regular users, admins, unsafe paths, activation update, loading/error/empty states, and unsafe value absence.
+- Updated `frontend/index.md` for current Phase 28 state.
 
-## Scope notes
+Code review fixes completed:
+- Localized remaining avoidable English model-page text (`backend API`, `YOLO registry`, `Precision`, `Recall`, and `runtime` wording).
+- Added safe Ukrainian activation failure feedback.
+- Added regression coverage for failed activation without exposing raw backend error detail.
 
-- No backend, database, CV worker, training, Docker, product docs, research/design/plan, or review files were modified by this implementation.
-- Frontend uses documented backend REST endpoints only: `/jobs`, `/jobs/{id}`, `/jobs/{id}/result`, `/jobs/{id}/detections`, `/jobs/{id}/tracks`, and result download URLs.
-- `/jobs` uses regular jobs API, not `/admin/jobs`.
-- `frame_stride` is not displayed.
-- Downloads and previews use authenticated fetch/blob flow; UI never constructs storage paths.
+Quality gates:
+- `npm test -- models-page.test.tsx` PASS, 7 tests passed.
+- `npm run lint` PASS.
+- `npm test` PASS, 40 tests passed.
+- `npm run build` PASS.
+- `Invoke-WebRequest http://localhost:5173/models` PASS (200); port 5173 was already in use.
+- `git diff --check` FAIL: pre-existing `docs/phase.md:3` trailing whitespace; not part of accepted Phase 28 code-review fixes, so left unchanged.
 
-## Verification
+Security/privacy:
+- Regular users do not see register/activate controls.
+- Backend remains authority for admin registration/activation.
+- Model cards do not display `weights_path` or unsafe absolute paths.
+- Admin form rejects `/app/storage/...`, Windows drive paths, and `..` segments before submit.
+- No secrets, tokens, passwords, or training-launch controls added.
 
-- `npm run lint`: PASS.
-- `npm test`: PASS, 33 tests passed.
-- `npm run build`: PASS.
-- `git diff --check`: PASS.
-- Dev-server HTTP smoke: PASS, Vite started at `http://localhost:5175/` because ports 5173 and 5174 were already occupied; `Invoke-WebRequest http://localhost:5173` returned 200 from an existing Vite server.
-- Manual browser smoke: not available in this session because the Browser plugin's required Node REPL JavaScript tool is not exposed, and local Playwright packages are not installed.
+Deviations:
+- None from `.context/design.md`, `.context/plan.md`, planning resolution, or accepted code-review resolution.
 
-## Security / privacy
-
-- Backend remains authorization authority; frontend route guards are only UX.
-- Frontend does not show backend raw failed-job internals, absolute paths, storage roots, tokens, `weights_path`, `null`, `undefined`, or `frame_stride`.
-- Result downloads use backend URLs with bearer token fetch.
-- Bearer token fetch is blocked for absolute external download URLs.
-- CV output wording remains detection/tracking/image-space data only.
-
-## Deviations / remaining risks
-
-- No product-doc, design, plan, or review-resolution deviations.
-- Manual visual comparison with `prototype/jobs.jsx` and `prototype/job-detail.jsx` remains blocked by unavailable browser automation tooling in this session; automated route/state coverage and build gates passed.
+Remaining risks:
+- Manual in-app browser smoke was not performed because no Browser plugin callable tool was exposed in this tool set; HTTP route smoke passed.
+- `docs/phase.md:3` has trailing whitespace from prior worktree state; not resolved because current review resolution accepted only Phase 28 model-page fixes.

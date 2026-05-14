@@ -8,6 +8,7 @@ import { AppShell } from "./layout/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
 import { JobDetailsPage } from "./pages/JobDetailsPage";
 import { JobsPage } from "./pages/JobsPage";
+import { ModelsPage } from "./pages/ModelsPage";
 import { UploadPage } from "./pages/UploadPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -15,7 +16,6 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import {
   AdminPage,
   ExperimentsPage,
-  ModelsPage,
 } from "./pages/placeholders";
 
 function AppRoutes() {

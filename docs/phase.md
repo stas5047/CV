@@ -1,50 +1,45 @@
-## Phase 27 - Frontend jobs history and job details pages
+## Phase 28 - Frontend model registry page
 
-**Direction:** Frontend
-**Goal:** Implement job list, filters, status polling, details, detections/tracks, previews, and downloads.
+**Direction:** Frontend  
+**Goal:** Implement model list and admin model-management actions.
 
 ### Scope
 
-- Implement `/jobs` page.
-- Add jobs table with:
-  - status badge;
-  - media type;
-  - original filename;
-  - model version;
-  - created date;
-  - processing duration;
-  - detections count;
-  - average confidence;
-  - link to details.
-- Add filters for status, media type, date, and model where practical.
-- Implement `/jobs/:jobId` page.
-- Show job status, media metadata, summary cards, progress, heartbeat/update time, and failed-job error area.
-- Poll job status while queued or processing.
-- Show processed media preview when possible.
-- If processed video preview is unavailable, show Ukrainian notice and keep download button.
-- Add detection table with frame index, timestamp, class, confidence, bounding box, and track ID.
-- Add track summary table for videos.
-- Add download buttons for annotated media, CSV, and JSON.
-- Handle completed no-detection jobs with Ukrainian empty state, not error.
+- Implement `/models` page.
+- Display registered model versions with:
+  - model name;
+  - family;
+  - variant;
+  - active status;
+  - dataset description;
+  - key metrics;
+  - model size when known.
+- Allow regular users to view models only.
+- Show admin-only actions only to admins:
+  - register model;
+  - activate model.
+- Add admin model registration form using existing relative storage paths.
+- Add activation flow and active-status update.
+- Render missing metric values as Ukrainian placeholders or empty states, not raw `null`.
+- Represent YOLO26 and documented YOLO11 fallback accurately.
 
 ### Relevant docs
 
 - `docs/FRONTEND_UX.md`
 - `docs/API.md`
-- `docs/CV_PIPELINE.md`
+- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Jobs page shows only current user's jobs for regular users.
-- Status badges use Ukrainian visible text.
-- Queued/processing jobs poll and update UI.
-- Completed jobs show summaries and tables.
-- Failed jobs show safe Ukrainian error messages.
-- No-detection jobs show empty state and keep downloads when available.
-- Downloads work from UI.
+- Authenticated users can view model list.
+- Regular users do not see admin mutation actions.
+- Admin can register and activate model versions.
+- Active model is visually clear.
+- Missing metrics do not show raw `null`.
 - Frontend build passes.
 
 ### Commit
 
-`feat(frontend-jobs): add jobs history details polling and downloads`
+`feat(frontend-models): add model registry page and admin actions`

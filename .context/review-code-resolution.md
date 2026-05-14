@@ -1,58 +1,56 @@
-# Code Review Resolution - Phase 27
+# Phase 28 Code Review Resolution
 
 ## Verdict: FIXED
 
-OpenAI review verdict was `APPROVED_WITH_CHANGES`. No Claude code review file exists in this checkout. All review items are doc-consistent and accepted. No item needs user decision.
+Code review had no critical blockers. Two important fixes were accepted and applied.
 
 ## Resolution table
 
-| ID | Priority | Review item | Resolution | Reason | Fix target |
-|---|---|---|---|---|---|
-| OAI-I1 | important | Diff whitespace gate fails on `docs/phase.md:3`. | accepted | Whitespace cleanup is low-risk and unblocks review hygiene. | Remove trailing whitespace. |
-| OAI-I2 | important | Jobs page omits model filter despite existing `model_version_id` API support. | accepted | Phase 27 says model filter where practical; backend and model list API support it. | Add model selector backed by `/api/models` and pass `model_version_id`. |
-| OAI-I3 | important | Jobs page API error contains English visible copy `backend API`. | accepted | Visible errors must be Ukrainian except accepted technical labels. | Replace with Ukrainian wording. |
-| OAI-I4 | important | `apiBlobRequest` can send bearer token to arbitrary absolute URL. | accepted | Security/privacy issue; downloads/previews must stay on backend API. | Restrict blob URLs to API-relative or same API origin/path before attaching token. |
+| ID | Source | Priority | Item | Resolution | Reason |
+|---|---|---:|---|---|---|
+| OAI-I1 | `.context/review-code-openai.md` | important | Visible English text remains on `/models`: `backend API`, `YOLO registry`, `Precision`, `Recall`. | accepted | `docs/FRONTEND_UX.md` requires visible UI text in Ukrainian, except accepted technical labels such as `YOLO`, `FPS`, and `mAP`. The English words are user-facing and avoidable. |
+| OAI-I2 | `.context/review-code-openai.md` | important | Admin activation failure has no visible Ukrainian error state or regression test. | accepted | `docs/FRONTEND_UX.md` requires failed API requests and admin-facing errors to be clear and Ukrainian. Activation is Phase 28 core behavior. |
 
 ## Accepted critical fixes
 
-- None.
+None.
 
 ## Accepted important fixes
 
-- Remove trailing whitespace in `docs/phase.md`.
-- Add backend-backed model filter to `/jobs`.
-- Replace English-facing jobs error wording.
-- Guard authenticated blob fetches against external absolute URLs.
+- Localize remaining avoidable English text on the model registry page.
+- Add safe Ukrainian activation-error feedback and a focused failed-activation regression test.
 
 ## Accepted optional fixes
 
-- None.
+None.
 
 ## Rejected items
 
-- None.
+None.
 
 ## Duplicate items
 
-- None.
+None.
 
 ## Items needing user decision
 
-- None.
+None.
 
 ## Fixes applied
 
-- Removed trailing whitespace from `docs/phase.md`.
-- Added `listJobFilterModels()` and `/jobs` model selector backed by `/api/models?limit=100`.
-- Wired selected model to `model_version_id` query param and reset pagination on model changes.
-- Replaced visible English jobs-list error copy with Ukrainian server wording.
-- Restricted `apiBlobRequest()` to API-relative or same API origin/path URLs before applying bearer auth.
-- Added frontend tests for model filter query params and external download URL blocking.
+- Replaced remaining avoidable English model-page text with Ukrainian wording:
+  - `backend API` error wording now says server connection.
+  - `YOLO registry` now renders as `Реєстр YOLO`.
+  - `Precision` and `Recall` now render as `Точність` and `Повнота`.
+  - `runtime-вибір` now renders as Ukrainian launch-selection wording.
+- Added user-visible activation failure feedback in Ukrainian.
+- Added regression test for failed activation that verifies safe Ukrainian error text and avoids displaying raw backend error detail.
 
 ## Final verification
 
+- `cd frontend; npm test -- models-page.test.tsx`: PASS, 7 tests passed.
 - `cd frontend; npm run lint`: PASS.
-- `cd frontend; npm test`: PASS, 33 tests passed.
+- `cd frontend; npm test`: PASS, 40 tests passed.
 - `cd frontend; npm run build`: PASS.
-- `git diff --check`: PASS.
-- Manual browser smoke: not available; same tooling blocker remains from implementation status.
+- `Invoke-WebRequest http://localhost:5173/models`: PASS, HTTP 200.
+- `git diff --check`: FAIL, pre-existing `docs/phase.md:3` trailing whitespace; not part of accepted Phase 28 code-review fixes, so source left unchanged.
