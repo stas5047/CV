@@ -1,5 +1,12 @@
 # Codex Mistake Log
 
+## 2026-05-14 - Phase 21 training package discovery included non-package folders
+
+- Mistake: Initial `training/pyproject.toml` relied on setuptools automatic package discovery while `training/` also contained `notebooks/` and `templates/`.
+- Impact: `python -m pip install -e "training[dev]"` failed before package install with `Multiple top-level packages discovered`.
+- Fix: Added explicit setuptools package discovery for `aerovision_training*` and excluded tests/templates/notebooks.
+- Prevention: When a Python package folder contains non-package artifact directories, configure package discovery before running install gates.
+
 ## 2026-05-14 - Phase 13 boundary scan covered errors but missed success responses
 
 - Mistake: Initial Phase 13 API contract test reused the response safety helper only for error payloads, not representative successful JSON responses.

@@ -1,43 +1,40 @@
-## Phase 20 - Worker error handling, logging, and integration hardening
+## Phase 21 - Training pipeline scripts, notebooks, dataset preparation, and model cards
 
-**Direction:** CV Worker / QA
-**Goal:** Harden worker behavior before connecting frontend flows.
+**Direction:** Training / Offline CV
+**Goal:** Create the offline training workflow artifacts without launching training from the web application.
 
 ### Scope
 
-- Audit worker failure handling for:
-  - missing uploaded file;
-  - corrupted image;
-  - corrupted video;
-  - unsupported decode result;
-  - missing model file;
-  - CUDA unavailable;
-  - failed annotated output write;
-  - failed export generation;
-  - database write failures.
-- Store safe `error_message` for failed jobs.
-- Keep stack traces in worker logs only, not unsafe API responses.
-- Ensure successful jobs set `completed_at` and final progress.
-- Ensure failed jobs set `status = failed` and updated timestamp.
-- Ensure no-detection jobs are never marked failed solely because no detections were found.
-- Add logging tests or manual log audit checklist.
-- Add worker integration tests with backend-created jobs where practical.
+- Create training scripts for dataset preparation and YOLO-compatible structure.
+- Create deterministic split script with seed `42`.
+- Prefer group-based splitting when source/sequence/video grouping metadata exists.
+- Generate `split_manifest.csv` with required columns.
+- Create `data.yaml` for one class: `drone`.
+- Create Kaggle/Colab notebooks or notebook templates for YOLO26n and YOLO26s fine-tuning.
+- Add local smoke training option for tiny subset only.
+- Add model card schema and metrics schema.
+- Save expected artifacts layout under `storage/models/`.
+- Document human responsibilities for running cloud training and placing artifacts.
+- Document YOLO11 fallback procedure and required metadata if YOLO26 is unavailable.
+- Ensure scripts do not commit datasets or weights.
 
 ### Relevant docs
 
+- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/PROJECT_CONTEXT.md`
 - `docs/CV_PIPELINE.md`
 - `docs/ARCHITECTURE.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
 
 ### Validation
 
-- Failure cases produce safe job error messages.
-- No-detection jobs still complete.
-- Worker logs include device selection, job claim, model loading, processing start/end, exports, and errors.
-- Worker logs do not include secrets or unsafe user-facing absolute paths.
-- Worker test suite passes.
+- Dataset split script runs on a small fixture.
+- Split manifest includes required columns.
+- `data.yaml` defines exactly one class: `drone`.
+- Model card schema validates placeholder/null metrics.
+- Training README clearly states that web UI/API do not launch training.
+- Large datasets and weights remain ignored by Git.
 
 ### Commit
 
-`test(worker): harden CV worker errors logging and integration behavior`
+`feat(training): add dataset split notebooks and model card workflow`

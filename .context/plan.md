@@ -1,115 +1,124 @@
-# Phase 20 Implementation Plan - Worker error handling, logging, and integration hardening
+# Plan - Phase 21 Training Pipeline Artifacts
 
 ## Scope
 
-Only Phase 20 CV worker/QA hardening. Do not modify product docs. Do not modify frontend, training, Docker, public API contracts, database schema, auth, upload, model registry, admin features, or unrelated backend code.
+Phase only: offline training scripts, notebook templates, dataset preparation, deterministic split manifest, one-class YOLO config generation, model card/metrics schemas, tiny local smoke option, and training instructions. No source runtime implementation, no API, no database migration, no frontend work.
 
 ## Ordered atomic plan
 
-1. `@role/developer-cv-worker` Re-read Phase 20 relevant docs before source edits.
-   - Files: `docs/CV_PIPELINE.md`, `docs/ARCHITECTURE.md`, `docs/AUTH_SECURITY.md`, `docs/TESTING_QA.md`.
-   - Verify: documented failure cases, safe logging rules, no-detection success rule, queue/heartbeat rules, and relative-path rules are noted.
+1. `@role/developer-training` Inspect existing `training/` contents and choose minimal new file layout inside `training/` for scripts, templates, schemas, tests, and instructions.
+   - Verifiable: chosen layout stays under `training/`; no new top-level product folder.
 
-2. `@role/tester` Run current focused worker baseline.
-   - Command: `cd cv; python -m pytest tests/test_startup.py tests/test_queue.py tests/test_logging.py tests/test_device.py tests/test_model_runtime.py tests/test_image_processing.py tests/test_video_processing.py -q`
-   - Verify: preserve output. PASS means patch only proven gaps. FAIL means use exact failure as implementation target.
+2. `@role/developer-training` Define training-local dependency and command strategy before adding scripts.
+   - Verifiable: if non-stdlib dependencies are introduced, a training-local manifest or documented install command exists; if no install command exists yet, `training/index.md` says `not available yet`.
 
-3. `@role/developer-cv-worker` Audit failed-job state writer.
-   - File: `cv/aerovision_worker/queue.py`
-   - Verify: `fail_processing_job` sets `status = failed`, safe `error_message`, `completed_at`, `updated_at`, final heartbeat, and clears lock fields only for claimed processing jobs.
-   - Verify: stale timeout failure uses safe fixed text and does not expose paths/secrets.
+3. `@role/developer-training` Define dataset preparation contract for Seraphim YOLO-compatible output.
+   - Verifiable: contract writes/creates `storage/datasets/seraphim_subset/images/{train,val,test}`, `storage/datasets/seraphim_subset/labels/{train,val,test}`, `data.yaml`, and `split_manifest.csv`.
 
-4. `@role/developer-cv-worker` Audit startup/model/device failure paths.
-   - Files: `cv/aerovision_worker/main.py`, `cv/aerovision_worker/device.py`, `cv/aerovision_worker/model_runtime.py`.
-   - Verify: `auto` CUDA fallback chooses CPU, forced `cuda` fails clearly, missing model weights fails claimed job with safe message, model load logs omit absolute paths, unsupported claimed media type fails safely.
+4. `@role/developer-training` Implement deterministic split utility with seed `42`.
+   - Verifiable: same input fixture produces identical `split_manifest.csv` on repeated runs.
 
-5. `@role/developer-cv-worker` Audit image processing failure paths.
-   - File: `cv/aerovision_worker/image_processing.py`
-   - Verify: missing source, unsafe source path, corrupt/undecodable image, inference failure, output directory failure, annotated image write failure, CSV failure, JSON failure, and DB completion failure map to safe failed-job messages.
-   - Verify: no-detection images stay on completed path and set final progress/timestamps.
+5. `@role/developer-training` Add group-aware split behavior.
+   - Verifiable: when source/sequence/video/group metadata exists, same `source_group_id` never appears in more than one split.
 
-6. `@role/developer-cv-worker` Audit video processing failure paths.
-   - Files: `cv/aerovision_worker/video_processing.py`, `cv/aerovision_worker/video_io.py`, `cv/aerovision_worker/video_exports.py`, `cv/aerovision_worker/video_persistence.py`, `cv/aerovision_worker/video_types.py`.
-   - Verify: missing source, unsafe source path, corrupt/unopened video, unsupported first-frame decode, tracker runtime failure, annotated video write failure, CSV failure, JSON failure, and DB completion failure map to safe failed-job messages.
-   - Verify: no-detection videos stay completed, write exports, and set final progress/timestamps.
+6. `@role/developer-training` Add deterministic per-image fallback split when group metadata is absent.
+   - Verifiable: manifest still has `source_group_id` column, empty where unavailable, and split values only `train`, `val`, `test`.
 
-7. `@role/developer-cv-worker` Patch only documented gaps found in steps 3-6.
-   - Allowed files: worker modules listed in steps 3-6.
-   - Verify: no schema fields, routes, frontend UI, Docker services, or product docs are added.
-   - Verify: no broad exception swallowing without safe logging and a deterministic failed-job update path.
+7. `@role/developer-training` Generate YOLO `data.yaml` for exactly one class.
+   - Verifiable: `data.yaml` has `nc: 1` and names contain only `drone`.
 
-8. `@role/tester` Add/tighten queue failure-state tests only if missing behavior is found.
-   - File: `cv/tests/test_queue.py`
-   - Verify: failed jobs have `status = failed`, `error_message`, `completed_at`, `updated_at`, `last_heartbeat_at`, and cleared locks.
-   - Verify: stale timeout message is safe and retry behavior remains unchanged.
+8. `@role/developer-training` Add model card schema/template for trained and placeholder model records.
+   - Verifiable: required fields exist: `name`, `model_family`, `variant`, `task`, `classes`, `dataset`, `split_manifest`, `train_images`, `val_images`, `test_images`, `image_size`, `epochs`, `metrics`.
 
-9. `@role/tester` Add/tighten startup/model/device tests only if missing behavior is found.
-   - Files: `cv/tests/test_startup.py`, `cv/tests/test_device.py`, `cv/tests/test_model_runtime.py`.
-   - Verify: missing model file fails job safely; forced CUDA unavailable fails clearly; `auto` CUDA unavailable selects CPU; logs do not expose absolute model path.
+9. `@role/developer-training` Add metrics schema/template for detection, performance, and all four documented experiment families.
+   - Verifiable: precision, recall, mAP@0.5, mAP@0.5:0.95, confusion matrix reference, model size, latency, FPS, total processing time, and average video FPS are represented; model comparison, confidence threshold analysis, tracker behavior comparison, and false-positive analysis artifacts validate with incomplete or `null` metrics where docs allow.
 
-10. `@role/tester` Add/tighten image failure tests only if missing behavior is found.
-    - File: `cv/tests/test_image_processing.py`
-    - Verify: documented image failure cases mark job failed with safe messages that do not contain `storage_root`, model paths, DB URLs, passwords, tokens, or stack traces.
-    - Verify: DB completion failure becomes safe failed job when the failure can be persisted.
-    - Verify: no-detection image job remains completed with `progress_percent = 100`.
+10. `@role/developer-training` Add explicit model comparison artifact guidance.
+    - Verifiable: guidance compares YOLO26n and YOLO26s, or documented YOLO11n/YOLO11s fallback, with precision, recall, mAP@0.5, mAP@0.5:0.95, latency, FPS, and model size.
 
-11. `@role/tester` Add/tighten video failure tests only if missing behavior is found.
-    - File: `cv/tests/test_video_processing.py`
-    - Verify: documented video failure cases mark job failed with safe messages that do not contain `storage_root`, model paths, DB URLs, passwords, tokens, or stack traces.
-    - Verify: unsupported first-frame decode is distinct from unopened video when fixture supports it.
-    - Verify: DB completion failure becomes safe failed job when the failure can be persisted.
-    - Verify: no-detection video job remains completed with `progress_percent = 100`.
+11. `@role/developer-training` Add explicit confidence threshold analysis artifact guidance.
+    - Verifiable: guidance covers thresholds `0.25`, `0.50`, and `0.70` for the final main model and describes recall versus false-positive trade-off without changing runtime defaults.
 
-12. `@role/tester` Add/tighten logging tests or explicit manual log-audit assertions.
-    - File: `cv/tests/test_logging.py`
-    - Verify: redaction covers database URLs, password/token/secret assignments, JWT-like tokens, absolute Windows paths, absolute POSIX paths, and secret words.
-    - Verify: worker lifecycle coverage includes selected CV device on startup, worker job claim, stale recovery, model loading, processing start/end with duration, export generation, and worker processing errors.
-    - Verify: each lifecycle log either has automated assertion coverage or is named in the final implementation report with exact manual audit evidence.
+12. `@role/developer-training` Add tracker behavior comparison artifact guidance.
+    - Verifiable: wording says tracker behavior comparison, not absolute tracking accuracy; covers ByteTrack and BoT-SORT; does not require MOTA, IDF1, HOTA, or manual track identity labels.
 
-13. `@role/tester` Add worker integration coverage with backend-shaped job rows where practical.
-    - Files: existing worker tests, preferably `cv/tests/test_startup.py`, `cv/tests/test_image_processing.py`, or `cv/tests/test_video_processing.py`.
-    - Verify: claimed jobs shaped like backend-created `media_files`/`processing_jobs` records complete or fail safely.
-    - Verify: no backend source files are changed unless an actual backend contract mismatch is proven.
+13. `@role/developer-training` Add false-positive analysis artifact guidance.
+    - Verifiable: Bird vs Drone data is described only as false-positive analysis, not training class or primary dataset replacement.
 
-14. `@role/tester` Run focused worker hardening tests.
-    - Command: `cd cv; python -m pytest tests/test_startup.py tests/test_queue.py tests/test_logging.py tests/test_device.py tests/test_model_runtime.py tests/test_image_processing.py tests/test_video_processing.py -q`
-    - Expected: PASS.
+14. `@role/developer-training` Add minimal offline artifact validation/import-readiness utility for model cards and metrics.
+    - Verifiable: utility validates local model card/metrics artifacts and relative paths only; it does not add backend routes, database writes, frontend flows, or runtime training launch.
 
-15. `@role/tester` Run worker lint.
-    - Command: `cd cv; python -m ruff check aerovision_worker tests`
-    - Expected: PASS.
+15. `@role/developer-training` Add YOLO26n and YOLO26s Kaggle/Colab notebook templates.
+    - Verifiable: templates use pretrained YOLO weights, task `detect`, image size `640`, seed `42`, one class `drone`, and do not launch from web UI/API.
 
-16. `@role/tester` Run PostgreSQL queue integration only if PostgreSQL is reachable or queue semantics changed.
-    - Command: `cd cv; python -m pytest -m postgres -q`
-    - Expected: PASS or `not available yet` with exact DB availability reason.
+16. `@role/developer-training` Add documented YOLO11 fallback path inside training artifacts.
+    - Verifiable: fallback is labeled fallback-only, maps YOLO26n to YOLO11n and YOLO26s to YOLO11s, and requires model card/experiment metadata to record actual family.
 
-17. `@role/code-reviewer` Review changed files against Phase 20 docs.
-    - Verify: no CV-only boundary violation.
-    - Verify: no unsafe `error_message` persistence.
-    - Verify: logs redact secrets and absolute paths.
-    - Verify: lifecycle logging coverage from step 12 is satisfied for all Phase 20 validation events.
-    - Verify: no-detection remains success.
-    - Verify: no backend/frontend/schema/Docker/product-doc scope creep.
+17. `@role/developer-training` Add tiny local smoke training option.
+    - Verifiable: command is limited to tiny subset/low epoch verification and documentation says smoke output is not final model/evaluation evidence.
 
-18. `@role/docs-maintainer` Decide docs/index updates.
-    - Expected: skipped unless implementation changes commands, structure, environment variables, artifact layout, or documented paths.
-    - Verify: final implementation report states docs/index updates skipped or lists exact index update.
+18. `@role/developer-training` Add artifact layout guidance for humans.
+    - Verifiable: instructions point to `storage/models/<model-version>/weights.pt`, `model_card.json`, and `metrics.json`, with relative references in artifacts.
 
-## Relevant quality gates
+19. `@role/developer-training` Add tests for split utility using tiny synthetic fixture.
+    - Verifiable: test covers deterministic output, manifest columns, valid split names, and group no-leak behavior.
 
-- `cd cv; python -m pytest tests/test_startup.py tests/test_queue.py tests/test_logging.py tests/test_device.py tests/test_model_runtime.py tests/test_image_processing.py tests/test_video_processing.py -q`
-- `cd cv; python -m ruff check aerovision_worker tests`
-- `cd cv; python -m pytest -m postgres -q` only when PostgreSQL is reachable or queue semantics changed.
+20. `@role/developer-training` Add tests for `data.yaml` generation.
+    - Verifiable: test asserts exactly one class, `drone`.
 
-Not in scope:
+21. `@role/developer-training` Add tests for model card and metrics schema validation.
+    - Verifiable: placeholder/null metrics validate; missing required keys fail.
 
-- Backend full suite unless backend files change.
-- Frontend checks.
-- Docker Compose smoke unless runtime config changes.
-- Training checks.
+22. `@role/developer-training` Add schema fixtures for all four documented experiment types.
+    - Verifiable: model comparison, confidence threshold analysis, tracker behavior comparison, and false-positive analysis fixtures validate.
 
-## Stop conditions
+23. `@role/developer-training` Add notebook-template checks.
+    - Verifiable: checks assert notebook templates start from pretrained YOLO weights and do not train from scratch.
 
-- Stop and report `WARNING: CONFLICT` if docs or code disagree on safe errors, no-detection success, relative paths, queue boundaries, or CV-only output.
-- Stop before source edits if a required failure behavior needs a new schema field, new API route, or product behavior not documented.
-- Do not mark complete with failing focused gates unless exact failing command/output is documented as blocker.
+24. `@role/developer-training` Add safety checks for generated artifact paths.
+    - Verifiable: generated model card/metrics references intended for app import are relative, not absolute host/container paths.
+
+25. `@role/docs-maintainer` Update `training/index.md` after training files/commands exist.
+    - Verifiable: index lists new training artifacts and exact local training commands; unavailable commands remain marked `not available yet`.
+
+26. `@role/docs-maintainer` Check `.gitignore` for training large-file coverage.
+    - Verifiable: generated storage datasets, model weights, reports, and notebook outputs remain ignored; update `.gitignore` only if a concrete gap exists.
+
+27. `@role/tester` Run training-specific checks.
+    - Verifiable commands, when implemented:
+      - training dependency install or documented `not available yet`
+      - dataset split fixture command
+      - model card/metrics schema validation command
+      - all four experiment schema fixture validation command
+      - notebook pretrained-weight check
+      - training tests command
+      - Git status check showing no generated datasets/weights/results tracked
+
+28. `@role/code-reviewer` Review Phase 21 changes against consulted docs.
+    - Verifiable: review confirms no runtime training launch, no backend/frontend/API/DB scope creep, YOLO26 primary preserved, single-class `drone` preserved, all four experiment artifact families covered, generated paths relative, large artifacts ignored.
+
+## Relevant checks only
+
+- Dataset split script on small fixture: expected `PASS` after implementation.
+- Split manifest required columns: expected `PASS`.
+- `data.yaml` one-class `drone`: expected `PASS`.
+- Model card schema with placeholder/null metrics: expected `PASS`.
+- Metrics schema validation: expected `PASS`.
+- Four experiment artifact schema fixtures: expected `PASS`.
+- Notebook pretrained-weight check: expected `PASS`.
+- Training dependency install/documented command: expected `PASS` when manifest exists; otherwise `not available yet`.
+- Training tests: expected `PASS` when test scaffold exists; otherwise `not available yet`.
+- Local smoke training: expected `PASS` only if tiny fixture/dependencies are implemented; otherwise `not available yet`.
+- Git status large artifact check: expected no generated datasets, weights, or reports tracked.
+
+## Explicit non-scope
+
+- No backend API endpoints.
+- No database migrations.
+- No frontend pages.
+- No CV worker queue/inference changes.
+- No model training from web UI or backend API.
+- No multi-hour Kaggle/Colab execution by agent.
+- No real datasets or model weights committed.
+- No second detection class for birds.
+- No out-of-scope targeting, navigation, geospatial, hardware, or interception behavior.

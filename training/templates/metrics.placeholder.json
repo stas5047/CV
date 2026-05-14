@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "detection_metrics": {
+    "precision": null,
+    "recall": null,
+    "map_50": null,
+    "map_50_95": null,
+    "confusion_matrix": null
+  },
+  "performance_metrics": {
+    "model_size_mb": null,
+    "latency_ms_per_frame": null,
+    "fps": null,
+    "total_processing_time_seconds": null,
+    "average_video_fps": null
+  },
+  "experiments": [
+    {
+      "type": "model_comparison",
+      "summary": "Compare YOLO26n and YOLO26s fine-tuned models; use YOLO11n and YOLO11s only after documented fallback.",
+      "models": [
+        "yolo26n-seraphim-subset-v1",
+        "yolo26s-seraphim-subset-v1"
+      ],
+      "metrics": {
+        "precision": null,
+        "recall": null,
+        "map_50": null,
+        "map_50_95": null,
+        "latency_ms_per_frame": null,
+        "fps": null,
+        "model_size_mb": null
+      }
+    },
+    {
+      "type": "confidence_threshold_analysis",
+      "summary": "Compare recall and false-positive trade-off for final main model.",
+      "thresholds": [
+        0.25,
+        0.5,
+        0.7
+      ],
+      "metrics": {
+        "recall": null,
+        "false_positive_count": null,
+        "precision": null
+      }
+    },
+    {
+      "type": "tracker_behavior_comparison",
+      "summary": "Compare tracker behavior, processing speed, ID stability, and observed ID switches.",
+      "trackers": [
+        "ByteTrack",
+        "BoT-SORT"
+      ],
+      "metrics": {
+        "video_processing_fps": null,
+        "unique_track_ids": null,
+        "frames_with_detections": null,
+        "average_confidence": null,
+        "track_fragmentation_proxy": null,
+        "observed_id_switch_examples": []
+      }
+    },
+    {
+      "type": "false_positive_analysis",
+      "summary": "Use Bird vs Drone images only to analyze visually similar false-positive risk.",
+      "dataset": "Bird vs Drone",
+      "dataset_purpose": "false_positive_analysis",
+      "metrics": {
+        "false_positive_count": null,
+        "images_evaluated": null,
+        "notes": null
+      }
+    }
+  ]
+}

@@ -1,10 +1,12 @@
-# Verdict: APPROVED_WITH_CHANGES
+# Independent Planning Review - Phase 21 Training Pipeline Artifacts
+
+## Verdict: APPROVED_WITH_CHANGES
 
 ## Summary
 
-Phase 20 plan matches documented worker/QA scope: worker failure handling, safe persisted errors, no-detection success, safe logging, relative paths, and focused worker tests. No architecture mismatch found. Backend/frontend/schema/Docker restraint is correct.
+Phase 21 plan is mostly aligned with `docs/phase.md`, `docs/ROADMAP.md`, and training docs. Scope stays offline-training only, preserves YOLO26 primary policy, keeps single-class `drone`, avoids backend/frontend/DB/runtime changes, and includes safety checks for relative artifact paths plus large-file Git hygiene.
 
-One important gap: plan does not make required lifecycle logging coverage explicit enough. Phase validation requires specific worker logs, not redaction only.
+Changes needed before implementation: make experiment artifact/schema coverage explicit for all four documented experiment types, and make training-tool dependencies/commands reproducible instead of leaving install path implicit.
 
 ## Blocking issues
 
@@ -12,21 +14,25 @@ None.
 
 ## Important issues
 
-1. Lifecycle logging validation is under-specified.
-   - Evidence: `docs/phase.md` Phase 20 validation requires worker logs include device selection, job claim, model loading, processing start/end, exports, and errors.
-   - Evidence: `docs/TESTING_QA.md` Logging Tests require worker job claim events, stale recovery events, model loading, selected CV device, processing start/end with duration, export generation, and processing errors.
-   - Evidence: `.context/plan.md` step 12 focuses on redaction coverage and says lifecycle/error log messages used by changed code pass through redaction. Step 17 checks redaction again. Neither step requires explicit test/log-audit evidence that all Phase 20 lifecycle events are present.
-   - Risk: implementation can pass redaction tests while still missing required operational logs for processing start/end, export generation, claim, stale recovery, or errors.
-   - Required change: add explicit logging assertion or manual log audit checklist to Phase 20 execution for all lifecycle events named in `docs/phase.md` validation.
+1. Experiment artifact coverage is incomplete in atomic steps.
+   - Evidence: `docs/TRAINING_EXPERIMENTS.md` requires import/display support for four experiment records: model comparison, confidence threshold analysis, tracker behavior comparison, false-positive analysis. It also lists artifact schemas and import utilities as code-agent responsibilities.
+   - Evidence: `.context/plan.md` step 8 broadly says "experiment metrics"; steps 13-14 explicitly cover only false-positive analysis and tracker behavior comparison. No explicit step covers model comparison or confidence threshold analysis artifact/schema guidance.
+   - Risk: implementation may produce schemas/templates that pass narrow validation but omit two required experiment families.
+   - Required plan change: add explicit implementation and validation coverage for model comparison and confidence threshold analysis artifacts/schemas, alongside tracker behavior and false-positive analysis.
+
+2. Dependency and command reproducibility is under-specified.
+   - Evidence: `docs/phase.md` validation requires dataset split script, model card schema validation, and training README clarity. `docs/index.md` says component index files should list commands and say `not available yet` only when no commands exist. `.context/plan.md` step 21 says "training dependency install or report `not available yet`" but no earlier step creates or chooses a training dependency manifest/runner strategy.
+   - Risk: scripts/tests may depend on packages such as YAML/schema/Ultralytics tooling without documented install command, making validation non-reproducible.
+   - Required plan change: add a step to define training-local dependency/install strategy if implementation adds non-stdlib dependencies, and include exact commands in `training/index.md`.
 
 ## Optional improvements
 
-- If PostgreSQL is not reachable for `python -m pytest -m postgres -q`, final implementation report should mark it `not available yet` or `not run` with exact DB availability reason, not `PASS`.
-- Keep current-state documentation drift visible in final status if it affects reviewer interpretation: `docs/index.md` and `backend/index.md` understate current worker implementation, while `cv/index.md` and actual worker state are later-phase capable.
+- Add explicit validation that notebook templates start from pretrained weights, not scratch. Docs require pretrained YOLO weights; plan step 9 says this, but listed checks do not assert it.
+- Add a small schema fixture for each experiment type. This would keep validation narrow while preventing drift from documented experiment contracts.
 
 ## Questions for resolution
 
-- User risk level placeholder was not concretely set (`<MEDIUM | HIGH>`). Planning artifacts assume MEDIUM. Confirm if HIGH review depth is required before implementation.
+- Should Phase 21 include a minimal offline import/validation utility for model cards and metrics, or only schemas/templates? `TRAINING_EXPERIMENTS.md` lists import utilities as code-agent responsibility, while `docs/phase.md` validation focuses on scripts, schemas, README, and Git ignore.
 
 ## Files consulted
 
@@ -38,8 +44,9 @@ None.
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
+- `docs/TRAINING_EXPERIMENTS.md`
+- `docs/PROJECT_CONTEXT.md`
 - `docs/CV_PIPELINE.md`
 - `docs/ARCHITECTURE.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
-- `.context/review-plan-claude.md`
+- `git status --short`

@@ -82,7 +82,7 @@ The `cv/` folder contains the Phase 14 worker scaffold with a Python package, de
 
 The `frontend/` folder contains a buildable placeholder Dockerfile only. It does not yet contain product application scaffolds, dependency manifests, source packages, or UI.
 
-The `training/` folder still contains only `index.md` and no training utilities.
+The `training/` folder contains the Phase 21 offline training workflow artifacts: deterministic YOLO dataset preparation, model card and metrics templates, artifact validators, YOLO26 notebook templates, a tiny local smoke-training entry point, and training-specific tests. Training remains outside the running web application.
 
 Component index files should stay narrow: general folder description, files currently present in that folder, and commands that are run from that folder. If no commands exist yet, the component index should say that commands are not available yet.
 

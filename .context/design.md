@@ -1,145 +1,105 @@
-# Phase 20 Design - Worker error handling, logging, and integration hardening
+# Design - Phase 21 Training Pipeline Artifacts
 
 ## Phase goal
 
-Harden CV worker failure handling and logging before frontend flows depend on job status, progress, exports, and safe error messages.
+Create implementation contract for Phase 21: offline training workflow artifacts for dataset preparation, deterministic YOLO dataset splits, YOLO26 notebook templates, tiny local smoke training, model card/metrics schemas, artifact layout, and human handoff notes. Web UI/backend must not launch training.
 
 ## Intended behavior from docs
 
 Confirmed facts:
 
-- Worker must handle missing uploads, corrupted media, unsupported decode results, missing model files, CUDA availability problems, annotated output failures, export failures, and DB write failures.
-- Failed jobs store clear safe `error_message`.
-- Failed jobs set `status = failed` and update timestamp fields.
-- Successful jobs set `completed_at` and final progress.
-- No-detection jobs are successful `completed` jobs, not failures.
-- Worker logs include selected device, job claim, model loading, processing start/end, export generation, and errors.
-- Logs must not include passwords, JWT tokens, JWT secrets, database passwords, sensitive environment values, or unsafe absolute paths.
-- API responses must not expose stack traces or unsafe internal paths.
-- Backend and worker coordinate through PostgreSQL and shared storage, not HTTP job-loop calls.
-- Worker stores relative result/export paths only.
+- Training is outside running web application.
+- Human user runs Kaggle/Colab sessions, downloads weights/metrics, places artifacts under storage, and registers models through admin tooling/UI.
+- Code agents create scripts, notebooks, configs, dataset split helpers, model-card schemas, metrics schemas, import utilities where needed, and instructions.
+- Training task is single-class object detection with class `drone`.
+- YOLO26 is primary; YOLO11 is fallback only after YOLO26 unavailability is reported and documented.
+- Training starts from pretrained weights, not scratch.
+- Default training parameters: image size `640`, epochs `50`, seed `42`, task `detect`, class count `1`, class name `drone`.
+- Primary dataset is Seraphim Drone Detection Dataset, planned subset 20,000 images with 16,000 train, 2,000 validation, 2,000 test.
+- Split priority: group/source/sequence/video split first when metadata exists; deterministic random per-image split only when grouping metadata is unavailable.
+- `split_manifest.csv` must include `image_path`, `label_path`, `source_group_id`, and `split`.
+- Canonical dataset structure is `storage/datasets/seraphim_subset/images/{train,val,test}`, `labels/{train,val,test}`, `data.yaml`, `split_manifest.csv`.
+- `data.yaml` must define exactly one class, class `0`: `drone`.
+- Model artifact layout under model storage should contain model directory, `weights.pt`, `model_card.json`, and `metrics.json`.
+- Model card fields must include name, model family, variant, task, classes, dataset, split manifest, split counts, image size, epochs, and metrics.
+- Metric values may be `null` before real training results exist.
+- Required metrics include precision, recall, mAP@0.5, mAP@0.5:0.95, confusion matrix, model size, latency, FPS, processing time, and average video FPS.
+- Experiments supported by artifacts/import: model comparison, confidence threshold analysis, tracker behavior comparison, false-positive analysis.
+- Phase 21 artifact schemas/templates must explicitly cover all four experiment families: model comparison, confidence threshold analysis, tracker behavior comparison, and false-positive analysis.
+- Bird vs Drone is false-positive analysis only, not second training class.
+- Local smoke training is allowed only on tiny subset to verify pipeline and must not be final model/evaluation evidence.
+- Large datasets, weights, generated media, and generated results must not be committed.
 
 Assumptions:
 
-- Use existing worker error classes and `fail_processing_job` instead of adding schema/status/API concepts.
-- Keep stack traces in logs only when useful for debugging and always behind existing redaction filter.
-- Use safe generic error strings for persisted `error_message`; detailed exception text stays out unless already safe and intentional.
-- Integration hardening can use worker-side tests with DB rows shaped like backend-created jobs.
-
-WARNING: CONFLICT:
-
-- Current-state documentation differs: `docs/index.md` and `backend/index.md` understate worker implementation, while `cv/index.md` and actual worker files show queue/processing/export behavior. No Phase 20 product-rule conflict found.
+- New training files should live under `training/` because repository already reserves that folder for this surface.
+- Generated dataset/model artifacts should be written under ignored `storage/` paths, not committed.
+- Implementation may create a small fixture under `training/` for tests if it contains tiny synthetic metadata/labels only and no real dataset/weights.
 
 ## Architecture decisions
 
-- Keep failure handling inside CV worker modules. Backend remains API/authorization/download authority and does not process worker failures.
-- Keep queue state in existing `processing_jobs` fields. No migration.
-- Keep `fail_processing_job` as canonical failed-state writer.
-- Keep completion persistence atomic per job completion where current code already does so.
-- Keep no-detection path on normal success path; do not special-case it as error handling.
-- Keep logging through `aerovision_worker.logging.configure_logging` and `RedactionFilter`.
-- Prefer focused tests over manual-only audit because failure behavior is deterministic and worker-local.
-- Do not add Celery, Redis, HTTP worker callbacks, frontend UI, new API routes, or new public behavior.
+- Keep training tooling offline and file-based. No backend route, frontend page, worker queue behavior, or database schema change belongs in this phase.
+- Keep all generated data/model outputs in shared storage layout documented by architecture/training docs.
+- Use deterministic split behavior with seed `42`; prefer group-aware splitting when a group column or source metadata is present.
+- Keep notebook templates human-runnable in Kaggle/Colab. Do not require local long training.
+- Keep YOLO26 as primary in configs/notebooks. If fallback instructions are present, label them as fallback only and require model card/experiment metadata to record actual family.
+- Keep schemas permissive for placeholder `null` metrics but strict for required keys and single-class `drone` invariant.
+- Keep dependency setup reproducible. If Phase 21 scripts require non-stdlib packages, add a training-local dependency manifest or exact install command and list it in `training/index.md`.
+- Keep import support in this phase offline and artifact-focused only: validation/import-readiness for model cards and metrics is allowed; backend routes, database import execution, frontend flows, and runtime training launch are out of scope.
+- Use `opencv-python-headless` only if image/video inspection is needed in training utilities; avoid GUI OpenCV calls.
 
 ## Backend impact
 
-Expected impact:
-
-- No backend source changes.
-- Backend job/detail/download APIs may surface `error_message` already stored by worker, so worker must keep persisted text safe.
-
-Do not change:
-
-- Auth, ownership, API routes, schemas, downloads, or admin endpoints unless a proven safety mismatch is found.
+- Not touched in Phase 21 contract.
+- No new API endpoints, auth flows, migrations, or route handlers.
+- Future model registration/import behavior remains in existing backend/admin APIs, outside this training artifact phase unless docs phase is expanded.
 
 ## Frontend impact
 
-Expected impact:
-
-- None. Frontend phases are later.
-- No Ukrainian UI work in Phase 20.
+- Not touched in Phase 21 contract.
+- No UI changes, no route changes, no Ukrainian copy changes.
 
 ## DB impact
 
-Expected impact:
-
+- Not touched in Phase 21 contract.
 - No schema changes.
-- Worker updates existing `processing_jobs.status`, `error_message`, `completed_at`, `updated_at`, `progress_percent`, `last_heartbeat_at`, `locked_by`, `locked_at`, result/export paths, and summary fields.
-- Worker inserts/clears existing `detections` and `tracks` only on successful completion.
-
-DB invariants:
-
-- Failed jobs must not store absolute paths or secrets in `error_message`.
-- Completed jobs must use relative result/export paths only.
-- No-detection completed jobs must keep zero/null summary values where applicable.
+- Training artifacts may later be registered/imported into existing model/experiment tables by admin flows, but this phase creates offline artifacts only.
 
 ## API impact
 
-Expected impact:
-
-- No route or schema changes.
-- Existing API responses must remain safe because worker-persisted `error_message` is safe and stack traces are not stored.
+- Not touched in Phase 21 contract.
+- No API contract changes.
 
 ## Security/privacy impact
 
-Touched security/privacy surfaces:
-
-- Worker logs.
-- Worker persisted `error_message`.
-- Result/export path persistence.
-- Model path and database error handling.
-
-Rules:
-
-- Do not log secrets, tokens, passwords, password hashes, database passwords, JWT secrets, sensitive env values, or unsafe absolute paths.
-- Do not store stack traces in `processing_jobs.error_message`.
-- Do not expose absolute host/container paths in DB fields or export contents.
-- Do not execute uploaded files.
-- Keep outputs inside CV-only boundary.
+- Keep cloud credentials, notebook tokens, dataset credentials, admin credentials, and API tokens out of files/logs.
+- Keep datasets, model weights, generated reports, and generated media out of Git.
+- Validate artifact paths as relative when scripts emit references intended for model cards/import.
+- Avoid absolute host paths in model cards and metrics artifacts where app-visible metadata could consume them later.
+- Do not execute user-uploaded files.
 
 ## Test strategy
 
-Focused worker checks:
-
-- `cd cv; python -m pytest tests/test_startup.py tests/test_queue.py tests/test_logging.py tests/test_device.py tests/test_model_runtime.py tests/test_image_processing.py tests/test_video_processing.py -q`
-- `cd cv; python -m ruff check aerovision_worker tests`
-
-Optional integration check when PostgreSQL is reachable:
-
-- `cd cv; python -m pytest -m postgres -q`
-
-Targeted assertions to keep/add:
-
-- Missing image/video source marks job failed with safe message.
-- Corrupt image/video and unsupported decode result mark job failed with safe message.
-- Missing model weights mark job failed with safe message.
-- `CV_DEVICE=auto` falls back to CPU when CUDA unavailable.
-- forced `CV_DEVICE=cuda` fails clearly before unsafe processing.
-- Annotated output write failure marks job failed safely.
-- CSV/JSON export failure marks job failed safely.
-- DB completion write failure marks job failed safely when possible.
-- Failed jobs set `status = failed`, `error_message`, `completed_at`, `updated_at`, and release locks.
-- Successful image/video jobs set `completed_at`, `progress_percent = 100`, and final heartbeat.
-- No-detection image/video jobs stay `completed`.
-- Logs redact database URLs, passwords, tokens, secrets, and absolute paths.
-- Lifecycle log coverage is verified by assertions or a manual log-audit note for selected CV device on startup, worker job claim, stale recovery, model loading, processing start/end with duration, export generation, and worker processing errors.
-
-Checks not required unless related files change:
-
-- Backend full suite.
-- Frontend build/tests.
-- Docker Compose smoke.
-- Training checks.
+- Add narrow training tests only for created training utilities/schemas.
+- Required checks when available:
+  - Dataset split script runs on a small fixture.
+  - Split manifest has `image_path`, `label_path`, `source_group_id`, `split`.
+  - Split is deterministic with seed `42`.
+  - Group IDs do not cross `train`, `val`, and `test` when group metadata exists.
+  - `data.yaml` defines one class: `drone`.
+  - Model card schema accepts placeholder `null` metrics and rejects missing required keys.
+  - Metrics schema accepts required experiment metric families with incomplete/null values.
+  - Schema fixtures validate all four documented experiment families: model comparison, confidence threshold analysis, tracker behavior comparison, and false-positive analysis.
+  - Notebook-template check confirms templates start from pretrained YOLO weights and do not train from scratch.
+  - Dependency install or command strategy is documented when scripts/tests need non-stdlib packages.
+  - Local smoke training command exists only as tiny-subset verification or is reported `not available yet` until implemented.
+  - Git ignore check confirms generated dataset/model artifacts remain untracked.
+- Do not add backend, frontend, Docker, auth, upload, or worker queue gates unless implementation touches those surfaces.
 
 ## Ambiguities or conflicts
 
-WARNING: CONFLICT:
-
-- `docs/index.md` current-state section conflicts with `cv/index.md` and actual worker files about implemented queue/inference/export behavior.
-- `backend/index.md` also says worker queue/CV/export behavior comes later, conflicting with actual worker state.
-
-Ambiguities:
-
-- User-provided risk placeholder was unset; plan assumes MEDIUM risk.
-- Docs allow but do not require stack traces in worker logs. Implementation should not add noisy stack traces unless needed to diagnose a known failure, and must never persist them.
-- Docs do not define behavior when the database is unavailable while attempting to mark a job failed. Implementation should log safely and rely on stale recovery once DB connectivity returns, unless an existing retry point can update the job safely.
+- No `WARNING: CONFLICT` found in consulted docs.
+- Ambiguity: exact names and internal structure for training scripts/notebooks/schemas are not specified.
+- Ambiguity: exact Seraphim source metadata format is not specified.
+- Resolved scope: Phase 21 may include a minimal offline artifact validation/import-readiness utility for model cards and metrics because `TRAINING_EXPERIMENTS.md` lists import utilities as code-agent responsibility. It must not add backend/database/frontend import execution unless a later phase or user instruction expands scope.
+- Ambiguity: user request contains placeholders for phase title and risk. Current phase comes from `docs/phase.md`; risk is assumed medium.

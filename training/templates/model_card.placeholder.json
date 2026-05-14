@@ -1,0 +1,28 @@
+{
+  "name": "yolo26s-seraphim-subset-v1",
+  "model_family": "YOLO26",
+  "variant": "s",
+  "task": "detect",
+  "classes": [
+    "drone"
+  ],
+  "dataset": "Seraphim Drone Detection Dataset subset",
+  "split_manifest": "datasets/seraphim_subset/split_manifest.csv",
+  "train_images": 16000,
+  "val_images": 2000,
+  "test_images": 2000,
+  "image_size": 640,
+  "epochs": 50,
+  "metrics": {
+    "precision": null,
+    "recall": null,
+    "map_50": null,
+    "map_50_95": null,
+    "confusion_matrix": null,
+    "model_size_mb": null,
+    "latency_ms_per_frame": null,
+    "fps": null,
+    "total_processing_time_seconds": null,
+    "average_video_fps": null
+  }
+}

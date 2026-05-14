@@ -1,54 +1,61 @@
-# Phase 20 Code Review Resolution
+# Code Review Resolution - Phase 21 Training Pipeline Artifacts
 
 ## Verdict: FIXED
 
+OpenAI code review verdict: `APPROVED_WITH_CHANGES`.
+Claude code review file exists but has no review content.
+
+Blocking user decisions: none.
+
 ## Resolution table
 
-| Review item | Priority | Resolution | Reason | Fix target |
-|---|---|---|---|---|
-| Missing Phase 20 logging validation for worker errors, job claim, and stale recovery. | important | accepted | Phase 20 validation requires evidence for worker errors, job claim, stale recovery, plus existing lifecycle logs. Current tests cover selected device, model loading, success start/export/complete only. | Add focused assertions for `job_claimed`, `stale_jobs_recovered`, `image_job_failed`, and `video_job_failed`; keep logs path/secret-safe. |
-| `git diff --check` fails on `docs/phase.md:3` trailing whitespace. | important | accepted | Current diff has whitespace failure in touched workflow doc. Fix is low-risk and only removes trailing spaces. | Remove trailing whitespace in `docs/phase.md`. |
+| Priority | ID | Review item | Resolution | Rationale | Fix |
+|---|---|---|---|---|---|
+| important | I1 | Metrics validator accepts absolute app-facing artifact paths. | accepted | Product docs and Phase 21 contract require app-facing artifact references to stay relative and reject absolute/traversal paths. | Added metrics artifact path validation and regression coverage for `detection_metrics.confusion_matrix` plus experiment report artifact references. |
+| important | I2 | Dataset writer can produce inconsistent YOLO output with duplicate basenames or stale files. | accepted | Deterministic dataset preparation must not silently overwrite source files or leave stale files outside `split_manifest.csv`. | Added fail-fast checks for non-empty output directories and duplicate flattened output targets, plus regression tests. |
+| important | I3 | Diff whitespace gate fails on `docs/phase.md`. | accepted | Whitespace gate is a documented quality check failure and fix is low-risk. | Removed trailing whitespace only. |
 
 ## Accepted critical fixes
 
-- None.
+None.
 
 ## Accepted important fixes
 
-- Add worker logging validation for:
-  - job claim log;
-  - stale recovery log;
-  - image processing failure log;
-  - video processing failure log.
-- Remove trailing whitespace from `docs/phase.md`.
+- I1: validate metrics artifact/report paths as relative and traversal-safe.
+- I2: prevent duplicate output target overwrites and stale output directory reuse in dataset split writer.
+- I3: remove trailing whitespace reported by diff check.
 
 ## Accepted optional fixes
 
-- None.
+None.
 
 ## Rejected items
 
-- None.
+None.
 
 ## Duplicate items
 
-- None.
+None.
 
 ## Items needing user decision
 
-- None.
+None.
 
 ## Fixes applied
 
-- Added `caplog` assertions in `cv/tests/test_startup.py` proving `stale_jobs_recovered` and `job_claimed` logs are emitted during a claimed image-job poll iteration.
-- Extended `cv/tests/test_image_processing.py` missing/corrupt-source failure coverage to assert `image_job_failed` is logged with safe text and without storage-root absolute paths.
-- Extended `cv/tests/test_video_processing.py` bad-source failure coverage to assert `video_job_failed` is logged with safe text and without storage-root absolute paths.
+- Added failing tests first for metrics artifact path rejection, non-empty output directory rejection, and duplicate output target rejection.
+- Added recursive validation for app-facing metrics/report artifact path fields.
+- Added dataset split guards for non-empty output directories and duplicate flattened image/label output targets.
 - Removed trailing whitespace from `docs/phase.md`.
+- Updated `training/README.md` and `training/index.md` to document the split-output safeguards.
 
 ## Final verification
 
-- `cd cv; python -m pytest tests/test_startup.py::test_run_poll_iteration_loads_model_then_processes_claimed_image_job tests/test_image_processing.py::test_process_image_job_fails_safe_for_missing_or_corrupt_source tests/test_video_processing.py::test_process_video_job_fails_safe_for_bad_sources -q` - PASS (`6 passed`, `42 warnings`; expected corrupt-video OpenCV stderr from fixture)
+- `python -m pytest training/tests/test_schemas.py::test_metrics_artifact_rejects_absolute_or_traversal_report_paths` - RED before implementation, then PASS.
+- `python -m pytest training/tests/test_dataset_split.py::test_prepare_yolo_dataset_rejects_non_empty_output_dir training/tests/test_dataset_split.py::test_prepare_yolo_dataset_rejects_duplicate_output_targets` - RED before implementation, then PASS.
+- `python -m pytest training/tests` - PASS, 11 passed.
+- `python -m ruff check training` - PASS.
+- `python -m aerovision_training.validate_artifacts --model-card training/templates/model_card.placeholder.json --metrics training/templates/metrics.placeholder.json` - PASS.
+- `python -m pip install -e "training[dev]"` - PASS.
+- Dataset split CLI smoke on generated fixture under ignored `storage/temp/phase21-final-fixture` - PASS; fixture removed.
 - `git diff --check` - PASS for whitespace errors; Git reported line-ending warnings only.
-- `cd cv; python -m pytest tests/test_startup.py tests/test_queue.py tests/test_logging.py tests/test_device.py tests/test_model_runtime.py tests/test_image_processing.py tests/test_video_processing.py -q` - PASS (`57 passed`, `266 warnings`; SQLite datetime deprecation warnings and expected corrupt-video OpenCV stderr)
-- `cd cv; python -m ruff check aerovision_worker tests` - PASS.
-- `cd cv; python -m pytest -m postgres -q` - PASS (`3 passed`, `80 deselected`).

@@ -1,69 +1,56 @@
-# Phase 20 Status - Worker error handling, logging, and integration hardening
+# Status - Phase 21 Training Pipeline Artifacts
 
 ## Current state
 
-- Phase 20 code review resolution fixed.
-- Scope stayed inside CV worker processing/logging tests and worker processing modules.
-- No backend, frontend, training, schema, Docker, or product-doc behavior changes were made.
+- Phase 21 code review resolution fixed.
+- Scope stayed offline training artifacts only.
+- No backend API, database migration, frontend route, or CV worker runtime changes were made.
+- YOLO26 remains primary; YOLO11 appears only as documented fallback guidance in notebook text and metrics guidance.
 
-## Changes made
+## Fixes applied after code review
 
-- Added image worker lifecycle logs:
-  - `image_job_started`
-  - `image_exports_written`
-  - `image_job_completed` with `duration_ms`
-- Added video worker lifecycle logs:
-  - `video_job_started`
-  - `video_exports_written`
-  - `video_job_completed` with `duration_ms`
-- Added worker tests proving image/video lifecycle logs include required events and do not expose storage-root absolute paths.
-- Added worker polling test assertions for `stale_jobs_recovered` and `job_claimed` logs.
-- Added image/video failure-path test assertions for `image_job_failed` and `video_job_failed` logs.
-- Removed trailing whitespace from `docs/phase.md` that made `git diff --check` fail.
+- Metrics artifact validation now rejects absolute and traversal paths for app-facing artifact references such as `detection_metrics.confusion_matrix` and experiment `report_artifacts`.
+- Dataset split preparation now rejects non-empty output directories before writing generated YOLO files.
+- Dataset split preparation now rejects duplicate flattened image or label target names before copying source files.
+- `docs/phase.md` trailing whitespace was removed.
+- `training/README.md` and `training/index.md` now document the new dataset split safeguards.
+
+## Files changed
+
+- Added training package metadata: `training/pyproject.toml`.
+- Added offline training package under `training/aerovision_training/`.
+- Added YOLO26 notebook templates under `training/notebooks/`.
+- Added model card and metrics templates under `training/templates/`.
+- Added training tests under `training/tests/`.
+- Added training workflow notes: `training/README.md`.
+- Updated `training/index.md`, `docs/index.md`, and `.context/review-code-resolution.md`.
+- Updated `docs/mistakes-codex.md` for the earlier real packaging mistake found by install gate.
 
 ## Quality gates
 
-- `cd cv; python -m pytest tests/test_image_processing.py::test_process_image_job_logs_lifecycle_without_paths tests/test_video_processing.py::test_process_video_job_logs_lifecycle_without_paths -q`
-  - RED before implementation: failed because start/export/duration logs were missing.
-  - GREEN after implementation: passed.
-- `cd cv; python -m pytest tests/test_startup.py tests/test_queue.py tests/test_logging.py tests/test_device.py tests/test_model_runtime.py tests/test_image_processing.py tests/test_video_processing.py -q`
-  - PASS: 57 passed, 266 warnings.
-- `cd cv; python -m ruff check aerovision_worker tests`
-  - PASS.
-- `cd cv; python -m pytest -m postgres -q`
-  - PASS: 3 passed, 80 deselected.
-- `git diff --check`
-  - PASS for whitespace errors; Git reported line-ending warnings only.
+- `python -m pytest training/tests/test_schemas.py::test_metrics_artifact_rejects_absolute_or_traversal_report_paths` - RED before implementation, then PASS.
+- `python -m pytest training/tests/test_dataset_split.py::test_prepare_yolo_dataset_rejects_non_empty_output_dir training/tests/test_dataset_split.py::test_prepare_yolo_dataset_rejects_duplicate_output_targets` - RED before implementation, then PASS.
+- `python -m pytest training/tests` - PASS, 11 passed.
+- `python -m ruff check training` - PASS.
+- `python -m aerovision_training.validate_artifacts --model-card training/templates/model_card.placeholder.json --metrics training/templates/metrics.placeholder.json` - PASS.
+- `python -m pip install -e "training[dev]"` - PASS.
+- Dataset split CLI smoke on generated fixture under ignored `storage/temp/phase21-final-fixture` - PASS; fixture removed.
+- `git diff --check` - PASS for whitespace errors; Git reported line-ending warnings only.
 
 ## Security and privacy
 
-- Added logs include job ID, media ID, model ID, counts, and durations only.
-- Added failure-log assertions prove persisted/logged failure messages do not include storage-root absolute paths for covered image/video bad-source paths.
-- Logs do not include storage roots, absolute paths, secrets, tokens, database URLs, passwords, or stack traces.
-- Persisted `error_message` behavior was not loosened.
-- CV-only output boundary unchanged.
+- Training artifact validators reject absolute and traversal paths for app-facing model card, metrics, report artifact, and confusion-matrix references.
+- No secrets, tokens, credentials, datasets, model weights, generated reports, or media artifacts were added.
+- Generated CLI dataset fixture was removed after the smoke check.
 
 ## Index/docs
 
-- `cv/index.md` checked; no update needed because no files, commands, paths, or folder responsibilities changed.
-- `docs/index.md` not updated because documentation structure and documented paths did not change.
-- Mistake logs not updated; no real mistake or near-miss occurred.
-
-## Known repository context
-
-- Pre-existing modified files remain outside this implementation scope:
-  - `.context/design.md`
-  - `.context/plan.md`
-  - `.context/research.md`
-  - `.context/review-code-openai.md`
-  - `.context/review-code-resolution.md`
-  - `.context/review-plan-claude.md`
-  - `.context/review-plan-resolution.md`
-  - `docs/phase.md`
-- Existing documentation drift remains noted in planning artifacts: `docs/index.md` and `backend/index.md` current-state sections understate worker implementation compared with `cv/index.md` and actual worker files. No Phase 20 product-rule conflict was found.
+- `training/index.md` updated because `training/aerovision_training/dataset_split.py` behavior materially changed.
+- `training/README.md` updated because dataset split command behavior changed.
+- `docs/index.md` was not changed during review resolution because no source-of-truth document was created, renamed, or removed.
+- Mistake logs were not updated during review resolution because no new real mistake occurred.
 
 ## Remaining risks
 
-- PostgreSQL-marked queue integration was not rerun because queue logic was not changed.
-- SQLAlchemy SQLite datetime deprecation warnings remain in worker tests.
-- OpenCV emits a corrupt-video fixture warning during tests; this is expected from the failure-path fixture.
+- Local smoke training command was not executed because it requires `ultralytics`, pretrained weights, and tiny dataset contents.
+- Notebook templates were validated structurally; cloud training was not run by design.

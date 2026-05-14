@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aerovision-training"
+version = "0.1.0"
+description = "Offline dataset preparation and training artifact utilities for AeroVision"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9.0",
+]
+smoke = [
+    "ultralytics>=8.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.setuptools.packages.find]
+include = ["aerovision_training*"]
+exclude = ["tests*", "templates*", "notebooks*"]
