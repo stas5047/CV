@@ -1,40 +1,39 @@
-# Phase 31 Planning Review Resolution
+# Phase 32 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude's planning review has no blocking issues and no questions requiring user decision. Accepted contract changes are limited to Phase 31 frontend UX/testing scope.
+Claude planning review verdict was `APPROVED_WITH_CHANGES`. All review items are doc-consistent, do not require source-code edits now, and have been applied to the Phase 32 implementation contract.
 
-## Resolution Table
+## Resolution table
 
-| ID | Claude item | Resolution | Reason | Contract update |
+| ID | Claude item | Resolution | Rationale | Applied contract update |
 |---|---|---|---|---|
-| I-1 | Toast feedback requirement can be skipped by current plan wording. | accepted | `docs/FRONTEND_UX.md` requires toast notifications for success and errors; `docs/phase.md` requires standardizing toasts. No product-doc conflict. | Updated `.context/design.md` and `.context/plan.md` to require audit/fix of toast or equivalent documented success/error feedback for implemented actions. |
-| O-1 | Manual smoke setup could be made less ambiguous. | accepted | Clarifies validation evidence without changing scope or product behavior. | Updated `.context/design.md` and `.context/plan.md` to record whether smoke uses live backend data, seeded/mock data, or route-level test harness data. |
-| O-2 | Risk placeholder should be recorded as an assumption. | duplicate | Already recorded in `.context/research.md` and `.context/design.md` as assumed `MEDIUM`. | No additional update. |
+| I1 | Missing database health endpoint validation | accepted | `docs/TESTING_QA.md` requires backend database health endpoint verification for Docker launch tests. | Added `/api/health/db` startup smoke to `.context/design.md` and `.context/plan.md`. |
+| I2 | Missing seeded-admin existence check | accepted | `docs/phase.md`, `docs/TESTING_QA.md`, and `docs/AUTH_SECURITY.md` require seeded admin creation/workability. | Added seeded-admin verification after startup, with no secret printing, to `.context/design.md` and `.context/plan.md`. |
+| I3 | Implementation-doc conflict cleanup too narrow | accepted | First-launch docs must be accurate, and `docs/index.md` update rule requires current implementation state to stay coherent. | Expanded conflict research and plan docs-cleanup scope across `README.md`, component indexes, and `docs/index.md`. |
+| I4 | Startup smoke command lacks execution shape for reliable evidence | accepted | Bounded detached startup allows health/log checks and cleanup without leaving long-running foreground process. | Changed startup smoke to `up --build -d`, explicit checks, then `down`. |
+| O1 | Clarify frontend API-base injection for container | accepted | Vite browser bundles need build-time env unless runtime config is introduced; no new service/runtime config is planned for Phase 32. | Added Vite build-time `VITE_API_BASE_URL` decision to `.context/design.md` and `.context/plan.md`. |
 
-## Accepted Changes Applied
+## Accepted changes applied
 
-- `.context/design.md`: replaced narrow "where already present" toast wording with explicit success/error feedback requirement.
-- `.context/design.md`: added manual smoke data-source recording requirement.
-- `.context/plan.md`: made Step 7 cover toasts and equivalent feedback explicitly.
-- `.context/plan.md`: made Step 13 require manual-smoke data-source notes.
-- `.context/plan.md`: added toast/success-error feedback audit to quality gates.
+- `.context/research.md`: added README/CV-worker implementation-state conflict and expanded required conflict cleanup scope.
+- `.context/design.md`: added build-time frontend API-base decision, `/api/health/db` smoke, seeded-admin smoke, bounded detached Compose smoke and cleanup.
+- `.context/plan.md`: added frontend build-time API-base handling, broader docs conflict cleanup, seeded-admin check, DB health check, detached `docker compose up --build -d`, and teardown.
 
-## Rejected Items
-
-None.
-
-## Duplicate Items
-
-- O-2: risk placeholder assumption already documented as `MEDIUM` in `.context/research.md` and `.context/design.md`.
-
-## Items Needing User Decision
+## Rejected items
 
 None.
 
-## Final Contract Status
+## Duplicate items
 
-- Final implementation contract is scoped only to Phase 31.
-- No backend, database, API, worker, training, Docker runtime, source code, or product-doc changes were added to the contract.
-- Accepted changes do not conflict with product docs.
-- Status: ready for implementation.
+None.
+
+## Items needing user decision
+
+None.
+
+## Final contract status
+
+- Phase 32 contract remains scoped to Docker runtime, GPU override, Makefile/runtime shortcuts, README, implementation indexes, and first-launch validation.
+- No backend API, database schema, CV processing, training execution, frontend page/UX feature, or extra runtime service work was added.
+- Implementation may proceed under updated `.context/plan.md`.

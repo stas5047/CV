@@ -1,144 +1,148 @@
-# Phase 31 Design
+# Phase 32 Design
 
-## Phase Goal
+## Phase goal
 
-Make the production frontend coherent, Ukrainian, polished, responsive, based on the `prototype/` visual reference, and within the documented CV-only scope.
+Finalize local/demo Docker runtime and first-launch documentation for Phase 32 only.
 
-## Intended Behavior From Docs
+Confirmed goal from `docs/phase.md`:
+
+- Complete app launches from clean local setup.
+- Compose includes `postgres`, `backend`, `cv-worker`, and `frontend`.
+- CPU mode works by default.
+- Optional GPU mode affects only `cv-worker`.
+- README explains setup, env, model artifacts, startup, seeded admin policy, CPU/GPU notes, troubleshooting, and large-file policy.
+
+Risk level:
+
+- Assumption: HIGH because this phase joins all services and docs. No user risk value was provided.
+
+## Intended behavior from docs
 
 Confirmed:
 
-- All visible frontend UI text must be Ukrainian.
-- Accepted technical labels such as `FPS`, `mAP`, `YOLO`, `CSV`, and `JSON` remain readable.
-- Required frontend routes remain `/login`, `/register`, `/dashboard`, `/upload`, `/jobs`, `/jobs/:jobId`, `/models`, `/experiments`, and `/admin`.
-- Protected routes redirect guests to login.
-- Admin route and admin navigation/actions are visible only to admins.
-- UI must use polished dashboard components, not raw debug panels.
-- UI must use Tailwind CSS and shadcn/ui components.
-- UI must use Recharts for frontend charts.
-- UI must include loading, error, empty, forbidden, and no-detection states.
-- UI must not display raw `null` values.
-- UI must not display unsafe absolute filesystem paths.
-- UI must not expose `frame_stride` in the standard UI.
-- UI must not present CV outputs as targeting, navigation, interception, hardware-control, or engagement instructions.
-- Completed no-detection jobs are successful results, with Ukrainian empty state.
-- Experiment sections without data must show the exact documented Ukrainian empty-state text from `docs/FRONTEND_UX.md`.
+- Runtime services remain `postgres`, `backend`, `cv-worker`, and `frontend`.
+- Backend and CV worker must mount same shared storage at `/app/storage`.
+- PostgreSQL stores structured data only; storage keeps uploads, results, reports, models, temp files, and datasets.
+- Backend startup may run Alembic migrations and idempotent seed/setup in local/demo mode.
+- Seeded admin comes from `ADMIN_EMAIL` and `ADMIN_PASSWORD`; password is hashed by setup.
+- Secrets, admin password, JWT secret, DB password, tokens, and sensitive env values must not be logged or committed.
+- Frontend calls backend REST API only.
+- CV worker waits/retries for PostgreSQL and logs selected device at startup.
+- GPU support is optional and isolated to `cv-worker`.
+- Base app must run without GPU.
+- Docs must not promise fixed FPS.
+- Model weights and training artifacts are placed under storage by humans; app registers/imports artifacts, not training jobs.
+- Generated datasets, weights, uploads, results, reports, and temp files stay out of Git.
 
-Assumptions:
+## Architecture decisions
 
-- Prototype visual styling is authoritative for look and feel only: dark compact dashboard shell, narrow sidebar, dense data tables, restrained green accent, compact cards, clear skeletons, badges, toasts, forms, progress bars, and responsive mobile drawer.
-- Existing production API client calls and route flows remain unchanged.
-- Phase 31 should prefer consolidating existing presentation/formatting patterns over adding new product features.
+Confirmed decisions:
 
-## Architecture Decisions
+- Keep existing service names: `postgres`, `backend`, `cv-worker`, `frontend`.
+- Keep backend and worker storage mount identical: host `./storage`, container `/app/storage`.
+- Keep backend startup flow in `backend/startup.sh`: optional migrations, optional setup, then Uvicorn.
+- Keep PostgreSQL healthcheck as service readiness source.
+- Keep worker DB retry behavior in worker startup; do not add backend-worker HTTP coupling.
+- Keep GPU override in `docker-compose.gpu.yml`; only `cv-worker` may request GPU devices or force `CV_DEVICE=cuda`.
+- Do not add Celery, Redis, Flask, Streamlit, RTSP/live camera, training launch, or extra runtime services.
 
-- Keep production stack as React + TypeScript + Vite + Tailwind CSS v3 + shadcn/ui + React Router + TanStack Query + Recharts.
-- Use `@radix-ui/react-icons`, because it is already installed. Do not add `@phosphor-icons/react`.
-- Do not add Framer Motion, GSAP, Three.js, or other motion libraries in this phase. Existing CSS transitions, `animate-pulse`, and skeleton shimmer are sufficient and align with current dependency set.
-- Use prototype tokens as the visual baseline, but implement them through `frontend/src/index.css`, Tailwind utilities, and existing shadcn-style primitives.
-- Keep browser-visible product behavior driven by docs and backend API contracts, not prototype mock data.
-- Keep `frontend/src/App.tsx` route structure unchanged unless review finds an existing route guard bug.
-- Prefer existing files and existing test files. Do not create new routes or product surfaces.
-- Deduplicate shared UX primitives only when it reduces inconsistent badges, cards, skeletons, or empty states without changing API behavior.
-- Keep high-density dashboard design compact and scan-friendly. Avoid marketing hero layouts.
-- Keep mobile layouts single-column or horizontally scrollable for data tables; avoid layout shifts and viewport `h-screen`.
+Design choices for implementation:
 
-## Backend Impact
+- Replace placeholder `frontend/Dockerfile` with container runtime for existing Vite app.
+- Publish frontend service through `${FRONTEND_PORT:-5173}:5173`.
+- Use Vite build-time API-base injection for Docker runtime: pass `VITE_API_BASE_URL=http://localhost:${BACKEND_PORT:-8000}/api` as a frontend build argument/environment value during image build, because browser bundles cannot read Compose runtime environment after static build without a separate runtime-config mechanism.
+- Add service healthchecks where practical: keep PostgreSQL; add backend `/api/health`; add frontend reachability after frontend runtime exists. Worker does not need public HTTP health endpoint.
+- Expand Makefile with shortcuts for storage setup, Compose config, CPU launch, GPU launch, logs, migrations, seed, and relevant tests.
+- Update implementation docs to match actual Phase 32 runtime state and remove stale "frontend not available" and stale CV-worker unavailable claims.
 
-- None planned.
-- Backend remains authorization authority.
-- No backend routes, response schemas, auth behavior, upload rules, or download behavior should change in this phase.
+## Backend impact
 
-## Frontend Impact
+Touched only through runtime wiring unless implementation discovers a missing healthcheck dependency.
 
-- Touched surface is frontend route/page/control polish, tests, and possibly shared styling.
-- Audit all pages for Ukrainian text, safe placeholders, hidden admin controls, safe errors, no raw paths, no `frame_stride`, and no out-of-scope CV wording.
-- Standardize page-level components:
-  - status badges;
-  - buttons;
-  - forms;
-  - tables;
-  - cards;
-  - charts;
-  - skeletons;
-  - toast notifications or equivalent documented success/error feedback for implemented user actions;
-  - empty/error states.
-- Standardize data formatting:
-  - date;
-  - duration;
-  - confidence;
-  - percentage;
-  - bounding box;
-  - missing data placeholder.
-- Align production styles with prototype:
-  - dark off-black background;
-  - compact sidebar;
-  - green accent;
-  - restrained borders;
-  - small-radius cards;
-  - mono numeric data;
-  - compact table rows;
-  - clear mobile drawer and table scrolling.
+- No new API routes.
+- No schema changes.
+- No auth behavior changes.
+- Backend health endpoint already exists and can support Compose healthcheck.
+- Startup migrations and setup already exist; Phase 32 should verify and document them.
 
-## Database Impact
+## Frontend impact
 
-- None planned.
-- No schema, migration, seed, or database helper changes.
+Touched through container/runtime wiring.
 
-## API Impact
+- Existing Vite React app should be served by the `frontend` service.
+- Existing `VITE_API_BASE_URL` contract should be used.
+- No route/page/product UI changes planned.
+- No new user-facing text planned except documentation if needed.
 
-- None planned.
-- No endpoint additions or payload changes.
-- Existing frontend API calls may be reused only as already implemented.
+## DB impact
 
-## Security And Privacy Impact
+No schema/model changes planned.
 
-- Touched through frontend display and visibility only.
-- Frontend must not reveal unsafe absolute paths, raw stack traces, tokens, secrets, database passwords, or backend storage internals.
-- Frontend must hide admin navigation and admin mutation actions from regular users.
-- Frontend route guard must still reject non-admin users from `/admin`, while backend remains source of truth.
-- Error messages shown to users must be safe Ukrainian summaries.
-- UI must not show text that implies targeting, navigation, interception, payload, geolocation, or hardware-control behavior.
+- PostgreSQL service config remains.
+- Existing volume `postgres_data` remains.
+- Migrations run through backend startup or Makefile/manual commands.
 
-## Test Strategy
+## API impact
 
-Relevant automated checks:
+No endpoint contract changes planned.
 
-- `cd frontend; npm run lint`
-- `cd frontend; npm test`
-- `cd frontend; npm run build`
+- `/api/health` used for runtime healthcheck.
+- `/api/health/db` must be included in Phase 32 startup smoke validation to prove database connectivity after launch.
 
-Relevant focused test additions or updates:
+## Security/privacy impact
 
-- Ukrainian visible text audit assertions for pages where English labels are not documented technical terms.
-- Raw `null`, `undefined`, `frame_stride`, `C:\`, `/app/storage`, and `/storage/` non-display assertions for pages touched by polish.
-- Admin visibility assertions for shell navigation and admin actions.
-- Empty/loading/error/no-detection state assertions where components change.
-- Responsive behavior is primarily manual/browser verification unless an existing test can assert structure without brittle layout checks.
+Touched surfaces:
 
-Manual/browser checks:
+- `.env.example`
+- Compose env wiring
+- README/admin credential policy
+- logs/troubleshooting docs
 
-- Login route.
-- Registration route, including disabled-registration state where practical.
-- Dashboard route for user and admin data shapes.
-- Upload route, including invalid file and processing status states.
-- Jobs route with empty and filtered states.
-- Job details route with completed, processing, failed, video-preview-unavailable, and no-detection states.
-- Models route for regular user and admin.
-- Experiments route with missing metrics and charts.
-- Admin route for admin only.
-- Narrow viewport smoke for shell, tables, forms, and cards.
-- Manual smoke notes must record data source: live backend data, seeded/mock test data, or route-level test harness data.
+Security decisions:
 
-Baseline results from research:
+- `.env.example` keeps placeholders only.
+- README must instruct replacing placeholder secrets before real use.
+- README must avoid placing JWT tokens in command history; training docs already prefer env var for admin JWT.
+- Compose/Makefile commands must not print real secrets beyond normal Docker env interpolation.
+- Docs must not include real credentials, tokens, database passwords, or model artifacts.
+- GPU override must not grant GPU access to backend/frontend/postgres.
 
-- `npm run lint` PASS.
-- `npm test` PASS, 8 files and 50 tests.
-- `npm run build` PASS, with Vite chunk-size warning.
+## Test strategy
 
-## Ambiguities Or Conflicts
+Relevant checks for Phase 32:
 
-- No docs conflict found between `docs/phase.md` and `docs/ROADMAP.md` for Phase 31.
-- Ambiguity: user risk level was placeholder only. Assumed `MEDIUM`.
-- Ambiguity: whether `CV subsystem`, `Precision`, `Recall`, `Bounding box`, and `Track ID` count as accepted technical labels. Resolve during Phase 31 audit by preferring Ukrainian labels unless docs require exact English wording.
-- Ambiguity: exact prototype fidelity target. Use prototype for layout, density, color, and component behavior, but do not copy mock-only behavior or treat prototype data/actions as product contract.
+- `docker compose --env-file .env.example config`
+- `docker compose -f docker-compose.yml -f docker-compose.gpu.yml --env-file .env.example config`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap-storage.ps1`
+- `npm run build` from `frontend/` after frontend Docker/runtime changes.
+- `docker compose --env-file .env.example build frontend`
+- Bounded CPU startup smoke with detached Compose: `docker compose --env-file .env.example up --build -d`, followed by health/log checks and `docker compose --env-file .env.example down`.
+- Backend health smoke: request `http://localhost:8000/api/health`.
+- Backend database health smoke: request `http://localhost:8000/api/health/db`.
+- Seeded admin smoke: verify the configured admin exists without printing secrets, preferably through seeded-admin login or a safe backend container/database command.
+- Frontend reachability smoke: request `http://localhost:5173`.
+- Worker log smoke: confirm `device_selected` appears and selected device is CPU in base launch.
+- GPU config audit: rendered GPU Compose config shows GPU request only under `cv-worker`.
+
+Checks intentionally not generic:
+
+- No backend unit test suite required unless backend code changes.
+- No CV processing tests required unless worker processing code changes.
+- No frontend route/component tests required unless frontend source behavior changes.
+- No migration-generation command; no schema change.
+
+## Ambiguities or conflicts
+
+WARNING: CONFLICT
+
+- `README.md` still reports frontend UI/tests/build as unavailable.
+- `frontend/index.md` reports implemented Phase 31 frontend with commands.
+- `docs/index.md` current implementation state appears older than `frontend/index.md`.
+- Resolve by updating implementation docs during Phase 32; do not change product contracts.
+
+Ambiguities:
+
+- User did not provide risk level; HIGH assumed.
+- `all implementation docs` is broad. Assumption: update README and any index docs that become inaccurate due runtime command/status changes.
+- Frontend serving method is not fixed by docs. Existing service should serve the Vite app without adding another service.
+- GPU runtime cannot be fully proven without NVIDIA host setup; config audit is required, real GPU launch is optional.

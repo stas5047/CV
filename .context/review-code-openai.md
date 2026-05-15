@@ -1,28 +1,32 @@
-# OpenAI Code Review - Phase 31
+# OpenAI Code Review - Phase 32
 
-## Verdict: APPROVED_WITH_CHANGES
+## Verdict: BLOCKED
 
 ## Summary
 
-Frontend label fixes are narrow and doc-aligned: remaining visible English labels in logo, dashboard model metrics, experiment precision/recall sections, and job detail tables were localized while preserving accepted technical labels such as `mAP`, `FPS`, `YOLO`, `CSV`, and `JSON`.
+Phase 32 runtime wiring is mostly aligned: Compose has required services, backend/frontend ports, shared backend/worker storage mount, backend/frontend healthchecks, frontend Docker runtime, and GPU reservation only under `cv-worker`.
 
-No source-level correctness, auth-boundary, storage-path, or CV-only wording regression found in changed frontend files. Two phase-contract gaps remain: toast feedback was not implemented/audited, and manual route smoke is only partial.
+One release-blocking runtime defect remains: full CPU Compose launch does not start all required services because `cv-worker` exits at import time. This violates Phase 32 validation and final Docker runtime goal.
 
 ## Critical issues
 
-None.
+1. `cv-worker` container fails during CPU Compose startup.
+   - Evidence: `docker compose --env-file .env.example up --build -d` returned success for orchestration, but `docker compose --env-file .env.example ps -a` showed `aerovision-cv-worker-1` as `Exited (1)`.
+   - Evidence: `docker compose --env-file .env.example logs --no-color cv-worker --tail=80` shows `ImportError: libxcb.so.1: cannot open shared object file: No such file or directory` while importing `cv2` from `cv/aerovision_worker/image_processing.py`.
+   - Evidence in image definition: `cv/Dockerfile` uses `python:3.12-slim` and installs Python dependencies only; no OS package layer provides missing native library.
+   - Doc mismatch: `docs/phase.md` Phase 32 validation requires `docker compose up --build` to start all base services and worker selected-device log. `docs/TESTING_QA.md` Docker tests require `cv-worker` starts successfully and logs selected device.
+   - Impact: local/demo first launch is not usable for processing jobs; Phase 32 cannot be approved.
 
 ## Important issues
 
-1. Toast feedback requirement remains unmet.
-   - Evidence: `docs/phase.md` Phase 31 scope requires standardizing "status badges, buttons, forms, tables, cards, charts, skeletons, toasts, and empty states"; `docs/FRONTEND_UX.md` Design Requirements says UI must use toast notifications for success and errors; `.context/review-plan-resolution.md` accepted this as an implementation contract.
-   - Evidence in code: `rg -n "toast|Toast" frontend/src` finds no toast component or toast usage. Existing feedback is inline error/success text only, for example `frontend/src/pages/JobDetailsPage.tsx`, `frontend/src/pages/ModelsPage.tsx`, `frontend/src/pages/admin/AdminPageParts.tsx`, and `frontend/src/pages/upload/UploadPageParts.tsx`.
-   - Impact: Phase 31 toast/success-error feedback contract is not completed. This is UX-contract drift, not a backend/security defect.
+1. Phase status records stale Docker blocker and misses actual worker failure.
+   - Evidence: `.context/status.md` says Docker daemon unavailable for `docker compose --env-file .env.example build frontend` and `docker compose --env-file .env.example up --build -d`.
+   - Evidence from this review: `docker info` succeeded, `docker compose --env-file .env.example build frontend` passed, and full startup proceeded far enough to expose the `cv-worker` import failure.
+   - Impact: review/resolution may chase wrong blocker unless status is updated during fix pass.
 
-2. Manual route smoke gate is partial, not complete.
-   - Evidence: `docs/phase.md` Phase 31 validation requires manual route smoke for login, registration, dashboard, upload, jobs, job details, models, experiments, and admin.
-   - Evidence: `.context/status.md` records browser screenshots only for `/login` desktop and `/register` mobile; protected route smoke used Vitest route harness with mocked API data, not browser/manual route smoke.
-   - Impact: Automated coverage is good, but phase validation cannot be marked fully complete for responsive/protected-route browser behavior.
+2. `git diff --check` still fails on tracked diff.
+   - Evidence: `rtk git diff --check` reports `docs/phase.md:3: trailing whitespace`.
+   - Impact: not product-breaking, but quality gate remains failed.
 
 ## Optional issues
 
@@ -30,24 +34,39 @@ None.
 
 ## Quality gate assessment
 
-- `npm run lint` from `frontend/`: PASS.
-- `npm test` from `frontend/`: PASS, 8 test files and 51 tests.
-- `npm run build` from `frontend/`: PASS, with existing Vite chunk-size warning for `848.40 kB` JS chunk.
-- Manual browser smoke: PARTIAL. Login/register were browser-smoked per `.context/status.md`; protected routes covered by Vitest mocked route harness, not full manual browser smoke.
+| Command | Result | Notes |
+|---|---|---|
+| `rtk git status --short` | PASS | Shows Phase 32 runtime/docs changes plus context files. |
+| `rtk git diff --stat` | PASS | Diff inspected. |
+| `rtk git diff` | PASS | Diff inspected; source review focused on Phase 32 runtime/docs files. |
+| `docker compose --env-file .env.example config` | PASS | Base config renders required services. |
+| `docker compose -f docker-compose.yml -f docker-compose.gpu.yml --env-file .env.example config` | PASS | GPU reservation appears only under `cv-worker`. |
+| `npm run build` from `frontend/` | PASS | Vite build passed; chunk-size warning only. |
+| `npm run lint` from `frontend/` | PASS | ESLint passed. |
+| `npm test` from `frontend/` | PASS | 8 files, 51 tests passed. |
+| `docker compose --env-file .env.example build frontend` | PASS | Frontend image built. |
+| `docker compose --env-file .env.example up --build -d` | FAIL | Stack starts, but `cv-worker` exits with missing `libxcb.so.1`. |
+| Backend `/api/health` smoke | PASS | Returned `{"status":"ok","service":"backend"}`. |
+| Backend `/api/health/db` smoke | PASS | Returned `{"status":"ok","database":"available"}`. |
+| Seeded admin smoke | PASS | Login returned token presence without printing token. |
+| Frontend reachability smoke | PASS | `http://localhost:5173` returned HTTP 200. |
+| Worker selected-device log smoke | FAIL | Worker exits before startup device log. |
+| `rtk git diff --check` | FAIL | Trailing whitespace in `docs/phase.md`. |
 
 ## Security/privacy assessment
 
-Changed frontend source does not add backend calls, token handling, storage path display, admin visibility changes, or CV output semantics. Existing tests still assert no visible `frame_stride`, raw `null`, `undefined`, `C:\`, `/app/storage`, or unsafe storage strings on relevant pages.
-
-No secret, token, password, database password, or absolute storage path exposure found in changed source diff.
+- `.env.example` uses placeholders only.
+- Admin login smoke checked token presence without printing token.
+- GPU config keeps device reservation and `CV_DEVICE=cuda` under `cv-worker` only.
+- No new secret/token logging found in touched runtime/docs files.
 
 ## Positive findings
 
-- Ukrainian label fixes match `docs/FRONTEND_UX.md` visible-text rule.
-- `tracker behavior comparison` remains unchanged, matching the documented tracker-comparison wording.
-- Tests were added for the exact localization regressions fixed.
-- `frontend/index.md` update is appropriate because current frontend implementation summary changed to Phase 31.
-- No backend, database, API, worker, training, Docker, or product-contract source changes were introduced.
+- `docker-compose.yml` keeps required services: `postgres`, `backend`, `cv-worker`, `frontend`.
+- Backend and `cv-worker` both mount `./storage:/app/storage`.
+- Base Compose uses CPU config for worker; GPU override isolates GPU to `cv-worker`.
+- Frontend container now builds and serves Vite preview on port `5173`.
+- Backend migrations/setup ran during startup; backend health and DB health both passed.
 
 ## Files consulted
 
@@ -56,28 +75,25 @@ No secret, token, password, database password, or absolute storage path exposure
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- `docs/FRONTEND_UX.md`
-- `docs/PROJECT_CONTEXT.md`
+- `docs/ARCHITECTURE.md`
 - `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
-- `prototype/index.md`
+- `docs/TRAINING_EXPERIMENTS.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
-- `frontend/index.md`
+- `.env.example`
+- `docker-compose.yml`
+- `docker-compose.gpu.yml`
+- `Makefile`
+- `README.md`
+- `frontend/Dockerfile`
+- `frontend/.dockerignore`
 - `frontend/package.json`
-- `frontend/src/components/Logo.tsx`
-- `frontend/src/pages/DashboardPage.tsx`
-- `frontend/src/pages/ExperimentsPage.tsx`
-- `frontend/src/pages/JobDetailsPage.tsx`
-- `frontend/src/pages/experiments/ExperimentPageParts.tsx`
-- `frontend/src/pages/experiments/experimentPageUtils.ts`
-- `frontend/src/test/auth-routes.test.tsx`
-- `frontend/src/test/dashboard.test.tsx`
-- `frontend/src/test/experiments-page.test.tsx`
-- `frontend/src/test/job-details-page.test.tsx`
-- `rtk git status --short`
-- `rtk git diff --stat`
-- `rtk git diff` excluding forbidden independent code-review files
+- `frontend/index.md`
+- `cv/Dockerfile`
+- `cv/pyproject.toml`
+- `training/index.md`
+- `training/pyproject.toml`

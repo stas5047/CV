@@ -75,13 +75,13 @@ This file is a navigation map for agents and maintainers. Update it whenever doc
 
 ## Current Implementation State
 
-The repository currently contains the project documentation set, Docker Compose scaffold, safe environment example, README setup notes, storage bootstrap helper, and component folders with index files.
+The repository currently contains the project documentation set, Docker Compose runtime, safe environment example, README setup notes, storage bootstrap helper, and component folders with index files.
 
 The `backend/` folder contains the implemented FastAPI backend foundation, database schema/migration, startup setup, auth/security helpers, media/model/job/result/admin/experiment APIs, concrete result download routes, and backend tests through the Phase 13 API contract audit.
 
-The `cv/` folder contains the Phase 14 worker scaffold with a Python package, dependency manifest, settings, secret-safe logging, device selection, database connectivity helpers, storage path safety, startup checks, Docker entrypoint, and worker tests. It does not yet contain queue claiming, inference, tracking, exports, or result writes.
+The `cv/` folder contains the Python CV worker package, dependency manifest, settings, secret-safe logging, device selection, database connectivity helpers, storage path safety, startup checks, Docker entrypoint, PostgreSQL queue polling/claiming, stale-job recovery, model loading/cache, image/video processing, tracking/export/result-writing behavior, and worker tests.
 
-The `frontend/` folder contains the Phase 24 Vite React TypeScript scaffold with Tailwind CSS, shadcn/ui baseline config, React Router, TanStack Query, typed auth API client, token-backed auth state, `/login`, `/register`, protected routing, admin route guard, authenticated shell, placeholder protected routes for later phases, and frontend route/auth tests. Its Dockerfile remains the Phase 1 placeholder until final runtime wiring in Phase 32.
+The `frontend/` folder contains the Vite React TypeScript application with Tailwind CSS, shadcn/ui baseline config, React Router, TanStack Query, typed API clients, token-backed auth state, `/login`, `/register`, protected routing, admin route guard, authenticated shell, `/dashboard`, `/upload`, `/jobs`, `/jobs/:jobId`, `/models`, `/experiments`, `/admin`, Ukrainian UX polish, frontend tests, and a Dockerfile that builds and serves the app on port 5173.
 
 The `prototype/` folder contains a static browser-loaded frontend UX prototype with React UMD, Babel-loaded JSX, CSS, and mock in-memory data. It is a UI reference only and is separate from the production `frontend/` application and Docker runtime.
 

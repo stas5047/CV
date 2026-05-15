@@ -12,7 +12,7 @@ Current implementation covers settings, secret-safe logging, device selection, d
 
 | Path | Purpose |
 |---|---|
-| `Dockerfile` | CV worker image build and runtime entrypoint. |
+| `Dockerfile` | CV worker image build, OpenCV native runtime libraries, and runtime entrypoint. |
 | `pyproject.toml` | CV worker Python package metadata, runtime dependencies, dev dependencies, pytest config, and Ruff config. |
 | `aerovision_worker/` | Worker package with settings, logging, device, database, storage path and canonical result ID helpers, model runtime, startup, queue, image processing, and video processing modules. |
 | `tests/` | Worker tests for startup, settings, logging, storage, database, model runtime, queue helpers, PostgreSQL queue behavior, image processing/export behavior, and video processing/tracking/export behavior. |

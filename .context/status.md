@@ -1,59 +1,59 @@
-# Phase 31 Status
+# Phase 32 Status
 
-## Current Phase
+## Implemented
 
-- Phase: `Phase 31 - Frontend Ukrainian UX, responsive polish, and scope audit`
-- Mode: Code review resolution / final fix
-- Risk assumption: `MEDIUM` because user input used a placeholder and the phase audits all frontend routes.
+- Finalized `frontend/Dockerfile` to install dependencies, build the Vite app with `VITE_API_BASE_URL`, and serve it on port `5173`.
+- Added `frontend/.dockerignore`.
+- Added frontend `preview` script.
+- Updated `docker-compose.yml` with frontend build args, frontend port publishing, backend healthcheck, frontend healthcheck, and health-based service ordering.
+- Kept backend and CV worker shared storage mount at `/app/storage`.
+- Kept `docker-compose.gpu.yml` GPU reservation and `CV_DEVICE=cuda` isolated to `cv-worker`.
+- Expanded `Makefile` with setup, config, build, CPU/GPU up, down, logs, migrate, seed, aggregate test, and per-surface test targets.
+- Updated `README.md`, `docs/index.md`, and `frontend/index.md` to match current runtime and implementation state.
 
-## Completed
+## Final Fixes
 
-- Read required workflow files, phase docs, planning contracts, planning review resolution, and mistake logs.
-- Confirmed Phase 31 relevant docs: `docs/FRONTEND_UX.md`, `docs/PROJECT_CONTEXT.md`, `docs/AUTH_SECURITY.md`, `docs/TESTING_QA.md`.
-- Audited frontend visible labels for Phase 31 Ukrainian UX gaps.
-- Replaced remaining non-Ukrainian visible labels found in touched pages:
-  - `CV subsystem` -> `Підсистема комп'ютерного зору`
-  - `Precision` -> `Точність` where it is a visible UI label
-  - `Recall` -> `Повнота` where it is a visible UI label
-  - `Bounding box` -> `Координати рамки`
-  - `Track ID` -> `ID треку`
-- Kept documented technical labels readable where appropriate: `mAP`, `FPS`, `YOLO`, `CSV`, `JSON`, and the required `tracker behavior comparison` wording.
-- Added frontend regression tests for the Ukrainian label fixes.
-- Updated `frontend/index.md` current-state summary from Phase 30 to Phase 31.
-- Resolved OpenAI code review items in `.context/review-code-resolution.md`.
-- Added frontend toast provider/hook and wired it at the app root.
-- Added toast success/error feedback for implemented auth, upload/job creation, model registration/activation, result download, and admin cleanup actions.
-- Added representative toast assertions to existing frontend route tests.
-- Logged the Playwright `npx --package` tooling miss in `docs/mistakes-codex.md`.
+- Added `libglib2.0-0`, `libgl1`, and `libxcb1` to `cv/Dockerfile` so OpenCV imports in the slim worker container.
+- Kept the worker Python dependency layer before the OS-library layer so existing Docker cache can still avoid reinstalling heavy Python dependencies.
+- Updated `cv/index.md` to reflect Dockerfile native runtime library responsibility.
+- Removed trailing whitespace from `docs/phase.md`.
+- Updated `.context/review-code-resolution.md` with accepted review item resolutions and final verification.
 
-## Verification
+## Quality Gates
 
-- `cd frontend; npm test -- src/test/auth-routes.test.tsx src/test/dashboard.test.tsx src/test/job-details-page.test.tsx src/test/experiments-page.test.tsx`
-  - RED first: failed on missing Ukrainian labels before production edits.
-  - GREEN after edits: `4 passed`, `26 passed`.
-- `cd frontend; npm run lint`: PASS.
-- `cd frontend; npm test`: PASS, `8 passed`, `51 passed`.
-- `cd frontend; npm run build`: PASS. Vite emitted the pre-existing chunk-size warning for an `848.40 kB` JS chunk.
-- Code review final-fix gates:
-  - `cd frontend; npm run lint`: PASS.
-  - `cd frontend; npm test`: PASS, `8 passed`, `51 passed`.
-  - `cd frontend; npm run build`: PASS. Vite emitted a non-failing chunk-size warning for an `852.83 kB` JS chunk.
-- Browser/manual route smoke was skipped by explicit user instruction on 2026-05-15; user will perform browser checks.
+| Command | Result | Notes |
+|---|---|---|
+| `docker compose --env-file .env.example config` | PASS | Base config renders services `postgres`, `backend`, `cv-worker`, `frontend`. |
+| `docker compose -f docker-compose.yml -f docker-compose.gpu.yml --env-file .env.example config` | PASS | GPU reservation appears only under `cv-worker`. |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap-storage.ps1` | PASS | Required storage folders ready. |
+| `npm run build` from `frontend/` | PASS | Vite build passed; non-failing chunk-size warning only. |
+| `npm run lint` from `frontend/` | PASS | ESLint passed. |
+| `npm test` from `frontend/` | PASS | 8 files, 51 tests passed. |
+| `git diff --check` | PASS | No whitespace errors; Git emitted line-ending warnings only. |
+| `docker compose --env-file .env.example build cv-worker` | PASS | Worker image built with OpenCV native runtime libraries. |
+| `docker compose --env-file .env.example run --rm --no-deps cv-worker python -c "import cv2; print(cv2.__version__)"` | PASS | Printed `4.13.0`. |
+| `docker compose --env-file .env.example up --build -d` | PASS | `postgres`, `backend`, `cv-worker`, and `frontend` started. |
+| `docker compose --env-file .env.example ps -a` | PASS | `postgres`, `backend`, and `frontend` healthy; `cv-worker` stayed up. |
+| Backend `/api/health` smoke | PASS | Returned `{"status":"ok","service":"backend"}`. |
+| Backend `/api/health/db` smoke | PASS | Returned `{"status":"ok","database":"available"}`. |
+| Seeded admin smoke | PASS | Login returned `token_present=true`, `token_type=bearer`; token not printed. |
+| Frontend reachability smoke | PASS | `http://localhost:5173` returned HTTP 200. |
+| Worker selected-device log smoke | PASS | Worker logged `device_selected requested_device=cpu selected_device=cpu`. |
+| `docker compose --env-file .env.example down` | PASS | Runtime stack stopped and removed. |
 
-## Security / Privacy
+## Security And Privacy
 
-- No backend authorization or API behavior changed.
-- UI tests and scans continue to guard against visible `frame_stride`, raw `null`, `undefined`, `C:\`, `/app/storage`, and unsafe storage-path display.
-- No secret, token, password, database password, or absolute storage path was added.
-- No UI wording for targeting, navigation, interception, payload, geospatial output, or hardware control was added.
-- Toasts display only existing frontend success/error state and do not expose tokens, storage internals, or backend-only data.
+- `.env.example` uses placeholder secret values only.
+- README instructs replacing placeholder secrets, not committing `.env`, and passing admin JWT through environment variable for artifact helper examples.
+- Seeded-admin smoke checked token presence without printing the token.
+- No real credentials, tokens, model weights, uploads, reports, or generated results were added.
+- GPU access remains isolated to `cv-worker` in rendered GPU config.
 
 ## Deviations
 
-- Manual/browser route smoke is user-owned for final-fix pass per current user instruction.
-- No product-doc changes were made; only `frontend/index.md` was updated as an existing component index.
+- None from `.context/design.md` or `.context/plan.md` after final fix.
 
 ## Remaining Risks
 
-- Build chunk-size warning remains; it is not new to Phase 31.
-- No live full-stack backend/browser E2E run was performed in this final-fix pass.
+- Real processing still depends on local model artifacts being placed and registered under documented `storage/models/` paths.
+- GPU launch still depends on host NVIDIA container runtime; only GPU Compose config isolation was verified.

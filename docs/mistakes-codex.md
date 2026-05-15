@@ -1,5 +1,12 @@
 # Codex Mistake Log
 
+## 2026-05-15 - Phase 32 worker Dockerfile fix initially invalidated heavy dependency cache
+
+- Mistake: First added OpenCV native OS packages before the worker Python dependency install layer.
+- Impact: `docker compose --env-file .env.example build cv-worker` spent 10 minutes rebuilding heavy Python dependencies and timed out before verification.
+- Fix: Moved the OS package install after the existing Python dependency layer, preserving Docker cache for `torch`/Ultralytics dependencies while still adding runtime libraries.
+- Prevention: For Dockerfiles with heavy dependency layers, place small runtime-library fixes after cached dependency layers when build correctness allows it.
+
 ## 2026-05-15 - Playwright module smoke attempt used unavailable `npx --package` path
 
 - Mistake: Tried to run a browser-smoke helper through `npx --package playwright node`, but this environment did not expose the Playwright package to `require("playwright")`.

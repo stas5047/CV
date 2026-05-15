@@ -1,117 +1,121 @@
-# Phase 31 Implementation Plan
+# Phase 32 Plan
 
-## Scope
+Scope: `Phase 32 - Final Docker runtime, GPU override, README, and first-launch flow`.
 
-Phase only: `Phase 31 - Frontend Ukrainian UX, responsive polish, and scope audit`.
+Risk: HIGH assumed because user risk placeholder was not filled.
 
-Do not modify backend, database, API contracts, worker, training, Docker runtime, product docs, or routes. Use `prototype/` only as visual reference.
+Rules:
 
-## Ordered Atomic Plan
+- No product behavior changes.
+- No new API routes.
+- No DB schema changes.
+- No CV inference/training changes.
+- No extra runtime services.
+- CPU launch required; GPU optional and isolated to `cv-worker`.
 
-1. `@role/developer-frontend` - Inventory production routes and prototype screens.
-   - Verify `frontend/src/App.tsx` routes match required docs routes.
-   - Map each production page to its prototype file.
-   - Verifiable by route-to-file checklist in implementation notes or final report.
+## Ordered implementation plan
 
-2. `@role/developer-frontend` - Audit visible text.
-   - Search route/page/component files for user-facing strings.
-   - Keep Ukrainian text for labels, buttons, headings, errors, empty states, toasts, and table headings where practical.
-   - Keep only documented technical labels such as `FPS`, `mAP`, `YOLO`, `CSV`, `JSON`, plus field labels required by docs when clearer.
-   - Verifiable by targeted `rg` review and frontend tests.
+1. [ ] `@role/developer-devops` Confirm dirty worktree before edits.
+   - Run: `git status --short`
+   - Verify: note pre-existing modified files; do not revert unrelated changes.
 
-3. `@role/developer-frontend` - Audit CV-only wording.
-   - Search frontend visible text for targeting, interception, navigation, geolocation, payload, aiming, flight-control, or hardware-control language.
-   - Replace any found user-facing text with CV-only image-space wording from docs.
-   - Verifiable by targeted `rg` scan and route smoke.
+2. [ ] `@role/developer-devops` Finalize frontend container runtime.
+   - Modify likely files: `frontend/Dockerfile`, `frontend/package.json`, `frontend/package-lock.json` if package scripts change.
+   - Replace placeholder container behavior with existing Vite app build/serve flow.
+   - Preserve `VITE_API_BASE_URL` use.
+   - Use Vite build-time API-base injection for Docker runtime: pass `VITE_API_BASE_URL=http://localhost:${BACKEND_PORT:-8000}/api` during frontend image build unless a repo-native runtime-config mechanism already exists.
+   - Verify: frontend image can build and serve app on port `5173`.
 
-4. `@role/developer-frontend` - Audit unsafe display.
-   - Ensure pages use existing safe text/format helpers before rendering filenames, model names, error messages, paths, artifact values, and backend details.
-   - Ensure raw `null`, `undefined`, `frame_stride`, `C:\`, `/app/storage`, and `/storage/` do not appear in UI.
-   - Verifiable by existing and updated tests.
+3. [ ] `@role/developer-devops` Finalize base Compose runtime.
+   - Modify likely file: `docker-compose.yml`.
+   - Keep services: `postgres`, `backend`, `cv-worker`, `frontend`.
+   - Keep backend and worker storage mount at `/app/storage`.
+   - Publish backend via `${BACKEND_PORT:-8000}:8000`.
+   - Publish frontend via `${FRONTEND_PORT:-5173}:5173`.
+   - Wire frontend build/runtime API base to `http://localhost:${BACKEND_PORT:-8000}/api`.
+   - Add backend healthcheck against `/api/health`.
+   - Add frontend reachability healthcheck after frontend runtime exists.
+   - Keep PostgreSQL healthcheck.
+   - Do not add backend-worker HTTP calls.
+   - Verify: `docker compose --env-file .env.example config` succeeds.
 
-5. `@role/developer-frontend` - Standardize formatting helpers where pages drift.
-   - Align date, duration, confidence, percentage, FPS, count, and bounding-box display across dashboard, jobs, details, models, experiments, and admin.
-   - Do not change API payloads.
-   - Verifiable by unit/route tests and manual screenshots.
+4. [ ] `@role/developer-devops` Audit GPU override.
+   - Modify likely file only if needed: `docker-compose.gpu.yml`.
+   - Keep GPU device request and `CV_DEVICE=cuda` only under `cv-worker`.
+   - Do not add GPU settings to backend, frontend, or postgres.
+   - Verify: rendered GPU config shows GPU reservation only for `cv-worker`.
 
-6. `@role/developer-frontend` - Standardize status badge behavior.
-   - Align job status badge labels, dot behavior, colors, and sizes with docs and prototype.
-   - Keep visible status text Ukrainian.
-   - Verifiable by status badge tests or page route assertions.
+5. [ ] `@role/developer-devops` Expand Makefile shortcuts.
+   - Modify likely file: `Makefile`.
+   - Keep existing storage/config targets.
+   - Add or normalize targets for local setup, migration, seed, logs, tests, CPU launch, optional GPU launch.
+   - Use `docker compose`, not legacy `docker-compose`.
+   - Verify: listed targets invoke documented commands and do not require real secrets.
 
-7. `@role/developer-frontend` - Standardize buttons/forms/tables/cards/skeletons/toasts/empty states.
-   - Use existing shadcn-style `Button`, `Input`, `.av-*` classes, and page part components.
-   - Match prototype density, borders, green accent, mono numeric data, compact tables, and small radius.
-   - Audit and fix success/error toast notifications or equivalent documented feedback for implemented actions, especially login/register errors, upload/job creation, downloads, model/admin mutations, and cleanup.
-   - Keep feedback text Ukrainian and avoid adding new product flows.
-   - Avoid new dependencies.
-   - Verifiable by browser smoke and frontend snapshot-free route tests.
+6. [ ] `@role/docs-maintainer` Update first-launch docs.
+   - Modify likely file: `README.md`.
+   - Document prerequisites, `.env` setup, placeholder secret replacement, storage bootstrap, model artifact placement/registration, one-command CPU startup, seeded admin policy, CPU/GPU notes, troubleshooting, and large-file/Git policy.
+   - Remove stale "frontend not available" claims if frontend Docker runtime is finalized.
+   - Remove stale CV-worker unavailable claims if current worker index/code state shows queue/inference/tracking/export support is implemented.
+   - Do not duplicate full product specs from canonical docs.
+   - Verify: README commands match actual files and Makefile/Compose targets.
 
-8. `@role/developer-frontend` - Audit auth and admin visibility.
-   - Verify guests see only auth/public routes.
-   - Verify regular users do not see admin navigation or admin mutation actions.
-   - Verify `/admin` still goes through `AdminRoute`.
-   - Verifiable by existing auth/admin tests plus any needed assertions.
+7. [ ] `@role/docs-maintainer` Update implementation indexes only where made stale by Phase 32 changes.
+   - Likely files: `frontend/index.md`, `docs/index.md`.
+   - Possible files: `backend/index.md`, `cv/index.md`, `training/index.md`.
+   - Clean up all current implementation-state conflicts found in README/component indexes/docs index, including stale frontend and CV-worker availability/status claims.
+   - Update only current-state and command/status entries changed by runtime/doc work or already-conflicting implementation-state summaries.
+   - Do not change canonical product contracts.
+   - Verify: no implementation doc still says frontend Dockerfile is placeholder after it is finalized.
+   - Verify: implementation docs do not contradict each other on current frontend or CV-worker availability.
 
-9. `@role/developer-frontend` - Audit loading/error/empty/forbidden/no-detection states.
-   - Confirm each required route has clear Ukrainian loading, error, and empty state.
-   - Confirm no-detection completed job is successful and keeps downloads when available.
-   - Confirm experiments use required empty-state text for missing sections.
-   - Verifiable by existing tests and focused additions where gaps appear.
+8. [ ] `@role/tester` Validate Compose configuration.
+   - Run: `docker compose --env-file .env.example config`
+   - Expected: PASS.
+   - Run: `docker compose -f docker-compose.yml -f docker-compose.gpu.yml --env-file .env.example config`
+   - Expected: PASS; only `cv-worker` has GPU request.
 
-10. `@role/developer-frontend` - Audit responsive behavior.
-    - Check shell, mobile drawer, auth forms, metric grids, upload layout, tables, details page, charts, and admin panels at narrow and desktop widths.
-    - Prefer single-column mobile layouts and table horizontal scroll.
-    - Keep `min-h-[100dvh]` where full-height behavior exists.
-    - Verifiable by manual browser route smoke and CSS review.
+9. [ ] `@role/tester` Validate storage bootstrap.
+   - Run: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap-storage.ps1`
+   - Expected: PASS; `storage/uploads`, `storage/results`, `storage/reports`, `storage/models`, `storage/temp`, and `storage/datasets` exist.
 
-11. `@role/developer-frontend` - Apply minimal frontend fixes found by the audits.
-    - Modify only relevant existing frontend files and existing tests.
-    - Do not add routes, API calls, schema fields, product flows, or product docs.
-    - Verifiable by `git diff -- frontend`.
+10. [ ] `@role/tester` Validate frontend build/runtime surface if frontend Docker/package changed.
+    - Run from `frontend/`: `npm run build`
+    - Expected: PASS.
+    - Run from repo root: `docker compose --env-file .env.example build frontend`
+    - Expected: PASS.
 
-12. `@role/tester` - Run frontend quality gates.
-    - `cd frontend; npm run lint`
-    - `cd frontend; npm test`
-    - `cd frontend; npm run build`
-    - Expected: PASS, except known Vite chunk-size warning may remain if build succeeds.
+11. [ ] `@role/tester` Run Phase 32 CPU startup smoke.
+    - Run: `docker compose --env-file .env.example up --build -d`
+    - Expected: `postgres`, `backend`, `cv-worker`, and `frontend` start.
+    - Verify: backend startup runs migrations/setup when `RUN_MIGRATIONS_ON_START=true` and `RUN_SEED_ON_START=true`.
+    - Verify: seeded admin exists, preferably by authenticating with configured `.env` credentials through `POST /api/auth/login` or by a safe backend container/database command that does not print secrets.
+    - Verify: worker logs `device_selected` with CPU in base config.
+    - Verify: frontend reachable at `http://localhost:5173`.
+    - Verify: backend health reachable at `http://localhost:8000/api/health`.
+    - Verify: backend database health reachable at `http://localhost:8000/api/health/db`.
+    - Cleanup: run `docker compose --env-file .env.example down` after evidence is captured.
 
-13. `@role/tester` - Run manual route smoke.
-    - Check `/login`, `/register`, `/dashboard`, `/upload`, `/jobs`, `/jobs/:jobId`, `/models`, `/experiments`, and `/admin`.
-    - Include regular-user and admin visibility where practical.
-    - Include narrow viewport smoke.
-    - Record whether smoke used live backend data, seeded/mock test data, or route-level test harness data.
-    - Verifiable by manual notes in final implementation report.
+12. [ ] `@role/developer-auth-security` Audit security/privacy after runtime/doc changes.
+    - Verify `.env.example` contains placeholders only.
+    - Verify README does not include real secrets, tokens, database passwords, admin passwords beyond placeholders, or fixed FPS promises.
+    - Verify Compose/Makefile do not route secrets into logs beyond normal env usage.
+    - Verify GPU override affects only `cv-worker`.
 
-14. `@role/code-reviewer` - Scope and safety review.
-    - Compare diff against Phase 31 docs only.
-    - Confirm no backend/db/API/runtime/product-doc changes.
-    - Confirm no out-of-scope CV wording.
-    - Confirm no unsafe path/secret display.
-    - Confirm frontend remains based on prototype visual language.
-    - Verifiable by review notes and final verdict.
+13. [ ] `@role/code-reviewer` Review Phase 32 diff against docs.
+    - Check against `docs/ARCHITECTURE.md`, `docs/AUTH_SECURITY.md`, `docs/TRAINING_EXPERIMENTS.md`, `docs/TESTING_QA.md`, and implementation docs.
+    - Flag scope creep, new services, unsafe secret docs, mismatched storage mounts, missing frontend port/runtime, stale README/index claims, and GPU leakage outside worker.
 
-15. `@role/docs-maintainer` - Documentation update decision.
-    - Product docs must not be changed for this phase unless implementation changes commands, env vars, documented file paths, or component indexes.
-    - Expected for Phase 31: docs updates skipped.
-    - Verifiable by `git diff -- docs frontend/index.md`.
+14. [ ] `@role/tester` Record final quality gates.
+    - Report each command as `PASS`, `FAIL`, or `not available`.
+    - If `docker compose up --build` fails because model artifacts or host dependencies are absent, record exact blocker and do not mark complete.
 
-## Quality Gates
+## Out of scope for this phase
 
-- `cd frontend; npm run lint`
-- `cd frontend; npm test`
-- `cd frontend; npm run build`
-- Manual frontend route smoke for required routes.
-- Toast/success-error feedback audit.
-- Ukrainian UX audit.
-- Scope boundary audit.
-- Admin visibility audit.
-- Unsafe display audit for raw `null`, `undefined`, `frame_stride`, absolute paths, and storage internals.
-
-## Out Of Scope
-
-- Backend, database, API, worker, training, Docker runtime, deployment, or product docs changes.
-- New routes or product flows.
-- New API calls or schema fields.
-- Live camera, RTSP, targeting, navigation, interception, hardware control, or training-from-UI behavior.
-- Adding Framer Motion, GSAP, Three.js, or icon libraries not already installed.
+- Backend API route changes.
+- DB schema or Alembic migration changes.
+- CV queue/inference/tracking/export logic changes.
+- Frontend page/UX feature changes.
+- Training execution.
+- New runtime services.
+- Production deployment hardening beyond local/demo Compose.
