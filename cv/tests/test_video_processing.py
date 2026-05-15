@@ -13,11 +13,12 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from aerovision_worker import video_processing
+from aerovision_worker import video_io, video_processing
 from aerovision_worker.image_processing import CSV_COLUMNS
 from aerovision_worker.model_runtime import LoadedModel, ModelMetadata
 from aerovision_worker.settings import WorkerSettings
 from aerovision_worker.video_processing import process_video_job
+from aerovision_worker.video_types import VideoProcessingError
 
 FORBIDDEN_EXPORT_TERMS = [
     "targeting",
@@ -291,6 +292,14 @@ def fetch_rows(factory: sessionmaker[Session], table: str) -> list[dict[str, obj
     return [dict(row) for row in rows]
 
 
+def stub_browser_mp4_transcode(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_finalize(source_path: Path, final_path: Path) -> None:
+        final_path.write_bytes(source_path.read_bytes())
+        source_path.unlink()
+
+    monkeypatch.setattr(video_processing, "finalize_browser_playable_mp4", fake_finalize)
+
+
 def test_process_video_job_completes_with_detections_tracks_exports_and_progress(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -317,6 +326,7 @@ def test_process_video_job_completes_with_detections_tracks_exports_and_progress
         return original_heartbeat(*args, **kwargs)
 
     monkeypatch.setattr(video_processing, "update_job_heartbeat", capture_heartbeat)
+    stub_browser_mp4_transcode(monkeypatch)
 
     process_video_job(settings, factory, job_id="job-1", worker_id="worker-a", loaded_model=model)
 
@@ -362,12 +372,118 @@ def test_process_video_job_completes_with_detections_tracks_exports_and_progress
         assert term not in forbidden
 
 
-def test_process_video_job_logs_lifecycle_without_paths(tmp_path: Path, caplog) -> None:
+def test_process_video_job_transcodes_annotated_video_for_browser_playback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     storage_root = tmp_path / "storage"
     write_video(storage_root, "uploads/user-1/media-1.mp4", frames=1)
     factory = session_factory()
     insert_video_job(factory, storage_root=storage_root)
     settings = worker_settings(storage_root)
+    calls: list[tuple[Path, Path]] = []
+
+    def fake_finalize(source_path: Path, final_path: Path) -> None:
+        calls.append((source_path, final_path))
+        assert source_path.name == "annotated.opencv.mp4"
+        assert final_path.name == "annotated.mp4"
+        assert source_path.is_file()
+        final_path.write_bytes(source_path.read_bytes() + b"\nbrowser-compatible")
+        source_path.unlink()
+
+    monkeypatch.setattr(video_processing, "finalize_browser_playable_mp4", fake_finalize)
+
+    process_video_job(
+        settings,
+        factory,
+        job_id="job-1",
+        worker_id="worker-a",
+        loaded_model=loaded_model([[]]),
+    )
+
+    job = fetch_job(factory)
+    final_path = storage_root / "results/job-1/annotated.mp4"
+    assert job["status"] == "completed"
+    assert job["result_media_path"] == "results/job-1/annotated.mp4"
+    assert calls == [(storage_root / "results/job-1/annotated.opencv.mp4", final_path)]
+    assert final_path.read_bytes().endswith(b"browser-compatible")
+    assert not (storage_root / "results/job-1/annotated.opencv.mp4").exists()
+
+
+def test_finalize_browser_playable_mp4_uses_browser_supported_h264_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_path = tmp_path / "annotated.opencv.mp4"
+    final_path = tmp_path / "annotated.mp4"
+    source_path.write_bytes(b"opencv-video")
+    commands: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        assert kwargs["check"] is True
+        assert kwargs["capture_output"] is True
+        final_path.write_bytes(b"h264-video")
+        return None
+
+    monkeypatch.setattr(
+        video_io.shutil,
+        "which",
+        lambda name: "ffmpeg" if name == "ffmpeg" else None,
+    )
+    monkeypatch.setattr(video_io.subprocess, "run", fake_run)
+
+    video_io.finalize_browser_playable_mp4(source_path, final_path)
+
+    assert commands == [
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(source_path),
+            "-an",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            str(final_path),
+        ]
+    ]
+    assert final_path.read_bytes() == b"h264-video"
+    assert not source_path.exists()
+
+
+def test_finalize_browser_playable_mp4_fails_safe_without_ffmpeg(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_path = tmp_path / "annotated.opencv.mp4"
+    final_path = tmp_path / "annotated.mp4"
+    source_path.write_bytes(b"opencv-video")
+    monkeypatch.setattr(video_io.shutil, "which", lambda _name: None)
+
+    with pytest.raises(VideoProcessingError, match="FFmpeg is unavailable"):
+        video_io.finalize_browser_playable_mp4(source_path, final_path)
+
+    assert source_path.exists()
+    assert not final_path.exists()
+
+
+def test_process_video_job_logs_lifecycle_without_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog,
+) -> None:
+    storage_root = tmp_path / "storage"
+    write_video(storage_root, "uploads/user-1/media-1.mp4", frames=1)
+    factory = session_factory()
+    insert_video_job(factory, storage_root=storage_root)
+    settings = worker_settings(storage_root)
+    stub_browser_mp4_transcode(monkeypatch)
     caplog.set_level(logging.INFO, logger="aerovision_worker.video_processing")
 
     process_video_job(
@@ -388,12 +504,16 @@ def test_process_video_job_logs_lifecycle_without_paths(tmp_path: Path, caplog) 
     assert str(storage_root) not in log_text
 
 
-def test_process_video_job_completes_no_detection_with_empty_exports(tmp_path: Path) -> None:
+def test_process_video_job_completes_no_detection_with_empty_exports(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     storage_root = tmp_path / "storage"
     write_video(storage_root, "uploads/user-1/media-1.mp4", frames=2)
     factory = session_factory()
     insert_video_job(factory, storage_root=storage_root)
     settings = worker_settings(storage_root)
+    stub_browser_mp4_transcode(monkeypatch)
 
     process_video_job(
         settings,
@@ -525,13 +645,17 @@ def test_process_video_job_fails_safe_when_tracker_runtime_unavailable(tmp_path:
     assert str(storage_root) not in job["error_message"]
 
 
-def test_process_video_job_passes_botsort_tracker_to_runtime(tmp_path: Path) -> None:
+def test_process_video_job_passes_botsort_tracker_to_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     storage_root = tmp_path / "storage"
     write_video(storage_root, "uploads/user-1/media-1.mp4", frames=1)
     factory = session_factory()
     insert_video_job(factory, storage_root=storage_root, input_params={"tracker_type": "botsort"})
     settings = worker_settings(storage_root)
     model = loaded_model([[]])
+    stub_browser_mp4_transcode(monkeypatch)
 
     process_video_job(settings, factory, job_id="job-1", worker_id="worker-a", loaded_model=model)
 

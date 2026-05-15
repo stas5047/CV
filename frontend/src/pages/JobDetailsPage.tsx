@@ -162,8 +162,14 @@ export function JobDetailsPage() {
   const resultRefs = result ?? job?.result;
   const canPreview = Boolean(isCompleted && resultRefs?.media.available && (job?.media.media_type === "image" || job?.media.media_type === "video"));
   const { previewUrl, previewError } = usePreviewUrl(resultRefs?.media, canPreview);
+  const [playbackError, setPlaybackError] = useState(false);
+
+  useEffect(() => {
+    setPlaybackError(false);
+  }, [previewUrl]);
 
   const summary = useMemo(() => ({ ...(job?.summary_json ?? {}), ...(result?.summary ?? {}) }), [job?.summary_json, result?.summary]);
+  const previewUnavailable = previewError || playbackError;
 
   if (!id) {
     return <ErrorState title="Завдання не знайдено" description="Маршрут не містить коректного ідентифікатора." onRetry={() => window.history.back()} />;
@@ -227,16 +233,25 @@ export function JobDetailsPage() {
         <div className="av-card min-h-[280px] overflow-hidden">
           {previewUrl && job.media.media_type === "image" ? (
             <img className="h-full max-h-[520px] w-full object-contain" src={previewUrl} alt="Анотований результат" />
-          ) : previewUrl && job.media.media_type === "video" ? (
-            <video className="h-full max-h-[520px] w-full bg-secondary" src={previewUrl} controls />
+          ) : previewUrl && job.media.media_type === "video" && !previewUnavailable ? (
+            <video
+              aria-label="processed-video-preview"
+              className="h-full max-h-[520px] w-full bg-secondary"
+              src={previewUrl}
+              controls
+              onError={() => setPlaybackError(true)}
+            />
           ) : (
-            <div className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground">
+            <div
+              className="flex min-h-[280px] flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground"
+              data-testid="preview-unavailable-notice"
+            >
               {job.media.media_type === "video" ? <VideoIcon className="h-10 w-10" /> : <ImageIcon className="h-10 w-10" />}
               <p className="font-medium text-foreground">
                 {isCompleted ? "Попередній перегляд недоступний" : "Результат ще не готовий"}
               </p>
               <p className="max-w-md text-sm leading-6">
-                {previewError || job.media.media_type === "video"
+                {previewUnavailable || job.media.media_type === "video"
                   ? "Перегляд відео у браузері може бути недоступним. Використайте кнопку завантаження нижче."
                   : "Анотований файл з'явиться після завершення обробки."}
               </p>

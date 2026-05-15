@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
@@ -153,7 +153,13 @@ function setupFetch(job: MockJob, detectionData = detections, trackData = tracks
     if (url.pathname === "/api/jobs/job-1/detections") return json(detectionData);
     if (url.pathname === "/api/jobs/job-1/tracks") return json(trackData);
     if (url.pathname.startsWith("/api/jobs/job-1/download/")) {
-      return Promise.resolve(new Response(new Blob(["file"]), { status: 200 }));
+      const isMedia = url.pathname.endsWith("/download/media");
+      return Promise.resolve(
+        new Response(new Blob(["file"], { type: isMedia ? "video/mp4" : "text/plain" }), {
+          status: 200,
+          headers: isMedia ? { "Content-Type": "video/mp4" } : undefined,
+        }),
+      );
     }
     return json({ detail: "unexpected route" }, 500);
   });
@@ -197,6 +203,12 @@ describe("Phase 27 job details page", () => {
     expect(screen.queryByRole("columnheader", { name: "Bounding box" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Track ID" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Треки об'єктів" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("processed-video-preview")).toHaveAttribute("src", "blob:preview"),
+    );
+    expect(
+      vi.mocked(URL.createObjectURL).mock.calls.some(([blob]) => blob instanceof Blob && blob.type === "video/mp4"),
+    ).toBe(true);
     expect(container).not.toHaveTextContent("frame_stride");
     expect(container).not.toHaveTextContent("C:\\");
     expect(container).not.toHaveTextContent("/app/storage");
@@ -294,5 +306,18 @@ describe("Phase 27 job details page", () => {
 
     await waitFor(() => expect(screen.getByText("Не вдалося підготувати завантаження.")).toBeInTheDocument());
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("example.invalid"))).toBe(false);
+  });
+  it("shows the documented notice when processed video playback fails", async () => {
+    tokenStorage.set("jwt-token");
+    setupFetch(completedVideoJob);
+
+    render(<App authApi={authApi()} initialEntries={["/jobs/job-1"]} />);
+
+    const video = await screen.findByLabelText("processed-video-preview");
+    fireEvent.error(video);
+
+    const notice = await screen.findByTestId("preview-unavailable-notice");
+    expect(notice).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Анотоване відео/ })).toBeEnabled();
   });
 });

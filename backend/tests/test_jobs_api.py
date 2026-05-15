@@ -619,6 +619,13 @@ def test_job_detail_summary_detections_tracks_and_result_metadata_are_owner_scop
     assert result["json"]["available"] is True
     assert cross_owner_response.status_code == 404
 
+    media_download_response = jobs_client.get(
+        f"/api/jobs/{job_id}/download/media",
+        headers=_auth(owner_token),
+    )
+    assert media_download_response.status_code == 200
+    assert media_download_response.headers["content-type"].startswith("video/mp4")
+
 
 def test_inactive_user_cannot_access_result_or_download_routes(jobs_client: TestClient) -> None:
     owner_id = _create_user("owner@example.local", "user-secret-value")

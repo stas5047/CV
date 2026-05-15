@@ -28,6 +28,7 @@ CV_PATH = ROOT / "cv"
 if str(CV_PATH) not in sys.path:
     sys.path.insert(0, str(CV_PATH))
 
+from aerovision_worker import video_processing  # noqa: E402
 from aerovision_worker.main import run_poll_iteration  # noqa: E402
 from aerovision_worker.model_runtime import ModelRuntime  # noqa: E402
 from aerovision_worker.settings import WorkerSettings  # noqa: E402
@@ -491,6 +492,7 @@ def test_phase23_missing_model_file_marks_job_failed_with_safe_api_payload(
 def test_phase23_video_smoke_processes_tracks_and_downloads_through_api(
     phase23_client: TestClient,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     storage_root = tmp_path / "storage"
     _create_admin()
@@ -508,6 +510,12 @@ def test_phase23_video_smoke_processes_tracks_and_downloads_through_api(
     )
     media = _upload_video(phase23_client, owner_token, tmp_path)
     job_id = _create_job(phase23_client, owner_token, str(media["id"]))
+
+    def fake_finalize(source_path: Path, final_path: Path) -> None:
+        final_path.write_bytes(source_path.read_bytes())
+        source_path.unlink()
+
+    monkeypatch.setattr(video_processing, "finalize_browser_playable_mp4", fake_finalize)
 
     _poll_once(storage_root, runtime)
 

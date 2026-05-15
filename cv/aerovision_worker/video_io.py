@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +54,52 @@ def open_writer(path: Path, fps: float, width: int, height: int):
     if not writer.isOpened():
         raise VideoProcessingError("Annotated video output could not be created")
     return writer
+
+
+def writer_output_path(final_path: Path) -> Path:
+    return final_path.with_name(f"{final_path.stem}.opencv{final_path.suffix}")
+
+
+def finalize_browser_playable_mp4(source_path: Path, final_path: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        raise VideoProcessingError("FFmpeg is unavailable for browser video encoding")
+    command = [
+        ffmpeg,
+        "-y",
+        "-i",
+        str(source_path),
+        "-an",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        str(final_path),
+    ]
+    try:
+        subprocess.run(command, check=True, capture_output=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        _remove_if_present(final_path)
+        raise VideoProcessingError(
+            "Annotated video output could not be encoded for browser playback"
+        ) from exc
+    if not final_path.is_file() or final_path.stat().st_size <= 0:
+        _remove_if_present(final_path)
+        raise VideoProcessingError(
+            "Annotated video output could not be encoded for browser playback"
+        )
+    _remove_if_present(source_path)
+
+
+def _remove_if_present(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        return
 
 
 def optional_int(value: Any) -> int | None:

@@ -13,6 +13,7 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        ffmpeg \
         libglib2.0-0 \
         libgl1 \
         libxcb1 \

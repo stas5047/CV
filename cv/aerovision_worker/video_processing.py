@@ -27,11 +27,13 @@ from aerovision_worker.video_exports import (
 )
 from aerovision_worker.video_io import (
     capture_metadata,
+    finalize_browser_playable_mp4,
     metadata_from_first_frame,
     open_writer,
     optional_float,
     optional_int,
     source_path,
+    writer_output_path,
 )
 from aerovision_worker.video_persistence import complete_video_job
 from aerovision_worker.video_types import (
@@ -78,8 +80,10 @@ def process_video_job(
         metadata = metadata_from_first_frame(metadata, first_frame)
 
         paths = result_paths(str(job.id))
+        final_media_path = output_path(settings, paths["media"])
+        writer_media_path = writer_output_path(final_media_path)
         writer = open_writer(
-            output_path(settings, paths["media"]),
+            writer_media_path,
             metadata["fps"],
             metadata["width"],
             metadata["height"],
@@ -99,6 +103,7 @@ def process_video_job(
         )
         writer.release()
         writer = None
+        finalize_browser_playable_mp4(writer_media_path, final_media_path)
         capture.release()
         capture = None
 

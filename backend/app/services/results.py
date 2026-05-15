@@ -26,9 +26,15 @@ DownloadKind = Literal["media", "csv", "json"]
 VALID_JOB_STATUSES = {"queued", "processing", "completed", "failed", "cancelled"}
 VALID_MEDIA_TYPES = {"image", "video"}
 DOWNLOAD_MEDIA_TYPES = {
-    "media": "application/octet-stream",
     "csv": "text/csv",
     "json": "application/json",
+}
+RESULT_MEDIA_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".mp4": "video/mp4",
 }
 
 
@@ -210,7 +216,11 @@ def resolve_job_download(
     )
     if not resolved_path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Result file not found")
-    return resolved_path, DOWNLOAD_MEDIA_TYPES[kind], _download_filename(job, kind, relative_path)
+    return (
+        resolved_path,
+        _download_media_type(kind, relative_path),
+        _download_filename(job, kind, relative_path),
+    )
 
 
 def parse_download_kind(kind: str) -> DownloadKind:
@@ -383,6 +393,13 @@ def _download_filename(
     suffix = Path(relative_path or "").suffix
     stem = f"job-{job.id}-{kind}"
     return safe_download_filename(f"{stem}{suffix}", fallback=f"{kind}-download")
+
+
+def _download_media_type(kind: DownloadKind, relative_path: str | None) -> str:
+    if kind != "media":
+        return DOWNLOAD_MEDIA_TYPES[kind]
+    suffix = Path(relative_path or "").suffix.lower()
+    return RESULT_MEDIA_TYPES.get(suffix, "application/octet-stream")
 
 
 def _detection_response(detection: Detection) -> DetectionResponse:
