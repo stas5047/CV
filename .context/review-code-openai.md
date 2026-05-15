@@ -1,72 +1,65 @@
-# OpenAI Code Review - Phase 32
+# OpenAI Code Review - Phase 33
 
 ## Verdict: BLOCKED
 
 ## Summary
 
-Phase 32 runtime wiring is mostly aligned: Compose has required services, backend/frontend ports, shared backend/worker storage mount, backend/frontend healthchecks, frontend Docker runtime, and GPU reservation only under `cv-worker`.
+Phase 33 QA artifacts are mostly consistent with the approved plan: product source code was not changed, available automated/component gates passed, and blocked runtime/E2E gates are documented instead of being reported as passing.
 
-One release-blocking runtime defect remains: full CPU Compose launch does not start all required services because `cv-worker` exits at import time. This violates Phase 32 validation and final Docker runtime goal.
+Release readiness is still blocked. Required Phase 33 runtime smoke, seeded-admin/runtime auth checks, manual E2E flows, UI download smoke, and runtime log privacy scan did not run because configured `.env` is absent. Model-dependent processing E2E also did not run because no local model artifacts exist under `storage/models/`.
 
 ## Critical issues
 
-1. `cv-worker` container fails during CPU Compose startup.
-   - Evidence: `docker compose --env-file .env.example up --build -d` returned success for orchestration, but `docker compose --env-file .env.example ps -a` showed `aerovision-cv-worker-1` as `Exited (1)`.
-   - Evidence: `docker compose --env-file .env.example logs --no-color cv-worker --tail=80` shows `ImportError: libxcb.so.1: cannot open shared object file: No such file or directory` while importing `cv2` from `cv/aerovision_worker/image_processing.py`.
-   - Evidence in image definition: `cv/Dockerfile` uses `python:3.12-slim` and installs Python dependencies only; no OS package layer provides missing native library.
-   - Doc mismatch: `docs/phase.md` Phase 32 validation requires `docker compose up --build` to start all base services and worker selected-device log. `docs/TESTING_QA.md` Docker tests require `cv-worker` starts successfully and logs selected device.
-   - Impact: local/demo first launch is not usable for processing jobs; Phase 32 cannot be approved.
+1. Full-stack runtime and manual E2E validation did not run.
+   - Evidence: `.context/status.md:47` reports `Test-Path .env` as `not available`.
+   - Evidence: `.context/status.md:62-79` lists clean-volume CPU runtime smoke, backend runtime health, migrations/seed/admin verification, worker startup/device log, seeded admin login, registration toggle, manual image/video/no-detection E2E, admin model/experiment E2E, UI download smoke, and runtime log privacy scan as blocked/not available.
+   - Doc reference: `docs/phase.md:45-56` requires `docker compose up --build` reaching a usable app, migrations/seed/storage working, seeded admin login, upload/process image/video, progress updates, no-detection success, downloads, admin flows, Ukrainian UI, and security/safety audits.
+   - Doc reference: `docs/TESTING_QA.md:85-86` requires Docker smoke tests and manual E2E tests.
+   - Impact: Phase 33 cannot be approved as release-ready.
+
+2. Model-dependent processing E2E and real download validation did not run.
+   - Evidence: `.context/status.md:80` says `storage/models/` has no local model artifacts.
+   - Evidence: `.context/status.md:99-100` says real model/media processing E2E and browser/manual route smoke were not run.
+   - Evidence: `.context/status.md:112` lists placing/registering real model artifacts as a remaining blocker for image/video/no-detection E2E and UI download smoke.
+   - Doc reference: `docs/phase.md:49-53` requires user image/video processing, progress updates, no-detection success, and result media/CSV/JSON downloads.
+   - Impact: Core MVP CV processing and export/download acceptance remain unverified in this checkout.
 
 ## Important issues
 
-1. Phase status records stale Docker blocker and misses actual worker failure.
-   - Evidence: `.context/status.md` says Docker daemon unavailable for `docker compose --env-file .env.example build frontend` and `docker compose --env-file .env.example up --build -d`.
-   - Evidence from this review: `docker info` succeeded, `docker compose --env-file .env.example build frontend` passed, and full startup proceeded far enough to expose the `cv-worker` import failure.
-   - Impact: review/resolution may chase wrong blocker unless status is updated during fix pass.
-
-2. `git diff --check` still fails on tracked diff.
-   - Evidence: `rtk git diff --check` reports `docs/phase.md:3: trailing whitespace`.
-   - Impact: not product-breaking, but quality gate remains failed.
+None beyond critical release-readiness blockers already recorded in `.context/status.md`.
 
 ## Optional issues
 
-None.
+1. Frontend build has a non-blocking Vite chunk-size warning.
+   - Evidence: `.context/status.md:113` records the warning as non-blocking.
+   - Impact: not release-blocking, but future code splitting may improve load performance.
 
 ## Quality gate assessment
 
-| Command | Result | Notes |
-|---|---|---|
-| `rtk git status --short` | PASS | Shows Phase 32 runtime/docs changes plus context files. |
-| `rtk git diff --stat` | PASS | Diff inspected. |
-| `rtk git diff` | PASS | Diff inspected; source review focused on Phase 32 runtime/docs files. |
-| `docker compose --env-file .env.example config` | PASS | Base config renders required services. |
-| `docker compose -f docker-compose.yml -f docker-compose.gpu.yml --env-file .env.example config` | PASS | GPU reservation appears only under `cv-worker`. |
-| `npm run build` from `frontend/` | PASS | Vite build passed; chunk-size warning only. |
-| `npm run lint` from `frontend/` | PASS | ESLint passed. |
-| `npm test` from `frontend/` | PASS | 8 files, 51 tests passed. |
-| `docker compose --env-file .env.example build frontend` | PASS | Frontend image built. |
-| `docker compose --env-file .env.example up --build -d` | FAIL | Stack starts, but `cv-worker` exits with missing `libxcb.so.1`. |
-| Backend `/api/health` smoke | PASS | Returned `{"status":"ok","service":"backend"}`. |
-| Backend `/api/health/db` smoke | PASS | Returned `{"status":"ok","database":"available"}`. |
-| Seeded admin smoke | PASS | Login returned token presence without printing token. |
-| Frontend reachability smoke | PASS | `http://localhost:5173` returned HTTP 200. |
-| Worker selected-device log smoke | FAIL | Worker exits before startup device log. |
-| `rtk git diff --check` | FAIL | Trailing whitespace in `docs/phase.md`. |
+Available gates: PASS.
+
+- Backend lint/tests: PASS (`python -m ruff check .`, `python -m pytest`, 169 passed / 3 skipped).
+- CV worker lint/tests: PASS (`python -m ruff check .`, `python -m pytest`, 80 passed / 3 skipped).
+- Frontend lint/tests/build: PASS.
+- Training tests/artifact validation: PASS.
+- Compose config/GPU config/storage bootstrap/Docker build: PASS.
+- `rtk git diff --check`: PASS during this review.
+
+Blocked/not available gates: clean-volume runtime smoke, runtime health/db health, migrations/seed/admin login, worker startup/device log, runtime auth toggle, image/video/no-detection E2E, admin E2E, UI download smoke, browser route smoke, runtime log privacy scan.
 
 ## Security/privacy assessment
 
-- `.env.example` uses placeholders only.
-- Admin login smoke checked token presence without printing token.
-- GPU config keeps device reservation and `CV_DEVICE=cuda` under `cv-worker` only.
-- No new secret/token logging found in touched runtime/docs files.
+Applicable. Automated security/privacy coverage is reported PASS in `.context/status.md:82-92`, including auth, ownership, admin-only routes, upload validation, result/download safety, API boundary checks, worker storage paths, and frontend path/frame-stride safety.
+
+Runtime log privacy scan remains not available because `.env` is absent and runtime did not start. `.env` was not read, logged, copied, generated, or committed.
 
 ## Positive findings
 
-- `docker-compose.yml` keeps required services: `postgres`, `backend`, `cv-worker`, `frontend`.
-- Backend and `cv-worker` both mount `./storage:/app/storage`.
-- Base Compose uses CPU config for worker; GPU override isolates GPU to `cv-worker`.
-- Frontend container now builds and serves Vite preview on port `5173`.
-- Backend migrations/setup ran during startup; backend health and DB health both passed.
+- Status file does not overclaim release readiness; it clearly records environment/model blockers.
+- No product source code changes in this phase.
+- Review-plan resolution updated Phase 33 plan to use `.env.example` only for config/build and real `.env` only for runtime, avoiding secret leakage.
+- `docs/phase.md` matches Phase 33 scope.
+- `git diff --check` passes after whitespace cleanup.
 
 ## Files consulted
 
@@ -75,25 +68,22 @@ None.
 - `docs/index.md`
 - `docs/ROADMAP.md`
 - `docs/phase.md`
-- `docs/ARCHITECTURE.md`
-- `docs/AUTH_SECURITY.md`
 - `docs/TESTING_QA.md`
+- `docs/PROJECT_CONTEXT.md`
+- `docs/ARCHITECTURE.md`
+- `docs/API.md`
+- `docs/AUTH_SECURITY.md`
+- `docs/CV_PIPELINE.md`
+- `docs/FRONTEND_UX.md`
+- `docs/DATA_MODEL.md`
 - `docs/TRAINING_EXPERIMENTS.md`
 - `.context/research.md`
 - `.context/design.md`
 - `.context/plan.md`
 - `.context/review-plan-resolution.md`
 - `.context/status.md`
-- `.env.example`
-- `docker-compose.yml`
-- `docker-compose.gpu.yml`
-- `Makefile`
-- `README.md`
-- `frontend/Dockerfile`
-- `frontend/.dockerignore`
-- `frontend/package.json`
-- `frontend/index.md`
-- `cv/Dockerfile`
-- `cv/pyproject.toml`
-- `training/index.md`
-- `training/pyproject.toml`
+- `rtk git status --short`
+- `rtk git diff --stat`
+- `rtk git diff --name-only`
+- `rtk git diff -- . ':(exclude).context/review-code-claude.md' ':(exclude).context/review-code-resolution.md'`
+- `rtk git diff --check`

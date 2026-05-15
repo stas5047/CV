@@ -1,5 +1,12 @@
 # Codex Mistake Log
 
+## 2026-05-15 - Local `.env` generation first used unavailable RNG API
+
+- Mistake: First attempted to generate random local demo secrets with `[System.Security.Cryptography.RandomNumberGenerator]::Fill`, which is unavailable in this PowerShell/.NET runtime.
+- Impact: `.env` creation failed on the first attempt; no `.env` file or bad secret was written.
+- Fix: Retried with `[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes(...)`, generated the ignored local `.env`, and did not print secret values.
+- Prevention: For Windows PowerShell compatibility, use `RandomNumberGenerator.Create().GetBytes(...)` instead of newer static `Fill(...)`.
+
 ## 2026-05-15 - Phase 32 worker Dockerfile fix initially invalidated heavy dependency cache
 
 - Mistake: First added OpenCV native OS packages before the worker Python dependency install layer.

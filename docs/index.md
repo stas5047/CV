@@ -15,6 +15,7 @@ This file is a navigation map for agents and maintainers. Update it whenever doc
 | [AGENTS.md](../AGENTS.md) | Shared implementation, verification, review-resolution, workflow, source-of-truth, command, and quality-gate rules for agents. |
 | [CLAUDE.md](../CLAUDE.md) | Claude-specific independent review, architecture-validation, and diagnosis rules. |
 | [README.md](../README.md) | Current local setup notes, implemented backend API notes, Compose validation commands, and storage bootstrap command. |
+| [instruction.md](instruction.md) | Beginner step-by-step instructions for local app use, cloud training, model artifact placement, and final verification handoff. |
 | [backend/index.md](../backend/index.md) | Backend folder summary, current contents, and backend-local commands. |
 | [frontend/index.md](../frontend/index.md) | Frontend folder summary, current contents, and frontend-local commands. |
 | [prototype/index.md](../prototype/index.md) | Static frontend UX prototype summary, current contents, and prototype-local commands. |

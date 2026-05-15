@@ -1,39 +1,51 @@
-# Phase 32 Planning Review Resolution
+# Phase 33 Planning Review Resolution
 
 ## Verdict: READY_FOR_IMPLEMENTATION
 
-Claude planning review verdict was `APPROVED_WITH_CHANGES`. All review items are doc-consistent, do not require source-code edits now, and have been applied to the Phase 32 implementation contract.
+Claude review verdict was `APPROVED_WITH_CHANGES`. All doc-backed required changes were accepted and applied to the Phase 33 contract. No source code modified.
 
-## Resolution table
+## Resolution Table
 
-| ID | Claude item | Resolution | Rationale | Applied contract update |
-|---|---|---|---|---|
-| I1 | Missing database health endpoint validation | accepted | `docs/TESTING_QA.md` requires backend database health endpoint verification for Docker launch tests. | Added `/api/health/db` startup smoke to `.context/design.md` and `.context/plan.md`. |
-| I2 | Missing seeded-admin existence check | accepted | `docs/phase.md`, `docs/TESTING_QA.md`, and `docs/AUTH_SECURITY.md` require seeded admin creation/workability. | Added seeded-admin verification after startup, with no secret printing, to `.context/design.md` and `.context/plan.md`. |
-| I3 | Implementation-doc conflict cleanup too narrow | accepted | First-launch docs must be accurate, and `docs/index.md` update rule requires current implementation state to stay coherent. | Expanded conflict research and plan docs-cleanup scope across `README.md`, component indexes, and `docs/index.md`. |
-| I4 | Startup smoke command lacks execution shape for reliable evidence | accepted | Bounded detached startup allows health/log checks and cleanup without leaving long-running foreground process. | Changed startup smoke to `up --build -d`, explicit checks, then `down`. |
-| O1 | Clarify frontend API-base injection for container | accepted | Vite browser bundles need build-time env unless runtime config is introduced; no new service/runtime config is planned for Phase 32. | Added Vite build-time `VITE_API_BASE_URL` decision to `.context/design.md` and `.context/plan.md`. |
+| ID | Claude item | Status | Resolution |
+|---|---|---|---|
+| I1 | Runtime smoke uses `.env.example` where docs require configured `.env`. | accepted | Plan now uses `.env.example` only for config/build validation and configured `.env` for runtime launch, seed/admin smoke, and runtime checks. `.env` contents must not be read or logged. Missing `.env` becomes blocker/`not available`, not a committed generated env file. |
+| I2 | Clean-volume Docker startup smoke is missing. | accepted | Plan now requires isolated Compose project name for fresh PostgreSQL volume, detached startup, health/log checks, and shutdown with `down -v` only for that isolated project. No default/user volumes may be removed. |
+| I3 | Upload-validation QA is incomplete. | accepted | Plan now has a dedicated upload-validation/path-safety step covering accepted types plus unsupported extension, invalid MIME, oversized image, oversized video, unsafe filename, path traversal, and user-submitted storage-path attempts. |
+| I4 | UI download flow is not explicitly verified. | accepted | Plan now has a frontend download-flow step for annotated media, CSV, and JSON controls from `/jobs/:jobId` when completed artifacts exist, with exact blocker if artifacts are absent. |
+| O1 | Add dependency/setup preflight before local component gates. | accepted | Plan now includes dependency/setup preflight before lint/test/build gates so missing local toolchains are reported separately from product failures. |
+| O2 | Make Compose smoke lifecycle explicit. | accepted | Plan now specifies detached startup, health/log evidence, and controlled isolated shutdown after evidence capture. |
+| Q1 | Use existing `.env` or create temporary QA env file? | accepted | Final contract uses existing configured `.env` for runtime because README/architecture define that first-launch setup. Do not create or commit a generated QA env file. If `.env` is missing, record runtime/admin smoke as blocked or `not available`. |
+| Q2 | Are model weights and media fixtures available? | duplicate | Existing plan already says model/media artifact absence is recorded as exact blocker for model-dependent E2E. Research/design also list this unknown. No additional contract change required beyond keeping blocker handling explicit. |
 
-## Accepted changes applied
+## Accepted Changes Applied
 
-- `.context/research.md`: added README/CV-worker implementation-state conflict and expanded required conflict cleanup scope.
-- `.context/design.md`: added build-time frontend API-base decision, `/api/health/db` smoke, seeded-admin smoke, bounded detached Compose smoke and cleanup.
-- `.context/plan.md`: added frontend build-time API-base handling, broader docs conflict cleanup, seeded-admin check, DB health check, detached `docker compose up --build -d`, and teardown.
+- Updated `.context/research.md` with planning-review findings for `.env`, clean-volume smoke, upload-validation coverage, UI downloads, and dependency preflight.
+- Updated `.context/design.md` test strategy for dependency preflight, `.env.example` config/build use, `.env` runtime use, isolated clean-volume runtime smoke, complete upload-validation security checks, frontend download smoke, and safe shutdown.
+- Updated `.context/plan.md` with:
+  - dependency/setup preflight;
+  - configured `.env` for runtime smoke;
+  - isolated Compose project clean-volume startup;
+  - migration/seed verification without secret logging;
+  - complete upload-validation step;
+  - frontend annotated media/CSV/JSON download smoke;
+  - isolated runtime shutdown step;
+  - revised stop conditions.
 
-## Rejected items
+## Rejected Items
 
-None.
+- None.
 
-## Duplicate items
+## Duplicate Items
 
-None.
+- Q2: model weights and E2E media fixture availability. Existing contract already records missing artifacts as exact blockers for model-dependent E2E.
 
-## Items needing user decision
+## Items Needing User Decision
 
-None.
+- None.
 
-## Final contract status
+## Final Contract Status
 
-- Phase 32 contract remains scoped to Docker runtime, GPU override, Makefile/runtime shortcuts, README, implementation indexes, and first-launch validation.
-- No backend API, database schema, CV processing, training execution, frontend page/UX feature, or extra runtime service work was added.
-- Implementation may proceed under updated `.context/plan.md`.
+- Phase scope remains `Phase 33 - Final full-stack QA, security audit, and release readiness`.
+- Contract remains QA/release-only. No new product behavior, endpoints, schema fields, services, queues, UI flows, or CV outputs added.
+- Accepted changes are doc-consistent with `README.md`, `docs/ARCHITECTURE.md`, `docs/ROADMAP.md`, `docs/phase.md`, `docs/TESTING_QA.md`, `docs/AUTH_SECURITY.md`, and `docs/FRONTEND_UX.md`.
+- Final verdict: READY_FOR_IMPLEMENTATION.
